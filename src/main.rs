@@ -1,5 +1,4 @@
 #![feature(libc)]
-#![feature(associated_type_defaults)]
 #[macro_use] extern crate failure;
 #[macro_use] extern crate log;
 extern crate llvm_sys;
