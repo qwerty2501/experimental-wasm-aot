@@ -1,0 +1,12 @@
+[package]
+name = "experimental-wasm-aot"
+version = "0.1.0"
+authors = ["qwerty2501 <qwerty2501@live.jp>"]
+
+
+[dependencies]
+llvm-sys = "60.1.0"
+parity-wasm = "0.31.0"
+failure = "0.1.1"
+log = "0.4.3"
+env_logger = "*"
