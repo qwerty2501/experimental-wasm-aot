@@ -40,12 +40,12 @@ mod tests{
         let  context = Context::new();
 
         let result = compile(&context);
-
+        let _ = ttt(&context);
 
         assert_eq!(true,result.is_ok());
 
 
-        let _ =result.map(|mut module|{
+        let _ =result.map(| module|{
             assert_ne!(ptr::null(), module.get_named_global(LINEAR_MEMORY_NAME).as_ptr());
         });
 

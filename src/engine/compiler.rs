@@ -10,13 +10,13 @@ pub trait Disposable{
     fn dispose(&mut self);
 }
 
-pub struct Guard<T:'static + Disposable>{
-    source:&'static mut T
+pub struct Guard<'a,T:'a + Disposable>{
+    source:&'a mut T
 }
 
 
 
-impl <T:Disposable> Deref for Guard<T>{
+impl <'a,T:Disposable> Deref for Guard<'a,T>{
     type Target = T;
 
     fn deref(&self) -> &<Self as Deref>::Target {
@@ -28,7 +28,7 @@ impl <T:Disposable> Deref for Guard<T>{
 
 
 
-impl<T:Disposable> Drop for  Guard<T> {
+impl<'a,T:Disposable> Drop for  Guard<'a,T> {
     fn drop(&mut self) {
         self.source.dispose();
     }
@@ -80,11 +80,11 @@ pub enum Module{}
 
 impl_type_traits!(Module,LLVMModuleRef);
 
-
+pub type ModuleGuard<'c> = Guard<'c,Module>;
 
 impl Module {
-    pub fn new(module_id:&str, context:& Context) ->  Guard<Module> {
-        Guard{source:unsafe{ LLVMModuleCreateWithNameInContext(compiler_c_str!(module_id), context.into()).into()} }
+    pub fn new<'c>(module_id:&str, context:&'c Context) ->  ModuleGuard<'c> {
+        ModuleGuard{source:unsafe{ LLVMModuleCreateWithNameInContext(compiler_c_str!(module_id), context.into()).into()} }
     }
     pub fn context(&self)-> &Context {
         unsafe{LLVMGetModuleContext(self.into()).into()}
@@ -145,11 +145,11 @@ impl Disposable for Module {
 
 pub enum Context{}
 impl_type_traits!(Context,LLVMContextRef);
-
+pub type ContextGuard<'c> = Guard<'c,Context>;
 impl Context {
-    pub fn new() -> Guard<Context>{
+    pub fn new<'c>() -> ContextGuard<'c>{
         unsafe{
-             Guard{source: LLVMContextCreate().into()}
+            ContextGuard{source: LLVMContextCreate().into()}
         }
     }
 }
@@ -167,9 +167,10 @@ impl Disposable for Context{
 
 pub enum Builder {}
 impl_type_traits!(Builder,LLVMBuilderRef);
+pub type BuilderGuard<'c> = Guard<'c,Builder>;
 impl Builder {
-    pub fn new(context:& Context) -> Guard<Builder>{
-        Guard{source:unsafe{LLVMCreateBuilderInContext(context.into()).into()}}
+    pub fn new(context:& Context) -> BuilderGuard{
+        BuilderGuard{source:unsafe{LLVMCreateBuilderInContext(context.into()).into()}}
     }
 
     pub fn build_call(&self,func:&Value,args:&[&Value],name:&str)-> &Value{

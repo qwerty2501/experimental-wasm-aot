@@ -7,7 +7,9 @@ pub struct Engine;
 use super::compiler::*;
 
 impl  Engine{
-    pub fn build( &self ,wasm_module:&ParityWasmModule,context:&mut Context)->Result<Guard<Module>,Error>{
-        memory::compile(context)
+    pub fn build( &self ,wasm_module:&ParityWasmModule)->Result<(),Error>{
+        let context = Context::new();
+        memory::compile(&context)?;
+        Ok(())
     }
 }
