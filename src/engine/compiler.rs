@@ -45,30 +45,30 @@ macro_rules! impl_type_traits{
     ($ref_ty:ty,$pointer_ty:ty) =>(
     impl From<$pointer_ty> for  &'static  $ref_ty{
         fn from(p: $pointer_ty) -> Self {
-            unsafe{&mut *(p as *mut _)}
+            unsafe{::std::mem::transmute(p)}
         }
     }
     impl From<$pointer_ty> for  &'static mut  $ref_ty{
         fn from(p: $pointer_ty) -> Self {
-            unsafe{&mut *(p as *mut _)}
+            unsafe{::std::mem::transmute(p)}
         }
     }
     impl<'a> Into<$pointer_ty> for &'a  $ref_ty{
         fn into(self)->$pointer_ty{
-            self as *const $ref_ty as $pointer_ty
+            unsafe{::std::mem::transmute(self)}
         }
     }
 
      impl<'a> Into<$pointer_ty> for &'a mut $ref_ty{
         fn into(self)->$pointer_ty{
-            self as *const $ref_ty as $pointer_ty
+            self.as_ptr()
         }
     }
 
 
     impl AsPtr<$pointer_ty> for $ref_ty{
         fn as_ptr(&self)->$pointer_ty{
-            self.into()
+            unsafe{::std::mem::transmute(self)}
         }
     }
     )
