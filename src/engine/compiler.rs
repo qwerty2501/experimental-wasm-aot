@@ -6,73 +6,6 @@ use std::ops::{Deref};
 
 
 
-pub trait Disposable{
-    fn dispose(&mut self);
-}
-
-pub struct Guard<'a,T:'a + Disposable>{
-    source:&'a mut T
-}
-
-
-
-impl <'a,T:Disposable> Deref for Guard<'a,T>{
-    type Target = T;
-
-    fn deref(&self) -> &<Self as Deref>::Target {
-        self.source
-    }
-
-
-}
-
-
-
-impl<'a,T:Disposable> Drop for  Guard<'a,T> {
-    fn drop(&mut self) {
-        self.source.dispose();
-    }
-}
-
-macro_rules! compiler_c_str{
-    ($s:expr) => (CString::new($s).unwrap().as_ptr())
-}
-pub trait AsPtr<T> {
-    fn as_ptr(&self) ->T;
-}
-
-macro_rules! impl_type_traits{
-    ($ref_ty:ty,$pointer_ty:ty) =>(
-    impl From<$pointer_ty> for  &'static  $ref_ty{
-        fn from(p: $pointer_ty) -> Self {
-            unsafe{::std::mem::transmute(p)}
-        }
-    }
-    impl From<$pointer_ty> for  &'static mut  $ref_ty{
-        fn from(p: $pointer_ty) -> Self {
-            unsafe{::std::mem::transmute(p)}
-        }
-    }
-    impl<'a> Into<$pointer_ty> for &'a  $ref_ty{
-        fn into(self)->$pointer_ty{
-            unsafe{::std::mem::transmute(self)}
-        }
-    }
-
-     impl<'a> Into<$pointer_ty> for &'a mut $ref_ty{
-        fn into(self)->$pointer_ty{
-            self.as_ptr()
-        }
-    }
-
-
-    impl AsPtr<$pointer_ty> for $ref_ty{
-        fn as_ptr(&self)->$pointer_ty{
-            unsafe{::std::mem::transmute(self)}
-        }
-    }
-    )
-}
 
 
 
@@ -227,4 +160,89 @@ pub struct BuildAndSetCallResult<'a>{function:&'a  Value,return_value:&'a  Value
 pub fn build_and_set_call<'m>(module:&'m mut Module, builder:&'m mut Builder, args:&& [&Value], name:&str, type_ref:& Type) ->BuildAndSetCallResult<'m>{
     let function = module.set_function(name,type_ref);
     BuildAndSetCallResult{function, return_value: builder.build_call(&function,args,name)}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+pub trait Disposable{
+    fn dispose(&mut self);
+}
+
+pub struct Guard<'a,T:'a + Disposable>{
+    source:&'a mut T
+}
+
+
+
+impl <'a,T:Disposable> Deref for Guard<'a,T>{
+    type Target = T;
+
+    fn deref(&self) -> &<Self as Deref>::Target {
+        self.source
+    }
+
+
+}
+
+
+
+impl<'a,T:Disposable> Drop for  Guard<'a,T> {
+    fn drop(&mut self) {
+        self.source.dispose();
+    }
+}
+
+macro_rules! compiler_c_str{
+    ($s:expr) => (CString::new($s).unwrap().as_ptr())
+}
+pub trait AsPtr<T> {
+    fn as_ptr(&self) ->T;
+}
+
+macro_rules! impl_type_traits{
+    ($ref_ty:ty,$pointer_ty:ty) =>(
+    impl From<$pointer_ty> for  &'static  $ref_ty{
+        fn from(p: $pointer_ty) -> Self {
+            unsafe{::std::mem::transmute(p)}
+        }
+    }
+    impl From<$pointer_ty> for  &'static mut  $ref_ty{
+        fn from(p: $pointer_ty) -> Self {
+            unsafe{::std::mem::transmute(p)}
+        }
+    }
+    impl<'a> Into<$pointer_ty> for &'a  $ref_ty{
+        fn into(self)->$pointer_ty{
+            unsafe{::std::mem::transmute(self)}
+        }
+    }
+
+     impl<'a> Into<$pointer_ty> for &'a mut $ref_ty{
+        fn into(self)->$pointer_ty{
+            self.as_ptr()
+        }
+    }
+
+
+    impl AsPtr<$pointer_ty> for $ref_ty{
+        fn as_ptr(&self)->$pointer_ty{
+            unsafe{::std::mem::transmute(self)}
+        }
+    }
+    )
 }
