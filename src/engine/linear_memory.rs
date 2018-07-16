@@ -40,7 +40,6 @@ mod tests{
         let  context = Context::new();
 
         let result = compile(&context);
-        let _ = ttt(&context);
 
         assert_eq!(true,result.is_ok());
 
