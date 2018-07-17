@@ -1,10 +1,44 @@
 use llvm_sys::prelude::*;
 use llvm_sys::core::*;
 use std::ffi::CString;
-use std::ptr;
 use std::ops::{Deref};
 
+macro_rules! compiler_c_str{
+    ($s:expr) => (CString::new($s).unwrap().as_ptr())
+}
 
+macro_rules! impl_type_traits{
+    ($ref_ty:ty,$pointer_ty:ty) =>(
+    impl From<$pointer_ty> for  &'static  $ref_ty{
+        fn from(p: $pointer_ty) -> Self {
+            unsafe{::std::mem::transmute(p)}
+        }
+    }
+    impl From<$pointer_ty> for  &'static mut  $ref_ty{
+        fn from(p: $pointer_ty) -> Self {
+            unsafe{::std::mem::transmute(p)}
+        }
+    }
+    impl<'a> Into<$pointer_ty> for &'a  $ref_ty{
+        fn into(self)->$pointer_ty{
+            unsafe{::std::mem::transmute(self)}
+        }
+    }
+
+     impl<'a> Into<$pointer_ty> for &'a mut $ref_ty{
+        fn into(self)->$pointer_ty{
+            self.as_ptr()
+        }
+    }
+
+
+    impl AsPtr<$pointer_ty> for $ref_ty{
+        fn as_ptr(&self)->$pointer_ty{
+            unsafe{::std::mem::transmute(self)}
+        }
+    }
+    )
+}
 
 
 
@@ -24,16 +58,11 @@ impl Module {
     }
 
     pub fn set_global(&self,name:&str,type_ref:&Type)->&Value{
-        let global_value = self.get_named_global(name);
-        if global_value.as_ptr() != ptr::null_mut(){
-            global_value
-        } else {
-            self.add_global(name,type_ref)
-        }
+        self.get_named_global(name).unwrap_or_else(||self.add_global(name,type_ref))
     }
-    pub fn get_named_global(&self,name:&str)->&Value{
+    pub fn get_named_global(&self,name:&str)->Option<&Value>{
         unsafe {
-            LLVMGetNamedGlobal(self.into(),compiler_c_str!(name)).into()
+            to_optional_ref(LLVMGetNamedGlobal(self.into(),compiler_c_str!(name)))
         }
     }
 
@@ -44,17 +73,12 @@ impl Module {
     }
 
     pub fn set_function(&self,name:&str,type_ref:&Type)->&Value{
-        let function = self.get_named_function(name);
-        if function.as_ptr() != ptr::null_mut(){
-            function
-        } else{
-            self.add_function(name,type_ref)
-        }
+        self.get_named_function(name).unwrap_or_else(||self.add_function(name,type_ref))
     }
 
-    pub fn get_named_function(&self,name:&str)->&Value{
+    pub fn get_named_function(&self,name:&str)->Option<&Value>{
         unsafe{
-            LLVMGetNamedFunction(self.into(),compiler_c_str!(name)).into( )
+            to_optional_ref(LLVMGetNamedFunction(self.into(),compiler_c_str!(name)))
         }
     }
 
@@ -207,42 +231,16 @@ impl<'a,T:Disposable> Drop for  Guard<'a,T> {
     }
 }
 
-macro_rules! compiler_c_str{
-    ($s:expr) => (CString::new($s).unwrap().as_ptr())
-}
+
 pub trait AsPtr<T> {
     fn as_ptr(&self) ->T;
 }
 
-macro_rules! impl_type_traits{
-    ($ref_ty:ty,$pointer_ty:ty) =>(
-    impl From<$pointer_ty> for  &'static  $ref_ty{
-        fn from(p: $pointer_ty) -> Self {
-            unsafe{::std::mem::transmute(p)}
-        }
-    }
-    impl From<$pointer_ty> for  &'static mut  $ref_ty{
-        fn from(p: $pointer_ty) -> Self {
-            unsafe{::std::mem::transmute(p)}
-        }
-    }
-    impl<'a> Into<$pointer_ty> for &'a  $ref_ty{
-        fn into(self)->$pointer_ty{
-            unsafe{::std::mem::transmute(self)}
-        }
-    }
 
-     impl<'a> Into<$pointer_ty> for &'a mut $ref_ty{
-        fn into(self)->$pointer_ty{
-            self.as_ptr()
-        }
+unsafe fn to_optional_ref<P,T >(ptr: *mut P)-> Option<&'static T>  where  &'static T:From<*mut P>  {
+    if ptr.is_null() {
+        None
+    } else {
+        Some(ptr.into())
     }
-
-
-    impl AsPtr<$pointer_ty> for $ref_ty{
-        fn as_ptr(&self)->$pointer_ty{
-            unsafe{::std::mem::transmute(self)}
-        }
-    }
-    )
 }

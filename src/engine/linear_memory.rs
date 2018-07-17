@@ -45,7 +45,7 @@ mod tests{
 
 
         let _ =result.map(| module|{
-            assert_ne!(ptr::null(), module.get_named_global(LINEAR_MEMORY_NAME).as_ptr());
+            assert_eq!(true, module.get_named_global(LINEAR_MEMORY_NAME).is_some());
         });
 
 
@@ -58,7 +58,7 @@ mod tests{
         let module_id = "get_or_insert_linear_memory_works";
         let module = Module::new(module_id, &context);
         assert_ne!(ptr::null(), set_linear_memory(&module).as_ptr());
-        assert_ne!(ptr::null(), module.get_named_global(LINEAR_MEMORY_NAME).as_ptr());
+        assert_eq!(true, module.get_named_global(LINEAR_MEMORY_NAME).is_some());
     }
 
 }
