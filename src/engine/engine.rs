@@ -4,7 +4,7 @@ use self::parity_wasm::elements::Module as ParityWasmModule;
 use failure::Error;
 use super::linear_memory as memory;
 pub struct Engine;
-use super::compiler::*;
+use super::llvm::*;
 
 impl  Engine{
     pub fn build( &self ,wasm_module:&ParityWasmModule)->Result<(),Error>{

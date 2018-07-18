@@ -9,7 +9,7 @@ extern crate libc;
 
 use std::env;
 
-mod engine;
+#[macro_use] mod engine;
 pub mod error;
 
 

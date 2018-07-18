@@ -2,6 +2,8 @@ use llvm_sys::prelude::*;
 use llvm_sys::core::*;
 use std::ffi::CString;
 use std::ops::{Deref};
+use super::constants;
+use super::wasm::WasmCallFunctionNameStr;
 
 macro_rules! compiler_c_str{
     ($s:expr) => (CString::new($s).unwrap().as_ptr())
@@ -58,7 +60,7 @@ impl Module {
     }
 
     pub fn set_global(&self,name:&str,type_ref:&Type)->&Value{
-        self.get_named_global(name).unwrap_or_else(||self.add_global(name,type_ref))
+        self.get_named_global(name).unwrap_or_else(|| self.add_global(name,type_ref))
     }
     pub fn get_named_global(&self,name:&str)->Option<&Value>{
         unsafe {
@@ -72,6 +74,11 @@ impl Module {
         }
     }
 
+    pub fn set_wasm_function(&self,name:&WasmCallFunctionNameStr,type_ref:&Type)->&Value{
+        self.set_function(unsafe{::std::mem::transmute(name)},type_ref)
+    }
+
+
     pub fn set_function(&self,name:&str,type_ref:&Type)->&Value{
         self.get_named_function(name).unwrap_or_else(||self.add_function(name,type_ref))
     }
@@ -80,6 +87,10 @@ impl Module {
         unsafe{
             to_optional_ref(LLVMGetNamedFunction(self.into(),compiler_c_str!(name)))
         }
+    }
+
+    pub fn dump(&self){
+        unsafe{LLVMDumpModule(self.into())}
     }
 
     fn add_function(&self,name:&str,type_ref:&Type)->&Value{
@@ -127,13 +138,45 @@ impl_type_traits!(Builder,LLVMBuilderRef);
 pub type BuilderGuard<'c> = Guard<'c,Builder>;
 impl Builder {
     pub fn new(context:& Context) -> BuilderGuard{
+
         BuilderGuard{source:unsafe{LLVMCreateBuilderInContext(context.into()).into()}}
+    }
+    pub fn position_builder_at_end(&self,bb:&BasicBlock){
+        unsafe{LLVMPositionBuilderAtEnd(self.into(),bb.into())}
     }
 
     pub fn build_call(&self,func:&Value,args:&[&Value],name:&str)-> &Value{
         unsafe{
             LLVMBuildCall(self.into(),func.into(),args.as_ptr()  as *mut _,args.len() as u32,compiler_c_str!(name)).into( )
         }
+    }
+
+    pub fn build_function<'a,F:FnOnce(&'a Builder) -> &Value>(&'a self,context:& Context, func:& Value,on_build:F)->&'a Value{
+        let bb = BasicBlock::append_basic_block(&context,func,"entry");
+        self.position_builder_at_end(bb);
+        self.build_ret( on_build(self))
+    }
+    pub fn build_ret_void(&self)->&Value{
+        unsafe{LLVMBuildRetVoid(self.into()).into()}
+    }
+    pub fn build_ret(&self,v:&Value)->&Value{
+        unsafe{LLVMBuildRet(self.into(),v.into()).into()}
+    }
+
+    pub fn build_add(&self,lhs:&Value,rhs:&Value,name:&str)-> &Value{
+        unsafe{LLVMBuildAdd(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
+    }
+
+    pub fn build_mul(&self,lhs:&Value,rhs:&Value,name:&str)-> &Value{
+        unsafe{LLVMBuildMul(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
+    }
+
+    pub fn build_load(&self,pointer_value:&Value,name:&str)->&Value{
+        unsafe{LLVMBuildLoad(self.into(),pointer_value.into(),compiler_c_str!(name)).into()}
+    }
+
+    pub fn build_store(&self,value:&Value,ptr:&Value)->&Value{
+        unsafe{LLVMBuildStore(self.into(),value.into(),ptr.into()).into()}
     }
 }
 impl Disposable for Builder{
@@ -156,25 +199,72 @@ impl  Value{
             LLVMConstInt(type_ref.into(),value,sign_extend as LLVMBool).into( )
         }
     }
+
+    pub fn null_ptr(type_ref:&Type)->&Value {
+        unsafe{LLVMConstPointerNull(type_ref.into()).into()}
+    }
+
+    pub fn get_params(&self)->Vec<&Value>{
+        unsafe{
+            let count = LLVMCountParams(self.into());
+            let vec =Vec::<&Value>::with_capacity(count as usize);
+            if vec.capacity() > 0{
+                LLVMGetParams(self.into(),vec.as_ptr() as *mut _);
+            }
+            vec
+        }
+    }
+
+    pub fn get_first_parm(&self)->Option<&Value>{
+        unsafe{to_optional_ref(LLVMGetFirstParam(self.into()))}
+    }
+    pub fn get_next_param(&self)->Option<&Value>{
+        unsafe{to_optional_ref(LLVMGetNextParam(self.into()))}
+    }
 }
 
 pub enum Type{}
 impl_type_traits!(Type,LLVMTypeRef);
 impl Type{
     pub fn int8(context:&Context)->&Type{
-        unsafe {LLVMInt8TypeInContext(context.into() ).into( )}
+        unsafe {LLVMInt8TypeInContext(context.into()).into()}
     }
 
+
     pub fn int32(context:&Context)->&Type{
-        unsafe{LLVMInt32TypeInContext(context.into()).into( )}
+        unsafe{LLVMInt32TypeInContext(context.into()).into()}
     }
 
     pub fn int(context:&Context,num_bits: ::libc::c_uint) -> &Type{
         unsafe {LLVMIntTypeInContext(context.into(),num_bits).into( )}
     }
 
-    pub fn pointer(type_ref:&Type,address_space: ::libc::c_uint)->& Type {
+    pub fn int_ptr(context:&Context)->&Type{
+        Type::int(context, constants::cpu_bit_width as ::libc::c_uint)
+    }
+
+    pub fn int_wasm32_ptr(context:&Context)->&Type{
+        Type::int(context,constants::wasm32_bit_width as ::libc::c_uint)
+    }
+    pub fn void(context:&Context)->&Type{
+        unsafe{LLVMVoidTypeInContext(context.into()).into()}
+    }
+
+    pub fn ptr(type_ref:&Type, address_space: ::libc::c_uint) ->& Type {
         unsafe {LLVMPointerType(type_ref.into(),address_space).into( )}
+    }
+
+    pub fn function<'a>(return_type:&'a Type,param_types:&'a[&'a Type],is_var_arg:bool)->&'a Type{
+        unsafe{LLVMFunctionType(return_type.into(),param_types.as_ptr() as *mut _,param_types.len() as ::libc::c_uint,is_var_arg as LLVMBool).into()}
+    }
+}
+
+pub enum BasicBlock{}
+impl_type_traits!(BasicBlock,LLVMBasicBlockRef);
+
+impl BasicBlock{
+    pub fn append_basic_block<'c>(context:&'c Context,function:&Value,name:&str)->&'c BasicBlock{
+        unsafe{LLVMAppendBasicBlockInContext(context.into(),function.into(),compiler_c_str!(name)).into()}
     }
 }
 
@@ -242,5 +332,15 @@ unsafe fn to_optional_ref<P,T >(ptr: *mut P)-> Option<&'static T>  where  &'stat
         None
     } else {
         Some(ptr.into())
+    }
+}
+
+pub mod analysis{
+    use super::*;
+    use llvm_sys::analysis::*;
+    pub use llvm_sys::analysis::LLVMVerifierFailureAction;
+    pub fn verify_module(module:&Module,verifier_failure_action:LLVMVerifierFailureAction)-> bool{
+        let mut out_message_ptr: *mut ::libc::c_char = ::std::ptr::null_mut();
+        unsafe{LLVMVerifyModule(module.into(),verifier_failure_action, &mut out_message_ptr as *mut _) != 0}
     }
 }

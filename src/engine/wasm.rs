@@ -1,8 +1,20 @@
 
-extern crate parity_wasm;
-use self::parity_wasm::elements::Module as ParityWasmModule;
-use super::compiler::*;
+
+use parity_wasm::elements::Module as ParityWasmModule;
+use super::llvm::*;
 use failure::Error;
+use std::str;
+pub struct WasmCallFunctionNameStr(str);
+
+macro_rules! wasm_call_prefix{
+    ()=>("__experimental_wasm_call_")
+}
+pub const WASM_CALL_PREFIX:&str = wasm_call_prefix!();
+macro_rules! wasm_call_name{
+    ($name:expr)=>(unsafe{ ::std::mem::transmute::<&str,&WasmCallFunctionNameStr>(concat!(wasm_call_prefix!(),$name))})
+}
+
+
 
 pub fn compile<'c>(module_id:&str,wasm_module:&ParityWasmModule,context:&'c Context)->Result<ModuleGuard<'c>,Error> {
 
