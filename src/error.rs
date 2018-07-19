@@ -10,7 +10,7 @@ pub enum RuntimeError{
         name:String,
     },
 
-    #[fail(display = "the function parameter is not enough : {}",message)]
+    #[fail(display = "no such llvm function parameter : {}",message)]
     NoSuchLLVMFunctionParameter {
         message:String,
     },
