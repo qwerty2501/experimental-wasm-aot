@@ -39,7 +39,7 @@ pub fn build_grow_linear_memory_function<'a>(module:&'a Module, b:&'a Builder,wa
    let function = set_grow_linear_memory_function(module,wasm_align);
     b.build_function(module.context(),function,|builder,bb|{
         let context = module.context();
-        let delta = function.get_first_parm().ok_or(FunctionParameterNotEnough{message:"the parameter \"delta\" is missing.".to_string()})?;
+        let delta = function.get_first_parm().ok_or(NoSuchLLVMFunctionParameter {message:"the parameter \"delta\" is missing.".to_string()})?;
         let wasm32_int_type = Type::int_wasm32_ptr(context,wasm_align);
         let i64_type = Type::int64(context);
         let max_linear_memory_size = Value::const_int(i64_type,(maximum.unwrap_or_else(|| DEFAULT_MAXIMUM ) * PAGE_SIZE) as ::libc::c_ulonglong,false);

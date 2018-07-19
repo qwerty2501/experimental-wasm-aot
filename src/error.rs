@@ -11,12 +11,12 @@ pub enum RuntimeError{
     },
 
     #[fail(display = "the function parameter is not enough : {}",message)]
-    FunctionParameterNotEnough{
+    NoSuchLLVMFunctionParameter {
         message:String,
     },
 
     #[fail(display = "fatal analysis llvm: {}",message)]
-    FatalAnalysisLLVM{
+    FatalLLVMAnalysis {
         message:String,
     }
 }

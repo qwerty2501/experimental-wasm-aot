@@ -374,7 +374,7 @@ pub mod analysis{
             let ret = LLVMVerifyModule(module.into(),verifier_failure_action,  &mut out_message as *mut _) != 0;
             if ret {
                 let message = CString::from_raw(out_message).to_str()?.to_string();
-                Err(FatalAnalysisLLVM{message})?
+                Err(FatalLLVMAnalysis {message})?
             } else{
                 Ok(())
             }
