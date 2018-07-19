@@ -22,7 +22,7 @@ pub fn set_linear_memory(module:&Module) ->& Value {
 }
 
 pub fn set_linear_memory_size(module:&Module)->&Value{
-    let int_ptr_type = Type::int_ptr(module.context());
+    let int_ptr_type = Type::int_wasm32_ptr(module.context());
     module.set_global(LINEAR_MEMORY_SIZE_NAME,int_ptr_type)
 }
 
