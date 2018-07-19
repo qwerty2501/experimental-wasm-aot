@@ -4,7 +4,9 @@ use std::ffi::CString;
 use std::ops::{Deref};
 use super::constants;
 use super::wasm::WasmCallFunctionNameStr;
-
+pub use llvm_sys::LLVMIntPredicate;
+use failure::Error;
+use error::RuntimeError::*;
 macro_rules! compiler_c_str{
     ($s:expr) => (CString::new($s).unwrap().as_ptr())
 }
@@ -151,16 +153,36 @@ impl Builder {
         }
     }
 
-    pub fn build_function<'a,F:FnOnce(&'a Builder) -> &Value>(&'a self,context:& Context, func:& Value,on_build:F)->&'a Value{
+    pub fn build_ptr_to_int(&self,ptr_ref:&Value,int_type:&Type,name:&str)->&Value{
+        unsafe{LLVMBuildPtrToInt(self.into(),ptr_ref.into(),int_type.into(),compiler_c_str!(name)).into()}
+    }
+
+    pub fn build_int_to_ptr(&self,int_ref:&Value,ptr_type:&Type,name:&str)->&Value{
+        unsafe{LLVMBuildIntToPtr(self.into(),int_ref.into(),ptr_type.into(),compiler_c_str!(name)).into()}
+    }
+
+    pub fn build_int_cast(&self,value_ref:&Value,dst_ty:&Type,name:&str)->&Value{
+        unsafe{LLVMBuildIntCast(self.into(),value_ref.into(),dst_ty.into(),compiler_c_str!(name)).into()}
+    }
+
+    pub fn build_function<'a,F:FnOnce(&'a Builder,&'a BasicBlock) -> Result<(),Error>>(&'a self,context:&'a Context, func:& Value,on_build:F)->Result<(),Error>{
         let bb = BasicBlock::append_basic_block(&context,func,"entry");
         self.position_builder_at_end(bb);
-        self.build_ret( on_build(self))
+        on_build(self,bb)
     }
     pub fn build_ret_void(&self)->&Value{
         unsafe{LLVMBuildRetVoid(self.into()).into()}
     }
     pub fn build_ret(&self,v:&Value)->&Value{
         unsafe{LLVMBuildRet(self.into(),v.into()).into()}
+    }
+
+    pub fn build_icmp(&self,int_predicade:LLVMIntPredicate,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{LLVMBuildICmp(self.into(),int_predicade,lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
+    }
+
+    pub fn build_cond_br(&self,if_value:&Value,then_block:&BasicBlock,else_block:&BasicBlock)->&Value{
+        unsafe{LLVMBuildCondBr(self.into(),if_value.into(),then_block.into(),else_block.into()).into()}
     }
 
     pub fn build_add(&self,lhs:&Value,rhs:&Value,name:&str)-> &Value{
@@ -235,16 +257,19 @@ impl Type{
         unsafe{LLVMInt32TypeInContext(context.into()).into()}
     }
 
+    pub fn int64(context:&Context)->&Type{
+        unsafe{LLVMInt64TypeInContext(context.into()).into()}
+    }
     pub fn int(context:&Context,num_bits: ::libc::c_uint) -> &Type{
         unsafe {LLVMIntTypeInContext(context.into(),num_bits).into( )}
     }
 
     pub fn int_ptr(context:&Context)->&Type{
-        Type::int(context, constants::cpu_bit_width as ::libc::c_uint)
+        Type::int(context, constants::CPU_BIT_WIDTH as ::libc::c_uint)
     }
 
-    pub fn int_wasm32_ptr(context:&Context)->&Type{
-        Type::int(context,constants::wasm32_bit_width as ::libc::c_uint)
+    pub fn int_wasm32_ptr(context:&Context,align:u32)->&Type{
+        Type::int(context,align as ::libc::c_uint)
     }
     pub fn void(context:&Context)->&Type{
         unsafe{LLVMVoidTypeInContext(context.into()).into()}
@@ -263,6 +288,9 @@ pub enum BasicBlock{}
 impl_type_traits!(BasicBlock,LLVMBasicBlockRef);
 
 impl BasicBlock{
+    pub fn insert_basic_block(&self,name:&str)->&BasicBlock{
+        unsafe{LLVMInsertBasicBlock(self.into(),compiler_c_str!(name)).into()}
+    }
     pub fn append_basic_block<'c>(context:&'c Context,function:&Value,name:&str)->&'c BasicBlock{
         unsafe{LLVMAppendBasicBlockInContext(context.into(),function.into(),compiler_c_str!(name)).into()}
     }
@@ -339,8 +367,18 @@ pub mod analysis{
     use super::*;
     use llvm_sys::analysis::*;
     pub use llvm_sys::analysis::LLVMVerifierFailureAction;
-    pub fn verify_module(module:&Module,verifier_failure_action:LLVMVerifierFailureAction)-> bool{
-        let mut out_message_ptr: *mut ::libc::c_char = ::std::ptr::null_mut();
-        unsafe{LLVMVerifyModule(module.into(),verifier_failure_action, &mut out_message_ptr as *mut _) != 0}
+    pub fn verify_module(module:&Module,verifier_failure_action:LLVMVerifierFailureAction)-> Result<(),Error>{
+
+        unsafe{
+            let mut out_message:*mut ::libc::c_char = ::std::ptr::null_mut();
+            let ret = LLVMVerifyModule(module.into(),verifier_failure_action,  &mut out_message as *mut _) != 0;
+            if ret {
+                let message = CString::from_raw(out_message).to_str()?.to_string();
+                Err(FatalAnalysisLLVM{message})?
+            } else{
+                Ok(())
+            }
+
+        }
     }
 }
