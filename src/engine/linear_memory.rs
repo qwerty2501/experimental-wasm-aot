@@ -63,9 +63,9 @@ impl<T> LinearMemoryCompiler<T> {
             let page_size_value = Value::const_int(int_type, PAGE_SIZE as u64, false);
             let preview_grow_size = builder.build_mul(page_size_value,builder.build_int_cast(preview_linear_memory_size,int_type,""),"preview_grow_size");
             let grow_size = builder.build_mul(page_size_value,builder.build_int_cast(  new_linear_memory_size,int_type,""),"grow_size");
-            let mmap_bb = check_overflow_bb.insert_basic_block("mmap_bb");
-            builder.build_cond_br(builder.build_icmp(LLVMIntPredicate::LLVMIntUGT,grow_size,preview_grow_size,""),mmap_bb,cant_grow_bb);
-            builder.position_builder_at_end(mmap_bb);
+            let grow_bb = check_overflow_bb.insert_basic_block("grow_bb");
+            builder.build_cond_br(builder.build_icmp(LLVMIntPredicate::LLVMIntUGT,grow_size,preview_grow_size,""),grow_bb,cant_grow_bb);
+            builder.position_builder_at_end(grow_bb);
 
             let linear_memory_cache = builder.build_load(linear_memory,"linear_memory_cache");
             let i32_type = Type::int32(context);
