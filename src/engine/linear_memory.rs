@@ -47,25 +47,32 @@ impl<T> LinearMemoryCompiler<T> {
             let delta = function.get_first_parm().ok_or(NoSuchLLVMFunctionParameter {message:"the parameter \"delta\" is missing.".to_string()})?;
             let wasm_int_type = Type::int_wasm_ptr::<T>(context);
             let i64_type = Type::int64(context);
+            let int_type = Type::int_ptr(context);
             let max_linear_memory_size = Value::const_int(wasm_int_type,(maximum.unwrap_or_else(|| DEFAULT_MAXIMUM ) ) as ::libc::c_ulonglong,false);
-            let page_size_value = Value::const_int(wasm_int_type, PAGE_SIZE as u64, false);
-            let grow_size = builder.build_mul(page_size_value,delta,"grow_size");
+
             let linear_memory = Self::set_linear_memory(module);
             let linear_memory_size = Self::set_linear_memory_size(module);
             let preview_linear_memory_size = builder.build_load(linear_memory_size,"preview_linear_memory_size");
             let new_linear_memory_size = builder.build_add(preview_linear_memory_size,delta ,"new_linear_memory_size");
 
-            let grow_bb = BasicBlock::append_basic_block(context,function,"grow_bb");
+            let check_overflow_bb = BasicBlock::append_basic_block(context,function,"check_overflow_bb");
             let cant_grow_bb = BasicBlock::append_basic_block(context,function,"cant_grow_bb");
-            builder.build_cond_br(builder.build_icmp(LLVMIntPredicate::LLVMIntUGE,max_linear_memory_size,new_linear_memory_size,"cmp_result"),grow_bb,cant_grow_bb);
+            builder.build_cond_br(builder.build_icmp(LLVMIntPredicate::LLVMIntUGE,max_linear_memory_size,new_linear_memory_size,"cmp_result"),check_overflow_bb,cant_grow_bb);
 
-            builder.position_builder_at_end(grow_bb);
+            builder.position_builder_at_end(check_overflow_bb);
+            let page_size_value = Value::const_int(int_type, PAGE_SIZE as u64, false);
+            let preview_grow_size = builder.build_mul(page_size_value,builder.build_int_cast(preview_linear_memory_size,int_type,""),"preview_grow_size");
+            let grow_size = builder.build_mul(page_size_value,builder.build_int_cast(  new_linear_memory_size,int_type,""),"grow_size");
+            let mmap_bb = check_overflow_bb.insert_basic_block("mmap_bb");
+            builder.build_cond_br(builder.build_icmp(LLVMIntPredicate::LLVMIntUGT,grow_size,preview_grow_size,""),mmap_bb,cant_grow_bb);
+            builder.position_builder_at_end(mmap_bb);
+
             let linear_memory_cache = builder.build_load(linear_memory,"linear_memory_cache");
             let i32_type = Type::int32(context);
-            let int_type = Type::int_ptr(context);
+
             let void_type = Type::void(context);
             let void_ptr_type = Type::ptr(void_type, 0);
-            let param_types = [void_ptr_type,wasm_int_type,i32_type,i32_type,i32_type,i32_type];
+            let param_types = [void_ptr_type,int_type,i32_type,i32_type,i32_type,i32_type];
             let mmap_type = Type::function(void_ptr_type,&param_types,true);
             let mmap_function = module.set_function("mmap",mmap_type);
             let prot_value = Value::const_int(i32_type,(::libc::PROT_READ | ::libc::PROT_WRITE) as ::libc::c_ulonglong,true);
@@ -77,11 +84,12 @@ impl<T> LinearMemoryCompiler<T> {
                 void_ptr_type,
                 "addr_value"
             );
+
             let args = [addr_value,grow_size,prot_value,flags_value,fd_value,offset_value];
             let mapped_ptr = builder.build_call(mmap_function,&args,"mapped_ptr");
             builder.build_store(mapped_ptr,linear_memory);
             builder.build_store(new_linear_memory_size,linear_memory_size);
-            builder.build_ret( builder.build_int_cast( preview_linear_memory_size,wasm_int_type,""));
+            builder.build_ret( preview_linear_memory_size);
 
             builder.position_builder_at_end(cant_grow_bb);
             builder.build_ret(Value::const_int(wasm_int_type,-1_isize as ::libc::c_ulonglong,true));
@@ -115,11 +123,12 @@ mod tests{
 
     #[test]
     pub fn grow_linear_memory_works(){
-        let  context = Context::new();
+        let context = Context::new();
         let module = Module::new("grow_linear_memory_works",&context);
         let builder = Builder::new(&context);
         let result = Compiler::build_grow_linear_memory_function(&module, &builder, Some(25));
         assert!(result.is_ok());
+        module.dump();
         let analysis_result = analysis::verify_module(&module,analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction);
         assert!(analysis_result.is_ok());
 
