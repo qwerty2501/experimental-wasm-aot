@@ -76,11 +76,6 @@ impl Module {
         }
     }
 
-    pub fn set_wasm_function(&self,name:&str,type_ref:&Type)->&Value{
-        self.set_function([super::wasm::WASM_CALL_PREFIX,name].concat().as_ref(),type_ref)
-    }
-
-
     pub fn set_function(&self,name:&str,type_ref:&Type)->&Value{
         self.get_named_function(name).unwrap_or_else(||self.add_function(name,type_ref))
     }

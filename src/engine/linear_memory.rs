@@ -36,8 +36,12 @@ impl<T> LinearMemoryCompiler<T> {
         let wasm32_int_type = Type::int_wasm_ptr::<T>(context);
         let parms =[wasm32_int_type];
         let grow_linear_memory_type = Type::function(wasm32_int_type,&parms,true);
+        module.set_function(Self::get_grow_linear_memory_function_name().as_ref(),grow_linear_memory_type)
+    }
+
+    pub fn get_grow_linear_memory_function_name()->String{
         let bit_width = bit_width::<T>();
-        module.set_wasm_function(["grow_linear_memory", bit_width.to_string().as_ref()].concat().as_ref() , grow_linear_memory_type)
+        to_wasm_call_name(["grow_linear_memory", bit_width.to_string().as_ref()].concat().as_ref())
     }
 
     pub fn build_grow_linear_memory_function<'a>(module:&'a Module,b:&'a Builder, maximum:Option<usize>)->Result<(),Error>{
@@ -128,7 +132,6 @@ mod tests{
         let builder = Builder::new(&context);
         let result = Compiler::build_grow_linear_memory_function(&module, &builder, Some(25));
         assert!(result.is_ok());
-        module.dump();
         let analysis_result = analysis::verify_module(&module,analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction);
         assert!(analysis_result.is_ok());
 
