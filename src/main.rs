@@ -1,4 +1,5 @@
 #![feature(libc)]
+#![feature(const_fn)]
 #[macro_use] extern crate failure;
 #[macro_use] extern crate log;
 extern crate llvm_sys;

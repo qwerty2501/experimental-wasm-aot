@@ -76,8 +76,8 @@ impl Module {
         }
     }
 
-    pub fn set_wasm_function(&self,name:&WasmCallFunctionNameStr,type_ref:&Type)->&Value{
-        self.set_function(unsafe{::std::mem::transmute(name)},type_ref)
+    pub fn set_wasm_function(&self,name:&str,type_ref:&Type)->&Value{
+        self.set_function([super::wasm::WASM_CALL_PREFIX,name].concat().as_ref(),type_ref)
     }
 
 
@@ -268,8 +268,8 @@ impl Type{
         Type::int(context, constants::CPU_BIT_WIDTH as ::libc::c_uint)
     }
 
-    pub fn int_wasm32_ptr(context:&Context,align:u32)->&Type{
-        Type::int(context,align as ::libc::c_uint)
+    pub fn int_wasm_ptr<T>(context:&Context) ->&Type{
+        Type::int(context,constants::bit_width::<T>() as ::libc::c_uint)
     }
     pub fn void(context:&Context)->&Type{
         unsafe{LLVMVoidTypeInContext(context.into()).into()}

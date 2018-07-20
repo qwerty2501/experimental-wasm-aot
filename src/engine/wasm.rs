@@ -6,13 +6,8 @@ use failure::Error;
 use std::str;
 pub struct WasmCallFunctionNameStr(str);
 
-macro_rules! wasm_function_prefix {
-    ()=>("__experimental_wasm_call_")
-}
-pub const WASM_CALL_PREFIX:&str = wasm_function_prefix!();
-macro_rules! wasm_function_name {
-    ($name:expr)=>(unsafe{ ::std::mem::transmute::<&str,&WasmCallFunctionNameStr>(concat!(wasm_function_prefix!(),$name))})
-}
+
+pub const WASM_CALL_PREFIX:&str = "__experimental_wasm_call_";
 
 
 

@@ -1,7 +1,10 @@
 <component name="ProjectDictionaryState">
   <dictionary name="qwerty2501">
     <words>
+      <w>addr</w>
       <w>growable</w>
+      <w>mmap</w>
+      <w>prot</w>
       <w>wasm</w>
     </words>
   </dictionary>

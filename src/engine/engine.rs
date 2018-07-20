@@ -9,7 +9,7 @@ use super::llvm::*;
 impl  Engine{
     pub fn build( &self ,wasm_module:&ParityWasmModule)->Result<(),Error>{
         let context = Context::new();
-        memory::compile(&context)?;
+        memory::LinearMemoryCompiler::<i32>::compile(&context,Some(25))?;
         Ok(())
     }
 }
