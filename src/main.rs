@@ -2,11 +2,13 @@
 #![feature(const_fn)]
 #[macro_use] extern crate failure;
 #[macro_use] extern crate log;
+#[macro_use] extern crate nameof;
 extern crate llvm_sys;
 extern crate core;
 extern crate parity_wasm;
 extern crate env_logger;
 extern crate libc;
+extern crate num;
 
 use std::env;
 

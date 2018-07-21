@@ -4,10 +4,7 @@ use parity_wasm::elements::Module as ParityWasmModule;
 use super::llvm::*;
 use failure::Error;
 use std::str;
-pub struct WasmCallFunctionNameStr(str);
-
-
-pub const WASM_CALL_PREFIX:&str = "__experimental_wasm_call_";
+pub const WASM_CALL_PREFIX:&str = "WASM_CALL_";
 
 pub fn to_wasm_call_name(name:&str)->String{
     [WASM_CALL_PREFIX,name].concat()

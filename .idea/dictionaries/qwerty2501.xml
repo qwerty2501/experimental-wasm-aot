@@ -3,8 +3,11 @@
     <words>
       <w>addr</w>
       <w>growable</w>
+      <w>libc</w>
       <w>mmap</w>
+      <w>nameof</w>
       <w>prot</w>
+      <w>splitted</w>
       <w>wasm</w>
     </words>
   </dictionary>

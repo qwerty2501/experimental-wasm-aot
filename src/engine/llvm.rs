@@ -3,7 +3,6 @@ use llvm_sys::core::*;
 use std::ffi::CString;
 use std::ops::{Deref};
 use super::constants;
-use super::wasm::WasmCallFunctionNameStr;
 pub use llvm_sys::LLVMIntPredicate;
 use failure::Error;
 use error::RuntimeError::*;
