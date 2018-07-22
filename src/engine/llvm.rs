@@ -54,7 +54,7 @@ pub type ModuleGuard<'c> = Guard<'c,Module>;
 
 impl Module {
     pub fn new<'c>(module_id:&str, context:&'c Context) ->  ModuleGuard<'c> {
-        ModuleGuard{source:unsafe{ LLVMModuleCreateWithNameInContext(compiler_c_str!(module_id), context.into()).into()} }
+        ModuleGuard::new( unsafe{ LLVMModuleCreateWithNameInContext(compiler_c_str!(module_id), context.into()).into()} )
     }
     pub fn context(&self)-> &Context {
         unsafe{LLVMGetModuleContext(self.into()).into()}
@@ -113,7 +113,7 @@ pub type ContextGuard<'c> = Guard<'c,Context>;
 impl Context {
     pub fn new<'c>() -> ContextGuard<'c>{
         unsafe{
-            ContextGuard{source: LLVMContextCreate().into()}
+            ContextGuard::new( LLVMContextCreate().into())
         }
     }
 }
@@ -135,7 +135,7 @@ pub type BuilderGuard<'c> = Guard<'c,Builder>;
 impl Builder {
     pub fn new(context:& Context) -> BuilderGuard{
 
-        BuilderGuard{source:unsafe{LLVMCreateBuilderInContext(context.into()).into()}}
+        BuilderGuard::new(unsafe{LLVMCreateBuilderInContext(context.into()).into()})
     }
     pub fn position_builder_at_end(&self,bb:&BasicBlock){
         unsafe{LLVMPositionBuilderAtEnd(self.into(),bb.into())}
@@ -306,21 +306,18 @@ pub fn build_and_set_call<'m>(module:&'m mut Module, builder:&'m mut Builder, ar
 
 
 
-
-
-
-
-
-
-
-
-
 pub trait Disposable{
     fn dispose(&mut self);
 }
 
 pub struct Guard<'a,T:'a + Disposable>{
     source:&'a mut T
+}
+
+impl <'a,T:Disposable>  Guard<'a,T>{
+    fn new(source:&'a mut T)->Guard<'a,T>{
+        Guard{source}
+    }
 }
 
 
@@ -356,7 +353,13 @@ unsafe fn to_optional_ref<P,T >(ptr: *mut P)-> Option<&'static T>  where  &'stat
         Some(ptr.into())
     }
 }
-
+fn convert_message_to_string(message: *mut ::libc::c_char)->Result<String,Error>{
+    unsafe{
+        let ret_message = CString::from_raw(message).to_str()?.to_string();
+        LLVMDisposeMessage(message);
+        Ok(ret_message)
+    }
+}
 pub mod analysis{
     use super::*;
     use llvm_sys::analysis::*;
@@ -365,14 +368,110 @@ pub mod analysis{
 
         unsafe{
             let mut out_message:*mut ::libc::c_char = ::std::ptr::null_mut();
-            let ret = LLVMVerifyModule(module.into(),verifier_failure_action,  &mut out_message as *mut _) != 0;
-            if ret {
-                let message = CString::from_raw(out_message).to_str()?.to_string();
-                Err(FatalLLVMAnalysis {message})?
+            if LLVMVerifyModule(module.into(),verifier_failure_action,  &mut out_message as *mut _) != 0 {
+                let message =convert_message_to_string(out_message)?;
+                Err(FailureLLVMAnalysis {message})?
             } else{
                 Ok(())
             }
 
         }
     }
+}
+
+pub mod target{
+    use super::*;
+    use llvm_sys::target::*;
+    pub fn initialize_native_target()->Result<(),Error>{
+        unsafe{
+            if LLVM_InitializeNativeTarget() != 0{
+                Err(FailureLLVMInitializeNativeTarget)?
+            } else{
+                Ok(())
+            }
+        }
+    }
+
+    pub fn initialize_native_asm_printer()->Result<(),Error>{
+        unsafe{
+            if LLVM_InitializeNativeAsmPrinter() != 0{
+                Err(FailureLLVMInitializeNativeAsmPrinter)?
+            } else{
+                Ok(())
+            }
+        }
+    }
+}
+
+pub mod execution_engine {
+    use super::*;
+    use llvm_sys::execution_engine::*;
+
+
+    pub fn link_in_mc_jit(){
+        unsafe{LLVMLinkInMCJIT()}
+    }
+
+
+
+    pub enum ExecutionEngine{}
+    impl_type_traits!(ExecutionEngine,LLVMExecutionEngineRef);
+    pub type ExecutionEngineGuard<'a> = Guard<'a,ExecutionEngine>;
+
+    impl ExecutionEngine{
+        pub fn new_for_module(module:&Module)->Result<ExecutionEngineGuard,Error>{
+            unsafe{
+                let mut execution_engine_ptr:LLVMExecutionEngineRef = ::std::ptr::null_mut();
+                let mut out_message:*mut ::libc::c_char = ::std::ptr::null_mut();
+                if LLVMCreateExecutionEngineForModule(&mut execution_engine_ptr as *mut _,module.into(),&mut out_message as *mut _) == 0{
+                    Ok(ExecutionEngineGuard::new(execution_engine_ptr.into()))
+                } else{
+                    let message = convert_message_to_string(out_message)?;
+                    Err(FailureLLVMCreateExecutionEngine{message})?
+                }
+            }
+        }
+
+
+        pub fn new_as_interpreter_for_module(module:&Module)->Result<ExecutionEngineGuard,Error>{
+            unsafe{
+                let mut execution_engine_ptr:LLVMExecutionEngineRef = ::std::ptr::null_mut();
+                let mut out_message:*mut ::libc::c_char = ::std::ptr::null_mut();
+                if LLVMCreateInterpreterForModule(&mut execution_engine_ptr as *mut _,module.into(),&mut out_message as *mut _) == 0{
+                    Ok(ExecutionEngineGuard::new(execution_engine_ptr.into()))
+                } else{
+                    let message = convert_message_to_string(out_message)?;
+                    Err(FailureLLVMCreateExecutionEngine{message})?
+                }
+            }
+        }
+
+
+        pub fn run_function<'a>(&self,function:&Value,args:&[&GenericValue])->GenericValueGuard<'a>{
+            GenericValueGuard::new( unsafe{ LLVMRunFunction(self.into(),function.into(),args.len() as ::libc::c_uint,args.as_ptr() as *mut _).into() })
+        }
+    }
+    impl Disposable for ExecutionEngine{
+        fn dispose(&mut self) {
+            unsafe{LLVMDisposeExecutionEngine(self.into())}
+        }
+    }
+
+    pub enum GenericValue {}
+    impl_type_traits!(GenericValue,LLVMGenericValueRef);
+    pub type GenericValueGuard<'a> = Guard<'a,GenericValue>;
+
+    impl GenericValue{
+        pub fn value_of_int(ty:&Type,n: ::libc::c_ulonglong,is_signed:bool)->GenericValueGuard{
+            GenericValueGuard::new( unsafe{LLVMCreateGenericValueOfInt(ty.into(),n,is_signed as LLVMBool).into()})
+        }
+    }
+
+    impl Disposable for GenericValue{
+        fn dispose(&mut self) {
+            unsafe{LLVMDisposeGenericValue(self.into())}
+        }
+    }
+
+
 }
