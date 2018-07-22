@@ -10,9 +10,13 @@ pub enum RuntimeError{
         name:String,
     },
 
-    #[fail(display = "no such llvm function parameter : {}",message)]
+    #[fail(display = "no such llvm function : {}",function_name)]
+    NoSuchLLVMFunction {
+        function_name:String,
+    },
+    #[fail(display = "no such llvm function parameter : {}",parameter_name)]
     NoSuchLLVMFunctionParameter {
-        message:String,
+        parameter_name:String,
     },
 
     #[fail(display = "size is too large. maximum:{}",message)]
@@ -25,10 +29,20 @@ pub enum RuntimeError{
         message:String,
     },
 
-    #[fail(display = "fatal analysis llvm: {}",message)]
-    FatalLLVMAnalysis {
+    #[fail(display = "failure analysis llvm: {}",message)]
+    FailureLLVMAnalysis {
         message:String,
-    }
+    },
+
+    #[fail(display = "failure create execution engine:{}",message)]
+    FailureLLVMCreateExecutionEngine {
+        message:String,
+    },
+
+    #[fail(display = "failure initialize native target.")]
+    FailureLLVMInitializeNativeTarget,
+    #[fail(display = "failure initialize native asm printer.")]
+    FailureLLVMInitializeNativeAsmPrinter,
 }
 
 
