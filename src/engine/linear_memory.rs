@@ -8,7 +8,7 @@ use error::RuntimeError::*;
 use error::*;
 const MODULE_ID:&str = "__wasm_linear_memory_module";
 const LINEAR_MEMORY_NAME:&str = "__wasm_linear_memory";
-const LINEAR_MEMORY_PAGE_COUNT_NAME:&str = "__wasm_linear_memory_size";
+const LINEAR_MEMORY_PAGE_SIZE_NAME:&str = "__wasm_linear_memory_size";
 
 pub struct LinearMemoryCompiler<T:Integer>(::std::marker::PhantomData<T>);
 
@@ -27,7 +27,7 @@ impl<T:Integer> LinearMemoryCompiler<T> {
 
     pub fn set_linear_memory_size(module:&Module)->&Value{
         let wasm_int_type = Type::int_wasm_ptr::<T>(module.context());
-        module.set_global(LINEAR_MEMORY_PAGE_COUNT_NAME, wasm_int_type)
+        module.set_global(LINEAR_MEMORY_PAGE_SIZE_NAME, wasm_int_type)
     }
 
     pub fn set_init_linear_memory_function(module:&Module)->&Value{
@@ -55,7 +55,7 @@ impl<T:Integer> LinearMemoryCompiler<T> {
             let int_type = Type::int_ptr(context);
 
             let linear_memory = Self::set_linear_memory(module);
-            let linear_memory_size = Self::set_linear_memory_size(module);
+
             let linear_memory_cache = builder.build_load(linear_memory,"linear_memory_cache");
             let i32_type = Type::int32(context);
 
@@ -75,6 +75,7 @@ impl<T:Integer> LinearMemoryCompiler<T> {
             };
             let mapped_ptr = mmap_caller.extend_linear_memory(linear_memory_cache,maximum);
             builder.build_store(mapped_ptr,linear_memory);
+            let linear_memory_size = Self::set_linear_memory_size(module);
             builder.build_store(Value::const_int(wasm_int_type,minimum as ::libc::c_ulonglong,false),linear_memory_size);
             builder.build_ret_void();
             Ok(())
@@ -141,7 +142,10 @@ mod tests{
 
 
     use super::*;
+    use super::super::llvm::execution_engine::*;
+    use super::super::test_utils::*;
     type Compiler = LinearMemoryCompiler<i32>;
+
     #[test]
     pub fn compile_works(){
         let  context = Context::new();
@@ -154,21 +158,47 @@ mod tests{
     }
 
     #[test]
-    pub fn grow_linear_memory_works(){
+    pub fn init_linear_memory_works() ->Result<(),Error>{
+        test_init_linear_memory_in(17,Some(25))
+    }
+
+    #[test]
+    pub fn init_maximum_65536_linear_memory_works()->Result<(),Error>{
+        test_init_linear_memory_in(17,Some(65536))
+    }
+
+    #[test]
+    pub fn init_maximum_65537_linear_memory_not_works()->Result<(),Error>{
+        match test_init_linear_memory_in(17,Some(65537)){
+            Ok(_)=>panic!("should be error."),
+            Err(_) =>Ok(()),
+        }
+    }
+
+    fn test_init_linear_memory_in(minimum:usize,maximum:Option<usize>)->Result<(),Error>{
         let context = Context::new();
         let module = Module::new("grow_linear_memory_works",&context);
         let builder = Builder::new(&context);
-        let result = Compiler::build_init_linear_memory_function(&module, &builder, 17,Some(25));
-        assert!(result.err().map(|err|{
-            println!("{}",err);
-        }).is_none());
-
-        module.dump();
-        let analysis_result = analysis::verify_module(&module,analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction);
-        assert!(analysis_result.is_ok());
-
-
+        Compiler::build_init_linear_memory_function(&module, &builder, minimum,maximum)?;
+        analysis::verify_module(&module,analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction)?;
+        test_jit_init()?;
+        test_module_in_engine(&module,|engine|{
+            let mut mapped_liner_memory_size: usize = 0;
+            let mut mapped_liner_memory: *mut ::libc::c_void = ::std::ptr::null_mut();
+            let liner_memory_size = module.get_named_global(LINEAR_MEMORY_PAGE_SIZE_NAME).ok_or_else(|| NoSuchLLVMGlobalValue { name: LINEAR_MEMORY_PAGE_SIZE_NAME.to_string() })?;
+            let liner_memory = module.get_named_global(LINEAR_MEMORY_NAME).ok_or_else(|| NoSuchLLVMGlobalValue { name: LINEAR_MEMORY_NAME.to_string() })?;
+            engine.add_global_mapping(liner_memory, &mut mapped_liner_memory);
+            engine.add_global_mapping(liner_memory_size, &mut mapped_liner_memory_size);
+            let args: [&GenericValue; 0] = [];
+            test_run_function_with_name(&engine, &module, Compiler::get_init_linear_memory_function_name().as_ref(), &args)?;
+            assert_eq!(mapped_liner_memory_size, minimum);
+            assert_ne!(::std::ptr::null_mut(),mapped_liner_memory);
+            assert_ne!(-1_isize , unsafe{::std::mem::transmute::<*mut ::libc::c_void ,isize>(mapped_liner_memory)});
+            Ok(())
+        })?;
+        Ok(())
     }
+
 
     #[test]
     pub fn set_linear_memory_works(){

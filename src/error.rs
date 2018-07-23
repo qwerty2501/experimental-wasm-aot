@@ -10,13 +10,18 @@ pub enum RuntimeError{
         name:String,
     },
 
-    #[fail(display = "no such llvm function : {}",function_name)]
+    #[fail(display = "no such llvm function : {}",name)]
     NoSuchLLVMFunction {
-        function_name:String,
+        name:String,
     },
-    #[fail(display = "no such llvm function parameter : {}",parameter_name)]
+    #[fail(display = "no such llvm function parameter : {}",name)]
     NoSuchLLVMFunctionParameter {
-        parameter_name:String,
+        name:String,
+    },
+
+    #[fail(display = "no such llvm global value : {}",name)]
+    NoSuchLLVMGlobalValue{
+        name:String,
     },
 
     #[fail(display = "size is too large. maximum:{}",message)]
@@ -43,6 +48,11 @@ pub enum RuntimeError{
     FailureLLVMInitializeNativeTarget,
     #[fail(display = "failure initialize native asm printer.")]
     FailureLLVMInitializeNativeAsmPrinter,
+
+    #[fail(display = "failure remove module. :{}",message)]
+    FailureLLVMRemoveModule{
+        message:String,
+    },
 }
 
 

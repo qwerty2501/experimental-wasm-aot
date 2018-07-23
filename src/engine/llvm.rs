@@ -6,6 +6,7 @@ use super::constants;
 pub use llvm_sys::LLVMIntPredicate;
 use failure::Error;
 use error::RuntimeError::*;
+use std::mem;
 macro_rules! compiler_c_str{
     ($s:expr) => (CString::new($s).unwrap().as_ptr())
 }
@@ -231,7 +232,7 @@ impl  Value{
         }
     }
 
-    pub fn get_first_parm(&self)->Option<&Value>{
+    pub fn get_first_param(&self) ->Option<&Value>{
         unsafe{to_optional_ref(LLVMGetFirstParam(self.into()))}
     }
     pub fn get_next_param(&self)->Option<&Value>{
@@ -367,10 +368,9 @@ pub mod analysis{
     pub fn verify_module(module:&Module,verifier_failure_action:LLVMVerifierFailureAction)-> Result<(),Error>{
 
         unsafe{
-            let mut out_message:*mut ::libc::c_char = ::std::ptr::null_mut();
+            let mut out_message:*mut ::libc::c_char = mem::uninitialized();
             if LLVMVerifyModule(module.into(),verifier_failure_action,  &mut out_message as *mut _) != 0 {
-                let message =convert_message_to_string(out_message)?;
-                Err(FailureLLVMAnalysis {message})?
+                Err(FailureLLVMAnalysis {message:convert_message_to_string(out_message)?})?
             } else{
                 Ok(())
             }
@@ -406,7 +406,7 @@ pub mod target{
 pub mod execution_engine {
     use super::*;
     use llvm_sys::execution_engine::*;
-
+    use llvm_sys::target_machine::*;
 
     pub fn link_in_mc_jit(){
         unsafe{LLVMLinkInMCJIT()}
@@ -419,29 +419,35 @@ pub mod execution_engine {
     pub type ExecutionEngineGuard<'a> = Guard<'a,ExecutionEngine>;
 
     impl ExecutionEngine{
-        pub fn new_for_module(module:&Module)->Result<ExecutionEngineGuard,Error>{
+
+        pub fn new_for_module(module:&Module) ->Result<ExecutionEngineGuard,Error>{
             unsafe{
-                let mut execution_engine_ptr:LLVMExecutionEngineRef = ::std::ptr::null_mut();
-                let mut out_message:*mut ::libc::c_char = ::std::ptr::null_mut();
-                if LLVMCreateExecutionEngineForModule(&mut execution_engine_ptr as *mut _,module.into(),&mut out_message as *mut _) == 0{
-                    Ok(ExecutionEngineGuard::new(execution_engine_ptr.into()))
+                let mut execution_engine_ptr:LLVMExecutionEngineRef = mem::uninitialized();
+                let mut out_message:*mut ::libc::c_char = mem::uninitialized();
+                if LLVMCreateExecutionEngineForModule(&mut execution_engine_ptr as *mut _,module.into(),&mut out_message as *mut _) != 0{
+                    Err(FailureLLVMCreateExecutionEngine{message: convert_message_to_string(out_message)?})?
                 } else{
-                    let message = convert_message_to_string(out_message)?;
-                    Err(FailureLLVMCreateExecutionEngine{message})?
+                    Ok(ExecutionEngineGuard::new(execution_engine_ptr.into()))
                 }
             }
         }
 
 
-        pub fn new_as_interpreter_for_module(module:&Module)->Result<ExecutionEngineGuard,Error>{
+        pub fn add_global_mapping<T>(&self,global:&Value,global_ref:&mut T){
             unsafe{
-                let mut execution_engine_ptr:LLVMExecutionEngineRef = ::std::ptr::null_mut();
-                let mut out_message:*mut ::libc::c_char = ::std::ptr::null_mut();
-                if LLVMCreateInterpreterForModule(&mut execution_engine_ptr as *mut _,module.into(),&mut out_message as *mut _) == 0{
-                    Ok(ExecutionEngineGuard::new(execution_engine_ptr.into()))
+                LLVMAddGlobalMapping(self.into(),global.into(),global_ref as *mut T as *mut _)
+            }
+        }
+
+        pub fn remove_module(&self,module:&Module)->Result<&Module,Error>{
+
+            unsafe{
+                let mut out_mod:LLVMModuleRef = mem::uninitialized();
+                let mut out_message:*mut ::libc::c_char = mem::uninitialized();
+                if LLVMRemoveModule(self.into(),module.into(),&mut out_mod as *mut _,&mut out_message as *mut _) != 0{
+                    Err(FailureLLVMRemoveModule{message:convert_message_to_string(out_message)?})?
                 } else{
-                    let message = convert_message_to_string(out_message)?;
-                    Err(FailureLLVMCreateExecutionEngine{message})?
+                    Ok(out_mod.into())
                 }
             }
         }
@@ -453,7 +459,7 @@ pub mod execution_engine {
     }
     impl Disposable for ExecutionEngine{
         fn dispose(&mut self) {
-            unsafe{LLVMDisposeExecutionEngine(self.into())}
+           unsafe{LLVMDisposeExecutionEngine(self.into())}
         }
     }
 
