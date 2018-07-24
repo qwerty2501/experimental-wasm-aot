@@ -4,6 +4,7 @@ use super::llvm::target::*;
 use failure::*;
 use error::RuntimeError::*;
 
+
 pub fn test_jit_init()->Result<(),Error>{
     link_in_mc_jit();
     initialize_native_target()?;

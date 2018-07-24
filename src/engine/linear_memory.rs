@@ -1,3 +1,4 @@
+
 use failure::Error;
 use num::*;
 use super::llvm::*;
@@ -157,8 +158,6 @@ impl<'a> MMapCaller<'a>{
 #[cfg(test)]
 mod tests{
 
-
-
     use super::*;
     use super::super::llvm::execution_engine::*;
     use super::super::test_utils::*;
@@ -191,18 +190,12 @@ mod tests{
 
     #[test]
     pub fn init_minimum_greater_maximum_linear_memory_works() ->Result<(),Error>{
-        match test_init_linear_memory_in(26,Some(25)){
-            Ok(_)=>panic!("should be error"),
-            Err(_)=>Ok(()),
-        }
+        error_should_be!(test_init_linear_memory_in(26,Some(25)),RuntimeError,SizeIsTooLarge{message})
     }
 
     #[test]
     pub fn init_maximum_65537_linear_memory_not_works()->Result<(),Error>{
-        match test_init_linear_memory_in(17,Some(65537)){
-            Ok(_)=>panic!("should be error."),
-            Err(_) =>Ok(()),
-        }
+        error_should_be!(test_init_linear_memory_in(17,Some(65537)),RuntimeError,SizeIsTooLarge {message})
     }
 
     fn test_init_linear_memory_in(minimum:usize,maximum:Option<usize>)->Result<(),Error>{
