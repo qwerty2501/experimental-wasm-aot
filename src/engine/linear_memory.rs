@@ -147,14 +147,12 @@ mod tests{
     type Compiler = LinearMemoryCompiler<i32>;
 
     #[test]
-    pub fn compile_works(){
+    pub fn compile_works()->Result<(),Error>{
         let  context = Context::new();
 
-        let result = Compiler::compile(&context, 17,Some(25));
-        assert!(result.is_ok());
-        let _ =result.map(| module|{
-            assert!(module.get_named_global(LINEAR_MEMORY_NAME).is_some());
-        });
+        let module = Compiler::compile(&context, 17,Some(25))?;
+        assert!(module.get_named_global(LINEAR_MEMORY_NAME).is_some());
+        Ok(())
     }
 
     #[test]
