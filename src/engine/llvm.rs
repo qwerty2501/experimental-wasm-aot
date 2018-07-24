@@ -161,7 +161,7 @@ impl Builder {
     }
 
     pub fn build_function<'a,F:FnOnce(&'a Builder,&'a BasicBlock) -> Result<(),Error>>(&'a self,context:&'a Context, func:& Value,on_build:F)->Result<(),Error>{
-        let bb = BasicBlock::append_basic_block(&context,func,"entry");
+        let bb = func.append_basic_block(context,"entry");
         self.position_builder_at_end(bb);
         on_build(self,bb)
     }
@@ -238,17 +238,21 @@ impl  Value{
     pub fn get_next_param(&self)->Option<&Value>{
         unsafe{to_optional_ref(LLVMGetNextParam(self.into()))}
     }
+    pub fn append_basic_block<'c>(&self,context:&'c Context,name:&str)->&'c BasicBlock{
+        unsafe{LLVMAppendBasicBlockInContext(context.into(),self.into(),compiler_c_str!(name)).into()}
+    }
 }
 
 pub enum Type{}
 impl_type_traits!(Type,LLVMTypeRef);
 impl Type{
+    pub fn int1(context:&Context)->&Type{
+        unsafe{LLVMInt1TypeInContext(context.into()).into()}
+    }
     pub fn int8(context:&Context)->&Type{
         unsafe {LLVMInt8TypeInContext(context.into()).into()}
     }
-
-
-    pub fn int32(context:&Context)->&Type{
+    pub fn int32(context:&Context)->&Type {
         unsafe{LLVMInt32TypeInContext(context.into()).into()}
     }
 
@@ -283,11 +287,8 @@ pub enum BasicBlock{}
 impl_type_traits!(BasicBlock,LLVMBasicBlockRef);
 
 impl BasicBlock{
-    pub fn insert_basic_block(&self,name:&str)->&BasicBlock{
-        unsafe{LLVMInsertBasicBlock(self.into(),compiler_c_str!(name)).into()}
-    }
-    pub fn append_basic_block<'c>(context:&'c Context,function:&Value,name:&str)->&'c BasicBlock{
-        unsafe{LLVMAppendBasicBlockInContext(context.into(),function.into(),compiler_c_str!(name)).into()}
+    pub fn insert_basic_block(&self,context:& Context,name:&str)->&BasicBlock{
+        unsafe{LLVMInsertBasicBlockInContext(context.into(), self.into(),compiler_c_str!(name)).into()}
     }
 }
 
@@ -468,6 +469,9 @@ pub mod execution_engine {
     pub type GenericValueGuard<'a> = Guard<'a,GenericValue>;
 
     impl GenericValue{
+        pub fn int_width(&self)->::libc::c_uint{
+            unsafe{LLVMGenericValueIntWidth(self.into())}
+        }
         pub fn value_of_int(ty:&Type,n: ::libc::c_ulonglong,is_signed:bool)->GenericValueGuard{
             GenericValueGuard::new( unsafe{LLVMCreateGenericValueOfInt(ty.into(),n,is_signed as LLVMBool).into()})
         }
