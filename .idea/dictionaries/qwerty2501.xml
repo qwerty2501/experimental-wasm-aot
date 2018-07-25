@@ -3,7 +3,9 @@
     <words>
       <w>addr</w>
       <w>deref</w>
+      <w>dest</w>
       <w>growable</w>
+      <w>icmp</w>
       <w>libc</w>
       <w>mmap</w>
       <w>nameof</w>

@@ -165,15 +165,22 @@ impl Builder {
         self.position_builder_at_end(bb);
         on_build(self,bb)
     }
+
+    pub fn build_pointer_cast(&self,value:&Value,dest_ty:&Type,name:&str)->&Value{
+        unsafe{LLVMBuildPointerCast(self.into(),value.into(),dest_ty.into(),compiler_c_str!(name)).into()}
+    }
+
     pub fn build_ret_void(&self)->&Value{
         unsafe{LLVMBuildRetVoid(self.into()).into()}
     }
-    pub fn build_ret(&self,v:&Value)->&Value{
+    pub fn build_ret(&self,v:&Value)->&Value {
         unsafe{LLVMBuildRet(self.into(),v.into()).into()}
     }
-
-    pub fn build_icmp(&self,int_predicade:LLVMIntPredicate,lhs:&Value,rhs:&Value,name:&str)->&Value{
-        unsafe{LLVMBuildICmp(self.into(),int_predicade,lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
+    pub fn build_gep(&self,pointer:&Value,indices:&[&Value],name:&str)->&Value{
+        unsafe{LLVMBuildGEP(self.into(),pointer.into(),indices.as_ptr() as *mut _,indices.len() as u32 ,compiler_c_str!(name)).into()}
+    }
+    pub fn build_icmp(&self,int_predicate:LLVMIntPredicate,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{LLVMBuildICmp(self.into(),int_predicate,lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
     }
 
     pub fn build_cond_br(&self,if_value:&Value,then_block:&BasicBlock,else_block:&BasicBlock)->&Value{
@@ -280,6 +287,10 @@ impl Type{
 
     pub fn function<'a>(return_type:&'a Type,param_types:&'a[&'a Type],is_var_arg:bool)->&'a Type{
         unsafe{LLVMFunctionType(return_type.into(),param_types.as_ptr() as *mut _,param_types.len() as ::libc::c_uint,is_var_arg as LLVMBool).into()}
+    }
+
+    pub fn type_of(value:&Value)->&Type{
+        unsafe{LLVMTypeOf(value.into()).into()}
     }
 }
 

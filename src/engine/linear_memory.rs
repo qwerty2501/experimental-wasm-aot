@@ -26,7 +26,7 @@ impl<T:Integer> LinearMemoryCompiler<T> {
     }
 
     pub fn set_linear_memory<'a>(&self,module:&'a Module) ->&'a Value {
-        let memory_pointer_type =  Type::ptr(Type::void( module.context()), 0);
+        let memory_pointer_type =  Type::ptr(Type::int8( module.context()), 0);
         module.set_global(LINEAR_MEMORY_NAME,memory_pointer_type)
     }
 
@@ -45,15 +45,15 @@ impl<T:Integer> LinearMemoryCompiler<T> {
 
     pub fn get_init_linear_memory_function_name(&self)->String{
         let bit_width = bit_width::<T>();
-        to_wasm_call_name(["__init_linear_memory", bit_width.to_string().as_ref()].concat().as_ref())
+        ["init_linear_memory", bit_width.to_string().as_ref()].concat()
     }
 
     pub fn build_init_linear_memory_function<'a>(&self,module:&'a Module,b:&'a Builder,minimum:usize, maximum:Option<usize>)->Result<(),Error>{
         let function = self.set_init_linear_memory_function(module);
         b.build_function(module.context(),function,|builder,_|{
             let maximum = maximum.unwrap_or_else(|| DEFAULT_MAXIMUM ) ;
-            let _:() = check_range(maximum,1,DEFAULT_MAXIMUM,name_of!(maximum))?;
-            let _ :() = check_range(minimum,1,maximum - 1,name_of!(minimum))?;
+            check_range(maximum,1,DEFAULT_MAXIMUM,name_of!(maximum))?;
+            check_range(minimum,1,maximum - 1,name_of!(minimum))?;
             let context = module.context();
             let wasm_int_type = Type::int_wasm_ptr::<T>(context);
             let int_type = Type::int_ptr(context);
@@ -68,7 +68,7 @@ impl<T:Integer> LinearMemoryCompiler<T> {
             let param_types = [void_ptr_type,int_type,i32_type,i32_type,i32_type,i32_type];
             let mmap_type = Type::function(void_ptr_type,&param_types,true);
             let fail_bb = function.append_basic_block(context,"fail_bb");
-            let mmap_caller = MMapCaller{
+            let mmap_closure = MMapClosure {
                 int_type,
                 void_ptr_type,
                 mmap_function:module.set_function("mmap",mmap_type),
@@ -82,8 +82,8 @@ impl<T:Integer> LinearMemoryCompiler<T> {
                 context,
             };
 
-            let mapped_ptr = mmap_caller.extend_linear_memory(linear_memory_cache,maximum);
-            builder.build_store(mapped_ptr,linear_memory);
+            let mapped_ptr = mmap_closure.extend_linear_memory(linear_memory_cache,maximum);
+            builder.build_store(builder.build_pointer_cast(mapped_ptr,Type::type_of(linear_memory_cache),""),linear_memory);
             let linear_memory_size = self.set_linear_memory_size(module);
             builder.build_store(Value::const_int(wasm_int_type,minimum as ::libc::c_ulonglong,false),linear_memory_size);
             let int1_type = Type::int1(context);
@@ -97,7 +97,7 @@ impl<T:Integer> LinearMemoryCompiler<T> {
 
 }
 
-struct MMapCaller<'a>{
+struct MMapClosure<'a>{
     int_type:&'a Type,
     void_ptr_type:&'a Type,
     mmap_function :&'a Value,
@@ -116,7 +116,7 @@ struct ExtendSize(usize);
 fn to_extend(size:usize)->ExtendSize{
     ExtendSize(size*PAGE_SIZE)
 }
-impl<'a> MMapCaller<'a>{
+impl<'a> MMapClosure<'a>{
     const LIMIT_PAGE_SIZE:usize = ::std::usize::MAX / PAGE_SIZE;
     fn extend_linear_memory(&self,liner_memory_ptr:&'a Value,maximum:usize)->&'a Value{
 
@@ -135,11 +135,8 @@ impl<'a> MMapCaller<'a>{
         if count > 0{
             let extend_size_value = Value::const_int(self.int_type,extend_size.0 as ::libc::c_ulonglong,false);
             let extended_size_value = Value::const_int(self.int_type, extended_size as ::libc::c_ulonglong,false);
-            let tail_addr = self.builder.build_int_to_ptr(
-                self.builder.build_add(self.builder.build_ptr_to_int(mapped_ptr,self.int_type,""),self.builder.build_int_cast( extended_size_value,self.int_type,""),""),
-                self.void_ptr_type,
-                "tail_addr"
-            );
+            let indices = [extended_size_value];
+            let tail_addr = self.builder.build_pointer_cast( self.builder.build_gep(mapped_ptr,&indices,""),Type::ptr(Type::void(self.context),0),"tail_addr");
             let args = [tail_addr,extend_size_value,self.prot_value,self.flags_value,self.fd_value,self.offset_value];
             let addr = self.builder.build_call(self.mmap_function,&args,"mapped_ptr");
             let stay_bb = self.function.append_basic_block(self.context,["count_",count.to_string().as_ref()].concat().as_ref());
@@ -185,6 +182,7 @@ mod tests{
 
     #[test]
     pub fn init_maximum_65536_linear_memory_works()->Result<(),Error>{
+
         test_init_linear_memory_in(17,Some(65536))
     }
 
