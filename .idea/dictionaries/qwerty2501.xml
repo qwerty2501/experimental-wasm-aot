@@ -8,6 +8,7 @@
       <w>icmp</w>
       <w>libc</w>
       <w>mmap</w>
+      <w>munmap</w>
       <w>nameof</w>
       <w>prot</w>
       <w>splitted</w>

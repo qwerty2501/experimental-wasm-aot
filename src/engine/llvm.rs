@@ -138,6 +138,7 @@ impl Builder {
 
         BuilderGuard::new(unsafe{LLVMCreateBuilderInContext(context.into()).into()})
     }
+
     pub fn position_builder_at_end(&self,bb:&BasicBlock){
         unsafe{LLVMPositionBuilderAtEnd(self.into(),bb.into())}
     }
@@ -220,9 +221,18 @@ impl_type_traits!(Value,LLVMValueRef);
 impl  Value{
     pub fn const_int(type_ref:&Type, value: ::libc::c_ulonglong, sign_extend: bool) ->&Value{
         unsafe{
+
             LLVMConstInt(type_ref.into(),value,sign_extend as LLVMBool).into( )
         }
     }
+
+    pub fn const_int_to_ptr<'a>(value:&'a Value,to_type:&Type)->&'a Value{
+        unsafe{
+            LLVMConstIntToPtr(value.into(),to_type.into()).into()
+        }
+    }
+
+
 
     pub fn null_ptr(type_ref:&Type)->&Value {
         unsafe{LLVMConstPointerNull(type_ref.into()).into()}

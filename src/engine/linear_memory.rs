@@ -65,13 +65,16 @@ impl<T:Integer> LinearMemoryCompiler<T> {
 
             let void_type = Type::void(context);
             let void_ptr_type = Type::ptr(void_type, 0);
-            let param_types = [void_ptr_type,int_type,i32_type,i32_type,i32_type,i32_type];
-            let mmap_type = Type::function(void_ptr_type,&param_types,true);
+            let mmap_param_types = [void_ptr_type,int_type,i32_type,i32_type,i32_type,i32_type];
+            let mmap_type = Type::function(void_ptr_type,&mmap_param_types,true);
+            let munmap_param_types = [void_ptr_type,int_type];
+            let munmap_type = Type::function(int_type,&munmap_param_types,true);
             let fail_bb = function.append_basic_block(context,"fail_bb");
             let mmap_closure = MMapClosure {
                 int_type,
                 void_ptr_type,
                 mmap_function:module.set_function("mmap",mmap_type),
+                munmap_function:module.set_function("munmap",munmap_type),
                 prot_value:Value::const_int(i32_type,(::libc::PROT_READ | ::libc::PROT_WRITE) as ::libc::c_ulonglong,true),
                 flags_value:Value::const_int(i32_type, (::libc::MAP_PRIVATE | ::libc::MAP_ANONYMOUS) as ::libc::c_ulonglong,true ),
                 fd_value:Value::const_int(i32_type,-1_isize as ::libc::c_ulonglong,true),
@@ -101,6 +104,7 @@ struct MMapClosure<'a>{
     int_type:&'a Type,
     void_ptr_type:&'a Type,
     mmap_function :&'a Value,
+    munmap_function:&'a Value,
     prot_value : &'a Value,
     flags_value:&'a Value,
     fd_value:&'a Value,
@@ -140,8 +144,15 @@ impl<'a> MMapClosure<'a>{
             let args = [tail_addr,extend_size_value,self.prot_value,self.flags_value,self.fd_value,self.offset_value];
             let addr = self.builder.build_call(self.mmap_function,&args,"mapped_ptr");
             let stay_bb = self.function.append_basic_block(self.context,["count_",count.to_string().as_ref()].concat().as_ref());
-            self.builder.build_cond_br(self.builder.build_icmp(LLVMIntPredicate::LLVMIntEQ,self.builder.build_ptr_to_int(addr,self.int_type,""),Value::const_int(self.int_type,-1_isize as u64,true),""),self.fail_bb,stay_bb);
+            self.builder.build_cond_br(self.builder.build_icmp(LLVMIntPredicate::LLVMIntEQ,addr, Value::const_int_to_ptr(  Value::const_int(self.int_type,::libc::MAP_FAILED as u64,true),Type::type_of(addr)),""),self.fail_bb,stay_bb);
             self.builder.position_builder_at_end(stay_bb);
+            self.builder.position_builder_at_end(stay_bb);
+            if extended_size > 0{
+                let munmap_params = [mapped_ptr,extended_size_value];
+                let munmap_result = self.builder.build_call(self.munmap_function,&munmap_params,"munmap_result");
+                let munmap_result_cond = self.builder.build_icmp(LLVMIntPredicate::LLVMIntEQ,munmap_result,Value::const_int(self.int_type,-1_isize as u64,true),"");
+                self.builder.build_cond_br(munmap_result_cond,self.fail_bb,stay_bb);
+            }
             self.partial_extend_linear_memory(addr,extend_size,extended_size + extend_size.0,count -1)
         } else{
             (mapped_ptr,extended_size)
@@ -202,6 +213,7 @@ mod tests{
         let builder = Builder::new(&context);
         let compiler = Compiler::new();
         compiler.build_init_linear_memory_function(&module, &builder, minimum,maximum)?;
+        module.dump();
         analysis::verify_module(&module,analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction)?;
         test_jit_init()?;
         test_module_in_engine(&module,|engine|{
@@ -214,7 +226,7 @@ mod tests{
             let args: [&GenericValue; 0] = [];
             let result = test_run_function_with_name(&engine, &module, compiler.get_init_linear_memory_function_name().as_ref(), &args)?;
             assert_eq!(1,result.int_width());
-            assert_eq!(mapped_liner_memory_size, minimum);
+            assert_eq!( minimum,mapped_liner_memory_size);
             assert_ne!(::std::ptr::null_mut(),mapped_liner_memory);
             assert_ne!(-1_isize , unsafe{::std::mem::transmute::<*mut ::libc::c_void ,isize>(mapped_liner_memory)});
             unsafe{
