@@ -1,9 +1,9 @@
 
 use failure::Error;
-use num::*;
 use super::llvm::*;
 use super::constants::*;
 use super::wasm::*;
+use super::types::*;
 use std::ptr;
 use error::RuntimeError::*;
 use error::*;
@@ -11,9 +11,9 @@ const MODULE_ID:&str = "__wasm_linear_memory_module";
 const LINEAR_MEMORY_NAME:&str = "__wasm_linear_memory";
 const LINEAR_MEMORY_PAGE_SIZE_NAME:&str = "__wasm_linear_memory_size";
 
-pub struct LinearMemoryCompiler<T:Integer>(::std::marker::PhantomData<T>);
+pub struct LinearMemoryCompiler<T:WasmIntType>(::std::marker::PhantomData<T>);
 
-impl<T:Integer> LinearMemoryCompiler<T> {
+impl<T:WasmIntType> LinearMemoryCompiler<T> {
 
     pub fn new()-> LinearMemoryCompiler<T>{
         LinearMemoryCompiler(::std::marker::PhantomData::<T>{})
