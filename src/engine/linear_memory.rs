@@ -8,8 +8,8 @@ use std::ptr;
 use error::RuntimeError::*;
 use error::*;
 const MODULE_ID:&str = "__wasm_linear_memory_module";
-const LINEAR_MEMORY_NAME:&str = "__wasm_linear_memory";
-const LINEAR_MEMORY_PAGE_SIZE_NAME:&str = "__wasm_linear_memory_size";
+const LINEAR_MEMORY_NAME_BASE:&str = "__wasm_linear_memory";
+const LINEAR_MEMORY_PAGE_SIZE_NAME_BASE:&str = "__wasm_linear_memory_size";
 
 pub struct LinearMemoryCompiler<T:WasmIntType>(::std::marker::PhantomData<T>);
 
@@ -18,38 +18,46 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
     pub fn new()-> LinearMemoryCompiler<T>{
         LinearMemoryCompiler(::std::marker::PhantomData::<T>{})
     }
-    pub fn compile<'a>(& self,context:&'a Context,minimum:usize,maximum:Option<usize>) -> Result<ModuleGuard<'a>,Error>{
+    pub fn compile<'a>(& self,context:&'a Context,index:usize, minimum:u32,maximum:Option<u32>) -> Result<ModuleGuard<'a>,Error>{
         let module = Module::new(MODULE_ID,context);
         let builder = Builder::new(context);
-        self.build_init_linear_memory_function(&module,&builder,minimum,maximum)?;
+        self.build_init_linear_memory_function(&module,&builder,index,minimum,maximum)?;
         Ok(module)
     }
 
-    pub fn set_linear_memory<'a>(&self,module:&'a Module) ->&'a Value {
+    pub fn get_linear_memory_name(&self,index:usize)->String{
+        [LINEAR_MEMORY_NAME_BASE,index.to_string().as_ref()].concat()
+    }
+
+    pub fn set_linear_memory<'a>(&self,module:&'a Module,index:usize) ->&'a Value {
         let memory_pointer_type =  Type::ptr(Type::int8( module.context()), 0);
-        module.set_global(LINEAR_MEMORY_NAME,memory_pointer_type)
+        module.set_global(self.get_linear_memory_name(index).as_ref(), memory_pointer_type)
     }
 
-    pub fn set_linear_memory_size<'a>(&self,module:&'a Module)->&'a Value{
+    pub fn get_linear_memory_size_name(&self,index:usize)->String{
+        [LINEAR_MEMORY_PAGE_SIZE_NAME_BASE,index.to_string().as_ref()].concat()
+    }
+
+    pub fn set_linear_memory_size<'a>(&self,module:&'a Module,index:usize)->&'a Value{
         let wasm_int_type = Type::int_wasm_ptr::<T>(module.context());
-        module.set_global(LINEAR_MEMORY_PAGE_SIZE_NAME, wasm_int_type)
+        module.set_global(self.get_linear_memory_size_name(index).as_ref(), wasm_int_type)
     }
 
-    pub fn set_init_linear_memory_function<'a>(&self,module:&'a Module)->&'a Value{
+    pub fn set_init_linear_memory_function<'a>(&self,module:&'a Module,index:usize)->&'a Value{
         let context = module.context();
         let int1_type = Type::int1(context);
         let parms:[&Type;0] =[];
         let grow_linear_memory_type = Type::function(int1_type,&parms,true);
-        module.set_function(self.get_init_linear_memory_function_name().as_ref(),grow_linear_memory_type)
+        module.set_function(self.get_init_linear_memory_function_name(index).as_ref(),grow_linear_memory_type)
     }
 
-    pub fn get_init_linear_memory_function_name(&self)->String{
+    pub fn get_init_linear_memory_function_name(&self,index:usize)->String{
         let bit_width = bit_width::<T>();
-        ["init_linear_memory", bit_width.to_string().as_ref()].concat()
+        ["init_linear_memory",index.to_string().as_ref(),"_", bit_width.to_string().as_ref()].concat()
     }
 
-    pub fn build_init_linear_memory_function<'a>(&self,module:&'a Module,b:&'a Builder,minimum:usize, maximum:Option<usize>)->Result<(),Error>{
-        let function = self.set_init_linear_memory_function(module);
+    pub fn build_init_linear_memory_function<'a>(&self,module:&'a Module,b:&'a Builder,index:usize, minimum:u32, maximum:Option<u32>)->Result<(),Error>{
+        let function = self.set_init_linear_memory_function(module,index);
         b.build_function(module.context(),function,|builder,_|{
             let maximum = maximum.unwrap_or_else(|| DEFAULT_MAXIMUM ) ;
             check_range(maximum,1,DEFAULT_MAXIMUM,name_of!(maximum))?;
@@ -58,7 +66,7 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
             let wasm_int_type = Type::int_wasm_ptr::<T>(context);
             let int_type = Type::int_ptr(context);
 
-            let linear_memory = self.set_linear_memory(module);
+            let linear_memory = self.set_linear_memory(module,index);
 
             let linear_memory_cache = builder.build_load(linear_memory,"linear_memory_cache");
             let i32_type = Type::int32(context);
@@ -87,7 +95,7 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
 
             let mapped_ptr = mmap_closure.extend_linear_memory(linear_memory_cache,maximum);
             builder.build_store(builder.build_pointer_cast(mapped_ptr,Type::type_of(linear_memory_cache),""),linear_memory);
-            let linear_memory_size = self.set_linear_memory_size(module);
+            let linear_memory_size = self.set_linear_memory_size(module,index);
             builder.build_store(Value::const_int(wasm_int_type,minimum as ::libc::c_ulonglong,false),linear_memory_size);
             let int1_type = Type::int1(context);
             builder.build_ret(Value::const_int(int1_type,1 ,false));
@@ -118,15 +126,15 @@ struct MMapClosure<'a>{
 #[derive(Clone,Copy)]
 struct ExtendSize(usize);
 fn to_extend(size:usize)->ExtendSize{
-    ExtendSize(size*PAGE_SIZE)
+    ExtendSize(size*PAGE_SIZE as usize)
 }
 impl<'a> MMapClosure<'a>{
-    const LIMIT_PAGE_SIZE:usize = ::std::usize::MAX / PAGE_SIZE;
-    fn extend_linear_memory(&self,liner_memory_ptr:&'a Value,maximum:usize)->&'a Value{
+    const LIMIT_PAGE_SIZE:usize = ::std::usize::MAX / PAGE_SIZE as usize;
+    fn extend_linear_memory(&self,liner_memory_ptr:&'a Value,maximum:u32)->&'a Value{
 
 
-        let (addr,extended_size) = self.partial_extend_linear_memory(liner_memory_ptr, to_extend(Self::LIMIT_PAGE_SIZE), 0,maximum/ Self::LIMIT_PAGE_SIZE );
-        let reminder_extend_size = to_extend(maximum % Self::LIMIT_PAGE_SIZE);
+        let (addr,extended_size) = self.partial_extend_linear_memory(liner_memory_ptr, to_extend(Self::LIMIT_PAGE_SIZE), 0,maximum as usize/ Self::LIMIT_PAGE_SIZE );
+        let reminder_extend_size = to_extend(maximum  as usize % Self::LIMIT_PAGE_SIZE);
         if reminder_extend_size.0 > 0{
             let (addr,_) = self.partial_extend_linear_memory(addr,reminder_extend_size,extended_size,1);
             addr
@@ -169,14 +177,14 @@ mod tests{
     use super::*;
     use super::super::llvm::execution_engine::*;
     use super::super::test_utils::*;
-    type Compiler = LinearMemoryCompiler<i32>;
+    type Compiler = LinearMemoryCompiler<u32>;
 
     #[test]
     pub fn compile_works()->Result<(),Error>{
         let  context = Context::new();
         let compiler = Compiler::new();
-        let module = compiler.compile(&context, 17,Some(25))?;
-        assert!(module.get_named_global(LINEAR_MEMORY_NAME).is_some());
+        let module = compiler.compile(&context, 0,17,Some(25))?;
+        assert!(module.get_named_global(compiler.get_linear_memory_name(0).as_ref()).is_some());
         Ok(())
     }
 
@@ -207,30 +215,30 @@ mod tests{
         error_should_be!(test_init_linear_memory_in(17,Some(65537)),RuntimeError,SizeIsTooLarge {message})
     }
 
-    fn test_init_linear_memory_in(minimum:usize,maximum:Option<usize>)->Result<(),Error>{
+    fn test_init_linear_memory_in(minimum:u32,maximum:Option<u32>)->Result<(),Error>{
         let context = Context::new();
         let module = Module::new("grow_linear_memory_works",&context);
         let builder = Builder::new(&context);
         let compiler = Compiler::new();
-        compiler.build_init_linear_memory_function(&module, &builder, minimum,maximum)?;
+        compiler.build_init_linear_memory_function(&module, &builder, 0,minimum,maximum)?;
         module.dump();
         analysis::verify_module(&module,analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction)?;
         test_jit_init()?;
         test_module_in_engine(&module,|engine|{
-            let mut mapped_liner_memory_size: usize = 0;
+            let mut mapped_liner_memory_size: u32 = 0;
             let mut mapped_liner_memory: *mut ::libc::c_void = ::std::ptr::null_mut();
-            let liner_memory_size = module.get_named_global(LINEAR_MEMORY_PAGE_SIZE_NAME).ok_or_else(|| NoSuchLLVMGlobalValue { name: LINEAR_MEMORY_PAGE_SIZE_NAME.to_string() })?;
-            let liner_memory = module.get_named_global(LINEAR_MEMORY_NAME).ok_or_else(|| NoSuchLLVMGlobalValue { name: LINEAR_MEMORY_NAME.to_string() })?;
+            let liner_memory_size = module.get_named_global(compiler.get_linear_memory_size_name(0).as_ref()).ok_or_else(|| NoSuchLLVMGlobalValue { name: LINEAR_MEMORY_PAGE_SIZE_NAME_BASE.to_string() })?;
+            let liner_memory = module.get_named_global(compiler.get_linear_memory_name(0).as_ref()).ok_or_else(|| NoSuchLLVMGlobalValue { name: LINEAR_MEMORY_NAME_BASE.to_string() })?;
             engine.add_global_mapping(liner_memory, &mut mapped_liner_memory);
             engine.add_global_mapping(liner_memory_size, &mut mapped_liner_memory_size);
             let args: [&GenericValue; 0] = [];
-            let result = test_run_function_with_name(&engine, &module, compiler.get_init_linear_memory_function_name().as_ref(), &args)?;
+            let result = test_run_function_with_name(&engine, &module, compiler.get_init_linear_memory_function_name(0).as_ref(), &args)?;
             assert_eq!(1,result.int_width());
             assert_eq!( minimum,mapped_liner_memory_size);
             assert_ne!(::std::ptr::null_mut(),mapped_liner_memory);
             assert_ne!(-1_isize , unsafe{::std::mem::transmute::<*mut ::libc::c_void ,isize>(mapped_liner_memory)});
             unsafe{
-                let mut p:*mut i8 =mapped_liner_memory.add((maximum.unwrap_or(DEFAULT_MAXIMUM)-1) *PAGE_SIZE) as *mut _;
+                let  p:*mut i8 =mapped_liner_memory.add(((maximum.unwrap_or(DEFAULT_MAXIMUM)-1) *PAGE_SIZE) as usize) as *mut _;
                 *p = 32;
                 assert_eq!(*p,32);
             }
@@ -247,8 +255,8 @@ mod tests{
         let module = Module::new("grow_linear_memory_works",&context);
         let builder = Builder::new(&context);
         let compiler = Compiler::new();
-        assert_ne!(ptr::null(), compiler.set_linear_memory(&module).as_ptr());
-        assert!( module.get_named_global(LINEAR_MEMORY_NAME).is_some());
+        assert_ne!(ptr::null(), compiler.set_linear_memory(&module,0).as_ptr());
+        assert!( module.get_named_global(compiler.get_linear_memory_name(0).as_ref()).is_some());
     }
 
 }

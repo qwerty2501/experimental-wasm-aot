@@ -24,6 +24,9 @@ pub enum RuntimeError{
         name:String,
     },
 
+    #[fail(display = "not exist memory section.")]
+    NotExistMemorySection,
+
     #[fail(display = "size is too large. maximum:{}",message)]
     SizeIsTooLarge{
         message:String,
