@@ -324,7 +324,7 @@ pub fn build_call_and_set_mmap<'m>(module:&'m  Module,builder:&'m Builder,addr:&
     let void_ptr_type = Type::ptr(Type::void(context),0);
     let int32_type = Type::int32(context);
     let param_types = [void_ptr_type,Type::int_ptr(context),int32_type,int32_type,int32_type,int32_type];
-    let mmap_type = Type::function(void_ptr_type,&param_types,true);
+    let mmap_type = Type::function(void_ptr_type,&param_types,false);
     let mmap = module.set_function("mmap",&mmap_type);
     let args = [addr,length,plot,flags,fd,offset];
     builder.build_call(mmap,&args,name)
@@ -334,10 +334,18 @@ pub fn build_call_and_set_munmap<'m>(module:&'m Module,builder:&'m Builder,addr:
     let context =module.context();
     let void_ptr_type = Type::ptr(Type::void(context),0);
     let param_types = [void_ptr_type,Type::int_ptr(context)];
-    let munmap_type = Type::function(Type::int32(context),&param_types,true);
+    let munmap_type = Type::function(Type::int32(context),&param_types,false);
     let munmap = module.set_function("munmap",munmap_type);
     let args =[addr,length];
     builder.build_call(munmap,&args,name)
+}
+
+
+pub fn build_call_and_set_memcpy<'m>(module:&'m Module,builder:&'m Builder,dest:&Value,src:&Value,n:&Value)->&'m Value{
+    let context = module.context();
+    let void_ptr_type = Type::ptr(Type::void(context),0);
+    let param_types = [void_ptr_type,void_ptr_type,Type::int_ptr(context)];
+    let memcpy_type = Type::function(void_ptr_type,&param_types,true);
 }
 
 pub fn build_call_and_set<'m>(module:&'m  Module, builder:&'m Builder, args:&[&Value], name:&str, type_ref:& Type) -> BuildCallAndSetResult<'m>{
