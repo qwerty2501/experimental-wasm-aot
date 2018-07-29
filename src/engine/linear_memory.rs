@@ -73,16 +73,11 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
 
             let void_type = Type::void(context);
             let void_ptr_type = Type::ptr(void_type, 0);
-            let mmap_param_types = [void_ptr_type,int_type,i32_type,i32_type,i32_type,i32_type];
-            let mmap_type = Type::function(void_ptr_type,&mmap_param_types,true);
-            let munmap_param_types = [void_ptr_type,int_type];
-            let munmap_type = Type::function(int_type,&munmap_param_types,true);
             let fail_bb = function.append_basic_block(context,"fail_bb");
             let mmap_closure = MMapClosure {
+                module,
                 int_type,
                 void_ptr_type,
-                mmap_function:module.set_function("mmap",mmap_type),
-                munmap_function:module.set_function("munmap",munmap_type),
                 prot_value:Value::const_int(i32_type,(::libc::PROT_READ | ::libc::PROT_WRITE) as ::libc::c_ulonglong,true),
                 flags_value:Value::const_int(i32_type, (::libc::MAP_PRIVATE | ::libc::MAP_ANONYMOUS) as ::libc::c_ulonglong,true ),
                 fd_value:Value::const_int(i32_type,-1_isize as ::libc::c_ulonglong,true),
@@ -91,6 +86,7 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
                 fail_bb,
                 function,
                 context,
+                phantom : ::std::marker::PhantomData::<T>
             };
 
             let mapped_ptr = mmap_closure.extend_linear_memory(linear_memory_cache,maximum);
@@ -108,11 +104,10 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
 
 }
 
-struct MMapClosure<'a>{
+struct MMapClosure<'a,T:WasmIntType>{
+    module:&'a Module,
     int_type:&'a Type,
     void_ptr_type:&'a Type,
-    mmap_function :&'a Value,
-    munmap_function:&'a Value,
     prot_value : &'a Value,
     flags_value:&'a Value,
     fd_value:&'a Value,
@@ -121,6 +116,7 @@ struct MMapClosure<'a>{
     fail_bb:&'a BasicBlock,
     function:&'a Value,
     context:&'a Context,
+    phantom: ::std::marker::PhantomData<T>
 }
 
 #[derive(Clone,Copy)]
@@ -128,7 +124,7 @@ struct ExtendSize(usize);
 fn to_extend(size:usize)->ExtendSize{
     ExtendSize(size*PAGE_SIZE as usize)
 }
-impl<'a> MMapClosure<'a>{
+impl<'a,T:WasmIntType> MMapClosure<'a,T>{
     const LIMIT_PAGE_SIZE:usize = ::std::usize::MAX / PAGE_SIZE as usize;
     fn extend_linear_memory(&self,liner_memory_ptr:&'a Value,maximum:u32)->&'a Value{
 
@@ -150,14 +146,14 @@ impl<'a> MMapClosure<'a>{
             let indices = [extended_size_value];
             let tail_addr = self.builder.build_pointer_cast( self.builder.build_gep(mapped_ptr,&indices,""),Type::ptr(Type::void(self.context),0),"tail_addr");
             let args = [tail_addr,extend_size_value,self.prot_value,self.flags_value,self.fd_value,self.offset_value];
-            let addr = self.builder.build_call(self.mmap_function,&args,"mapped_ptr");
+            let addr = build_call_and_set_mmap(self.module,self.builder,tail_addr,extend_size_value,self.prot_value,self.flags_value,self.fd_value,self.offset_value,"mapped_ptr");
             let stay_bb = self.function.append_basic_block(self.context,["count_",count.to_string().as_ref()].concat().as_ref());
             self.builder.build_cond_br(self.builder.build_icmp(LLVMIntPredicate::LLVMIntEQ,addr, Value::const_int_to_ptr(  Value::const_int(self.int_type,::libc::MAP_FAILED as u64,true),Type::type_of(addr)),""),self.fail_bb,stay_bb);
             self.builder.position_builder_at_end(stay_bb);
             self.builder.position_builder_at_end(stay_bb);
             if extended_size > 0{
-                let munmap_params = [mapped_ptr,extended_size_value];
-                let munmap_result = self.builder.build_call(self.munmap_function,&munmap_params,"munmap_result");
+
+                let munmap_result = build_call_and_set_munmap(self.module,self.builder,mapped_ptr,extended_size_value,"munmap_result");
                 let munmap_result_cond = self.builder.build_icmp(LLVMIntPredicate::LLVMIntEQ,munmap_result,Value::const_int(self.int_type,-1_isize as u64,true),"");
                 self.builder.build_cond_br(munmap_result_cond,self.fail_bb,stay_bb);
             }

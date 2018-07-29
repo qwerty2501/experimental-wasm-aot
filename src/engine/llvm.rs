@@ -7,6 +7,7 @@ pub use llvm_sys::LLVMIntPredicate;
 use failure::Error;
 use error::RuntimeError::*;
 use std::mem;
+use engine::types::WasmIntType;
 macro_rules! compiler_c_str{
     ($s:expr) => (CString::new($s).unwrap().as_ptr())
 }
@@ -145,6 +146,7 @@ impl Builder {
 
     pub fn build_call(&self,func:&Value,args:&[&Value],name:&str)-> &Value{
         unsafe{
+
             LLVMBuildCall(self.into(),func.into(),args.as_ptr()  as *mut _,args.len() as u32,compiler_c_str!(name)).into( )
         }
     }
@@ -284,7 +286,7 @@ impl Type{
         Type::int(context, constants::CPU_BIT_WIDTH as ::libc::c_uint)
     }
 
-    pub fn int_wasm_ptr<T>(context:&Context) ->&Type{
+    pub fn int_wasm_ptr<T:WasmIntType>(context:&Context) ->&Type{
         Type::int(context,constants::bit_width::<T>() as ::libc::c_uint)
     }
     pub fn void(context:&Context)->&Type{
@@ -314,11 +316,33 @@ impl BasicBlock{
 }
 
 
-pub struct BuildAndSetCallResult<'a>{function:&'a  Value,return_value:&'a  Value}
+pub struct BuildCallAndSetResult<'a>{function:&'a  Value,return_value:&'a  Value}
 
-pub fn build_and_set_call<'m>(module:&'m mut Module, builder:&'m mut Builder, args:&& [&Value], name:&str, type_ref:& Type) ->BuildAndSetCallResult<'m>{
+
+pub fn build_call_and_set_mmap<'m>(module:&'m  Module,builder:&'m Builder,addr:&Value,length:&Value,plot:&Value,flags:&Value,fd:&Value,offset:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let void_ptr_type = Type::ptr(Type::void(context),0);
+    let int32_type = Type::int32(context);
+    let param_types = [void_ptr_type,Type::int_ptr(context),int32_type,int32_type,int32_type,int32_type];
+    let mmap_type = Type::function(void_ptr_type,&param_types,true);
+    let mmap = module.set_function("mmap",&mmap_type);
+    let args = [addr,length,plot,flags,fd,offset];
+    builder.build_call(mmap,&args,name)
+}
+
+pub fn build_call_and_set_munmap<'m>(module:&'m Module,builder:&'m Builder,addr:&Value,length:&Value,name:&str)->&'m Value{
+    let context =module.context();
+    let void_ptr_type = Type::ptr(Type::void(context),0);
+    let param_types = [void_ptr_type,Type::int_ptr(context)];
+    let munmap_type = Type::function(Type::int32(context),&param_types,true);
+    let munmap = module.set_function("munmap",munmap_type);
+    let args =[addr,length];
+    builder.build_call(munmap,&args,name)
+}
+
+pub fn build_call_and_set<'m>(module:&'m  Module, builder:&'m Builder, args:&[&Value], name:&str, type_ref:& Type) -> BuildCallAndSetResult<'m>{
     let function = module.set_function(name,type_ref);
-    BuildAndSetCallResult{function, return_value: builder.build_call(&function,args,name)}
+    BuildCallAndSetResult {function, return_value: builder.build_call(&function, args, name)}
 }
 
 
@@ -479,6 +503,7 @@ pub mod execution_engine {
             GenericValueGuard::new( unsafe{ LLVMRunFunction(self.into(),function.into(),args.len() as ::libc::c_uint,args.as_ptr() as *mut _).into() })
         }
     }
+
     impl Disposable for ExecutionEngine{
         fn dispose(&mut self) {
            unsafe{LLVMDisposeExecutionEngine(self.into())}
