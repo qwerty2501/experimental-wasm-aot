@@ -351,9 +351,9 @@ pub fn build_call_and_set_memcpy<'m>(module:&'m Module,builder:&'m Builder,dest:
     builder.build_call(memcpy,&args,name)
 }
 
-pub fn build_call_and_set<'m>(module:&'m  Module, builder:&'m Builder, args:&[&Value], name:&str, type_ref:& Type) -> BuildCallAndSetResult<'m>{
-    let function = module.set_function(name,type_ref);
-    BuildCallAndSetResult {function, return_value: builder.build_call(&function, args, name)}
+pub fn build_call_and_set<'m>(module:&'m  Module, builder:&'m Builder, args:&[&Value], function_name:&str, type_ref:& Type,return_name:&str) -> BuildCallAndSetResult<'m>{
+    let function = module.set_function(function_name,type_ref);
+    BuildCallAndSetResult {function, return_value: builder.build_call(&function, args, return_name)}
 }
 
 
