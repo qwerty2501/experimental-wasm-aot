@@ -341,11 +341,14 @@ pub fn build_call_and_set_munmap<'m>(module:&'m Module,builder:&'m Builder,addr:
 }
 
 
-pub fn build_call_and_set_memcpy<'m>(module:&'m Module,builder:&'m Builder,dest:&Value,src:&Value,n:&Value)->&'m Value{
+pub fn build_call_and_set_memcpy<'m>(module:&'m Module,builder:&'m Builder,dest:&Value,src:&Value,n:&Value,name:&str)->&'m Value{
     let context = module.context();
     let void_ptr_type = Type::ptr(Type::void(context),0);
     let param_types = [void_ptr_type,void_ptr_type,Type::int_ptr(context)];
-    let memcpy_type = Type::function(void_ptr_type,&param_types,true);
+    let memcpy_type = Type::function(void_ptr_type,&param_types,false);
+    let memcpy = module.set_function("memcpy",memcpy_type);
+    let args = [dest,src,n];
+    builder.build_call(memcpy,&args,name)
 }
 
 pub fn build_call_and_set<'m>(module:&'m  Module, builder:&'m Builder, args:&[&Value], name:&str, type_ref:& Type) -> BuildCallAndSetResult<'m>{

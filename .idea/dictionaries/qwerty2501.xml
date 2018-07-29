@@ -7,6 +7,7 @@
       <w>growable</w>
       <w>icmp</w>
       <w>libc</w>
+      <w>memcpy</w>
       <w>mmap</w>
       <w>munmap</w>
       <w>nameof</w>
