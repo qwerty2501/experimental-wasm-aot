@@ -25,15 +25,15 @@ impl<'a,T:WasmIntType>  Engine<T>{
     }
     pub fn build( &self ,wasm_module:&ParityWasmModule)->Result<(),Error>{
         let context = Context::new();
-        let memory_index = wasm_module.import_section().map_or(0,|section|{
+        let import_memory_count = wasm_module.import_section().map_or(0,|section|{
             section.entries().iter().filter(|p|match p.external() {
                 External::Memory(_) =>true,
                 _=>false,
             }).count()
         });
-        for (i,segment) in wasm_module.memory_section().ok_or(NotExistMemorySection)?.entries().iter().enumerate(){
+        for (index,segment) in wasm_module.memory_section().ok_or(NotExistMemorySection)?.entries().iter().enumerate(){
             let memory_limits = segment.limits();
-            self.linear_memory_compiler.compile(&context,memory_index + i,  memory_limits.initial() ,memory_limits.maximum())?;
+            self.linear_memory_compiler.compile(&context,import_memory_count + index,  memory_limits.initial() ,memory_limits.maximum())?;
         }
         self.wasm_compiler.compile("main_module",wasm_module,&context)?;
         Ok(())

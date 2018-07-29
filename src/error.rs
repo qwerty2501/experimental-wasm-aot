@@ -2,6 +2,8 @@
 
 use failure::Error;
 use num::*;
+use parity_wasm::elements::Instruction;
+
 #[derive(Debug,Fail)]
 pub enum RuntimeError{
 
@@ -26,6 +28,17 @@ pub enum RuntimeError{
 
     #[fail(display = "not exist memory section.")]
     NotExistMemorySection,
+
+    #[fail(display = "not exist data section offset.")]
+    NotExistDataSectionOffset,
+
+    #[fail(display = "not exist global initializer instruction.")]
+    NotExistGlobalInitializerInstruction,
+
+    #[fail(display = "invalid instruction : {}",instruction)]
+    InvalidInstruction{
+        instruction:Instruction,
+    },
 
     #[fail(display = "size is too large. maximum:{}",message)]
     SizeIsTooLarge{

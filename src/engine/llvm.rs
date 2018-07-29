@@ -221,10 +221,34 @@ impl Disposable for Builder{
 pub enum Value{}
 impl_type_traits!(Value,LLVMValueRef);
 impl  Value{
+
+    pub fn const_vector<'a>(scalar_const_values:&'a [&Value])->&'a Value{
+        unsafe{LLVMConstVector(scalar_const_values.as_ptr() as *mut _,scalar_const_values.len() as  ::libc::c_uint).into()}
+    }
+
     pub fn const_int(type_ref:&Type, value: ::libc::c_ulonglong, sign_extend: bool) ->&Value{
         unsafe{
-
             LLVMConstInt(type_ref.into(),value,sign_extend as LLVMBool).into( )
+        }
+    }
+
+    pub fn const_real(type_ref:&Type,n: ::libc::c_double)->&Value{
+        unsafe{
+            LLVMConstReal(type_ref.into(),n.into()).into()
+        }
+    }
+
+    pub fn set_global_const(&self,is_constant:bool){
+        unsafe{
+            LLVMSetGlobalConstant(self.into(),is_constant as LLVMBool)
+        }
+    }
+
+
+
+    pub fn set_initializer(&self,constant_value:&Value){
+        unsafe{
+            LLVMSetInitializer(self.into(),constant_value.into())
         }
     }
 
@@ -278,6 +302,15 @@ impl Type{
     pub fn int64(context:&Context)->&Type{
         unsafe{LLVMInt64TypeInContext(context.into()).into()}
     }
+
+    pub fn float32(context:&Context) ->&Type{
+        unsafe{LLVMFloatTypeInContext(context.into()).into()}
+    }
+
+    pub fn float64(context:&Context) ->&Type{
+        unsafe{LLVMDoubleTypeInContext(context.into()).into()}
+    }
+
     pub fn int(context:&Context,num_bits: ::libc::c_uint) -> &Type{
         unsafe {LLVMIntTypeInContext(context.into(),num_bits).into( )}
     }

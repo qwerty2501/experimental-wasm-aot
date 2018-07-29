@@ -43,11 +43,19 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
         module.set_global(self.get_linear_memory_size_name(index).as_ref(), wasm_int_type)
     }
 
+    pub fn build_get_real_address<'a>(&self,module:&'a Module,builder:&'a Builder,address:&Value, name:&str, index:usize)->&'a Value{
+        let linear_memory = self.set_linear_memory(module,index);
+        let context = module.context();
+        let int_ptr = Type::int_ptr(context);
+        let indices = [Value::const_int(int_ptr,0,false), address];
+        builder.build_gep(linear_memory,&indices,name)
+    }
+
     pub fn set_init_linear_memory_function<'a>(&self,module:&'a Module,index:usize)->&'a Value{
         let context = module.context();
         let int1_type = Type::int1(context);
-        let parms:[&Type;0] =[];
-        let grow_linear_memory_type = Type::function(int1_type,&parms,true);
+        let params:[&Type;0] =[];
+        let grow_linear_memory_type = Type::function(int1_type,&params,true);
         module.set_function(self.get_init_linear_memory_function_name(index).as_ref(),grow_linear_memory_type)
     }
 
