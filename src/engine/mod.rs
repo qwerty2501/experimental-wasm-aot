@@ -5,7 +5,7 @@ mod wasm;
 mod linear_memory;
 pub mod engine;
 mod build_context;
-
+mod instructions;
 mod llvm;
 mod constants;
 
