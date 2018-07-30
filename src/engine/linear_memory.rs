@@ -4,6 +4,9 @@ use super::*;
 use std::ptr;
 use error::RuntimeError::*;
 use error::*;
+use parity_wasm::elements::Module as WasmModule;
+use parity_wasm::elements::External;
+
 const MODULE_ID:&str = "__wasm_linear_memory_module";
 const LINEAR_MEMORY_NAME_BASE:&str = "__wasm_linear_memory";
 const LINEAR_MEMORY_PAGE_SIZE_NAME_BASE:&str = "__wasm_linear_memory_size";
@@ -15,9 +18,18 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
     pub fn new()-> LinearMemoryCompiler<T>{
         LinearMemoryCompiler(::std::marker::PhantomData::<T>{})
     }
-    pub fn compile<'a>(& self,context:&'a Context,index:usize, minimum:u32,maximum:Option<u32>) -> Result<ModuleGuard<'a>,Error>{
+    pub fn compile<'a>(& self,context:&'a Context,wasm_module:&WasmModule) -> Result<ModuleGuard<'a>,Error>{
+        let import_memory_count = wasm_module.import_section().map_or(0,|section|{
+            section.entries().iter().filter(|p|match p.external() {
+                External::Memory(_) =>true,
+                _=>false,
+            }).count()
+        });
         let build_context = BuildContext::new(MODULE_ID,context);
-        self.build_init_linear_memory_function(&build_context,index,minimum,maximum)?;
+        for (index,segment) in wasm_module.memory_section().ok_or(NotExistMemorySection)?.entries().iter().enumerate(){
+            let memory_limits = segment.limits();
+            self.build_init_linear_memory_function(&build_context,import_memory_count + index,  memory_limits.initial() ,memory_limits.maximum())?;
+        }
         Ok(build_context.move_module())
     }
 
@@ -176,15 +188,6 @@ mod tests{
     type Compiler = LinearMemoryCompiler<u32>;
 
     #[test]
-    pub fn compile_works()->Result<(),Error>{
-        let  context = Context::new();
-        let compiler = Compiler::new();
-        let module = compiler.compile(&context, 0,17,Some(25))?;
-        assert!(module.get_named_global(compiler.get_linear_memory_name(0).as_ref()).is_some());
-        Ok(())
-    }
-
-    #[test]
     pub fn init_linear_memory_works() ->Result<(),Error>{
         test_init_linear_memory_in(17,Some(25))
     }
@@ -216,7 +219,6 @@ mod tests{
         let build_context = BuildContext::new("grow_linear_memory_works",&context);
         let compiler = Compiler::new();
         compiler.build_init_linear_memory_function(&build_context, 0,minimum,maximum)?;
-        build_context.module().dump();
         analysis::verify_module(build_context.module(),analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction)?;
         test_jit_init()?;
         test_module_in_engine(build_context.module(),|engine|{
