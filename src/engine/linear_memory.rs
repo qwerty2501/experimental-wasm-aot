@@ -71,6 +71,10 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
     }
 
     pub fn build_init_linear_memory_function(&self,build_context:&BuildContext,index:usize, minimum:u32, maximum:Option<u32>)->Result<(),Error>{
+        let linear_memory = self.set_linear_memory(build_context,index);
+        let linear_memory_size = self.set_linear_memory_size(build_context,index);
+        linear_memory_size.set_initializer(Value::const_int(Type::int_wasm_ptr::<T>(build_context.context()),0,false));
+        linear_memory.set_initializer(Value::const_null(Type::ptr(Type::int8(build_context.context()),0)));
         let function = self.set_init_linear_memory_function(build_context,index);
         build_context.builder().build_function(build_context.context(),function,|builder,_|{
             let maximum = maximum.unwrap_or_else(|| DEFAULT_MAXIMUM ) ;
@@ -80,7 +84,7 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
             let wasm_int_type = Type::int_wasm_ptr::<T>(context);
             let int_type = Type::int_ptr(context);
 
-            let linear_memory = self.set_linear_memory(build_context,index);
+
 
             let linear_memory_cache = builder.build_load(linear_memory,"linear_memory_cache");
             let i32_type = Type::int32(context);
@@ -104,7 +108,7 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
 
             let mapped_ptr = mmap_closure.extend_linear_memory(linear_memory_cache,maximum);
             builder.build_store(builder.build_pointer_cast(mapped_ptr,Type::type_of(linear_memory_cache),""),linear_memory);
-            let linear_memory_size = self.set_linear_memory_size(build_context,index);
+
             builder.build_store(Value::const_int(wasm_int_type,minimum as ::libc::c_ulonglong,false),linear_memory_size);
             let int1_type = Type::int1(context);
             builder.build_ret(Value::const_int(int1_type,1 ,false));
@@ -138,10 +142,10 @@ fn to_extend(size:usize)->ExtendSize{
 }
 impl<'a,T:WasmIntType> MMapClosure<'a,T>{
     const LIMIT_PAGE_SIZE:usize = ::std::usize::MAX / PAGE_SIZE as usize;
-    fn extend_linear_memory(&self,liner_memory_ptr:&'a Value,maximum:u32)->&'a Value{
+    fn extend_linear_memory(&self,linear_memory_ptr:&'a Value,maximum:u32)->&'a Value{
 
 
-        let (addr,extended_size) = self.partial_extend_linear_memory(liner_memory_ptr, to_extend(Self::LIMIT_PAGE_SIZE), 0,maximum as usize/ Self::LIMIT_PAGE_SIZE );
+        let (addr,extended_size) = self.partial_extend_linear_memory(linear_memory_ptr, to_extend(Self::LIMIT_PAGE_SIZE), 0,maximum as usize/ Self::LIMIT_PAGE_SIZE );
         let reminder_extend_size = to_extend(maximum  as usize % Self::LIMIT_PAGE_SIZE);
         if reminder_extend_size.0 > 0{
             let (addr,_) = self.partial_extend_linear_memory(addr,reminder_extend_size,extended_size,1);
@@ -222,20 +226,16 @@ mod tests{
         analysis::verify_module(build_context.module(),analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction)?;
         test_jit_init()?;
         test_module_in_engine(build_context.module(),|engine|{
-            let mut mapped_liner_memory_size: u32 = 0;
-            let mut mapped_liner_memory: *mut ::libc::c_void = ::std::ptr::null_mut();
-            let liner_memory_size = build_context.module().get_named_global(compiler.get_linear_memory_size_name(0).as_ref()).ok_or_else(|| NoSuchLLVMGlobalValue { name: LINEAR_MEMORY_PAGE_SIZE_NAME_BASE.to_string() })?;
-            let liner_memory = build_context.module().get_named_global(compiler.get_linear_memory_name(0).as_ref()).ok_or_else(|| NoSuchLLVMGlobalValue { name: LINEAR_MEMORY_NAME_BASE.to_string() })?;
-            engine.add_global_mapping(liner_memory, &mut mapped_liner_memory);
-            engine.add_global_mapping(liner_memory_size, &mut mapped_liner_memory_size);
             let args: [&GenericValue; 0] = [];
             let result = test_run_function_with_name(&engine, build_context.module(), compiler.get_init_linear_memory_function_name(0).as_ref(), &args)?;
+            let mapped_linear_memory_size= *engine.get_global_value_ref_from_address::<u32>(compiler.get_linear_memory_size_name(0).as_ref());
+            let mapped_linear_memory= *engine.get_global_value_ref_from_address::<*mut ::libc::c_void>(compiler.get_linear_memory_name(0).as_ref());
             assert_eq!(1,result.int_width());
-            assert_eq!( minimum,mapped_liner_memory_size);
-            assert_ne!(::std::ptr::null_mut(),mapped_liner_memory);
-            assert_ne!(-1_isize , unsafe{::std::mem::transmute::<*mut ::libc::c_void ,isize>(mapped_liner_memory)});
+            assert_eq!( minimum,mapped_linear_memory_size);
+            assert_ne!(::std::ptr::null_mut(),mapped_linear_memory);
+            assert_ne!(-1_isize , unsafe{::std::mem::transmute::<*mut ::libc::c_void ,isize>(mapped_linear_memory)});
             unsafe{
-                let  p:*mut i8 =mapped_liner_memory.add(((maximum.unwrap_or(DEFAULT_MAXIMUM)-1) *PAGE_SIZE) as usize) as *mut _;
+                let  p:*mut i8 =mapped_linear_memory.add(((maximum.unwrap_or(DEFAULT_MAXIMUM)-1) *PAGE_SIZE) as usize) as *mut _;
                 *p = 32;
                 assert_eq!(*p,32);
             }

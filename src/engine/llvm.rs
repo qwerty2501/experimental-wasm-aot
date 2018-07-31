@@ -238,6 +238,12 @@ impl  Value{
         }
     }
 
+    pub fn const_null(type_ref:&Type)->&Value{
+        unsafe{
+            LLVMConstNull(type_ref.into()).into()
+        }
+    }
+
     pub fn set_global_const(&self,is_constant:bool){
         unsafe{
             LLVMSetGlobalConstant(self.into(),is_constant as LLVMBool)
@@ -519,6 +525,19 @@ pub mod execution_engine {
                 } else{
                     Ok(ExecutionEngineGuard::new(execution_engine_ptr.into()))
                 }
+            }
+        }
+
+
+        pub fn get_global_value_ref_from_address<'a,T>(&'a self,name:&str)->&'a T{
+            unsafe{
+                ::std::mem::transmute(self.get_global_value_address(name))
+            }
+        }
+
+        fn get_global_value_address(&self,name:&str)-> u64{
+            unsafe{
+                LLVMGetGlobalValueAddress(self.into(),compiler_c_str!(name))
             }
         }
 
