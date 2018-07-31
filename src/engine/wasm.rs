@@ -44,7 +44,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
         wasm_module.global_section().map_or(Ok(()),|section|{
 
             for (index,entry) in section.entries().iter().enumerate(){
-                self.build_const_initialize_global(build_context, index as u32 + import_global_count, entry);
+                self.build_const_initialize_global(build_context, index as u32 + import_global_count, entry)?;
             }
             Ok(())
         })
