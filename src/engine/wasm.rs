@@ -94,10 +94,6 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
     fn build_data_segment(&self,segment:&DataSegment,build_context:&BuildContext)->Result<(),Error>{
-
-        let convert_offset_const = |v:u64|{
-            Value::const_int(Type::int_wasm_ptr::<T>(build_context.context()),v,true)
-        };
         let instruction = segment.offset().code().first().ok_or(NotExistDataSectionOffset)?;
         let offset = match instruction {
             Instruction::I64Const(v)=>Ok(instructions::i64_const(build_context,*v)),
