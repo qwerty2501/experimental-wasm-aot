@@ -210,12 +210,12 @@ mod tests{
 
     #[test]
     pub fn init_minimum_greater_maximum_linear_memory_works() ->Result<(),Error>{
-        error_should_be!(test_init_linear_memory_in(26,Some(25)),RuntimeError,SizeIsTooLarge{message})
+        error_should_be!(test_init_linear_memory_in(26,Some(25)),SizeIsTooLarge{message})
     }
 
     #[test]
     pub fn init_maximum_65537_linear_memory_not_works()->Result<(),Error>{
-        error_should_be!(test_init_linear_memory_in(17,Some(65537)),RuntimeError,SizeIsTooLarge {message})
+        error_should_be!(test_init_linear_memory_in(17,Some(65537)),SizeIsTooLarge {message})
     }
 
     fn test_init_linear_memory_in(minimum:u32,maximum:Option<u32>)->Result<(),Error>{
