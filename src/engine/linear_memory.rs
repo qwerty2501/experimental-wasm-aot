@@ -20,10 +20,7 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
     }
     pub fn compile<'a>(& self,context:&'a Context,wasm_module:&WasmModule) -> Result<ModuleGuard<'a>,Error>{
         let import_memory_count = wasm_module.import_section().map_or(0,|section|{
-            section.entries().iter().filter(|p|match p.external() {
-                External::Memory(_) =>true,
-                _=>false,
-            }).count()
+            section.entries().iter().filter(|p| is_match_case!( p.external(),External::Memory(_))).count()
         });
         let build_context = BuildContext::new(MODULE_ID,context);
         for (index,segment) in wasm_module.memory_section().ok_or(NotExistMemorySection)?.entries().iter().enumerate(){
