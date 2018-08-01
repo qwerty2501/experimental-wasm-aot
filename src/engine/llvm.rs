@@ -531,7 +531,8 @@ pub mod execution_engine {
 
         pub fn get_global_value_ref_from_address<'a,T>(&'a self,name:&str)->&'a T{
             unsafe{
-                ::std::mem::transmute(self.get_global_value_address(name))
+                let address = self.get_global_value_address(name) as usize;
+                ::std::mem::transmute(address)
             }
         }
 
