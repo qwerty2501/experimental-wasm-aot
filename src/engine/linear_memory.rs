@@ -156,9 +156,7 @@ impl<'a,T:WasmIntType> MMapClosure<'a,T>{
         if count > 0{
             let extend_size_value = Value::const_int(self.int_type,extend_size.0 as ::libc::c_ulonglong,false);
             let extended_size_value = Value::const_int(self.int_type, extended_size as ::libc::c_ulonglong,false);
-            let indices = [extended_size_value];
-            let tail_addr = self.build_context.builder().build_pointer_cast( self.build_context.builder().build_gep(mapped_ptr,&indices,""),Type::ptr(Type::void(self.context),0),"tail_addr");
-            let args = [tail_addr,extend_size_value,self.prot_value,self.flags_value,self.fd_value,self.offset_value];
+            let tail_addr = self.build_context.builder().build_pointer_cast( self.build_context.builder().build_gep(mapped_ptr, &[extended_size_value],""),Type::ptr(Type::void(self.context),0),"tail_addr");
             let addr = build_call_and_set_mmap(self.build_context.module(),self.build_context.builder(),tail_addr,extend_size_value,self.prot_value,self.flags_value,self.fd_value,self.offset_value,"mapped_ptr");
             let stay_bb = self.function.append_basic_block(self.context,["count_",count.to_string().as_ref()].concat().as_ref());
             self.build_context.builder().build_cond_br(self.build_context.builder().build_icmp(LLVMIntPredicate::LLVMIntEQ,addr, Value::const_int_to_ptr(  Value::const_int(self.int_type,::libc::MAP_FAILED as u64,true),Type::type_of(addr)),""),self.fail_bb,stay_bb);
@@ -223,8 +221,7 @@ mod tests{
         analysis::verify_module(build_context.module(),analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction)?;
         test_jit_init()?;
         test_module_in_engine(build_context.module(),|engine|{
-            let args: [&GenericValue; 0] = [];
-            let result = test_run_function_with_name(&engine, build_context.module(), compiler.get_init_linear_memory_function_name(0).as_ref(), &args)?;
+            let result = test_run_function_with_name(&engine, build_context.module(), compiler.get_init_linear_memory_function_name(0).as_ref(), &[])?;
             let mapped_linear_memory_size= *engine.get_global_value_ref_from_address::<u32>(compiler.get_linear_memory_size_name(0).as_ref());
             let mapped_linear_memory= *engine.get_global_value_ref_from_address::<*mut ::libc::c_void>(compiler.get_linear_memory_name(0).as_ref());
             assert_eq!(1,result.int_width());
