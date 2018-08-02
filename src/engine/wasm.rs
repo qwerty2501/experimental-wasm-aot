@@ -29,9 +29,13 @@ impl<T:WasmIntType> WasmCompiler<T>{
         Ok(build_context.move_module())
     }
 
+    pub fn set_init_module_function<'c>(&self,build_context:&'c BuildContext)->&'c Value{
+        let void_type = Type::void(build_context.context());
+        build_context.module().set_function("init_module",Type::function(void_type,&[void_type],false))
+    }
+
     pub fn set_init_data_sections_function<'c>(&self,build_context:&'c BuildContext)->&'c Value{
-        let param_types:[&Type;0] = [];
-        build_context.module().set_function("init_data_sections",Type::function(Type::int8(build_context.context()),&param_types,true))
+        build_context.module().set_function("init_data_sections",Type::function(Type::int8(build_context.context()),& [],false))
     }
 
     fn build_init_global_sections(&self,wasm_module:&WasmModule,build_context:&BuildContext)->Result<(),Error>{
