@@ -25,34 +25,38 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
     pub fn compile<'c>(&self, module_id:&str,wasm_module:&WasmModule,context:&'c Context)->Result<ModuleGuard<'c>,Error> {
         let build_context = BuildContext::new(module_id,context);
+        self.build_init_global_sections(wasm_module,&build_context)?;
         self.build_init_data_sections_function(wasm_module,&build_context)?;
         Ok(build_context.move_module())
     }
 
     pub fn set_init_module_function<'c>(&self,build_context:&'c BuildContext)->&'c Value{
         let void_type = Type::void(build_context.context());
-        build_context.module().set_function("init_module",Type::function(void_type,&[void_type],false))
+        build_context.module().declare_function("init_module", Type::function(void_type, &[void_type], false))
     }
 
     pub fn set_init_data_sections_function<'c>(&self,build_context:&'c BuildContext)->&'c Value{
-        build_context.module().set_function("init_data_sections",Type::function(Type::int8(build_context.context()),& [],false))
+        build_context.module().declare_function("init_data_sections", Type::function(Type::int8(build_context.context()), & [], false))
     }
 
-    fn build_init_global_sections(&self,wasm_module:&WasmModule,build_context:&BuildContext)->Result<(),Error>{
+    fn build_init_global_sections(&self,wasm_module:&WasmModule, build_context:&BuildContext)->Result<(),Error>{
         let import_global_count = wasm_module.import_section().map_or(0,|section|{
            section.entries().iter().filter(|entry|is_match_case!( entry.external(),External::Global(_))).count() as u32
         });
         wasm_module.global_section().map_or(Ok(()),|section|{
-
-            for (index,entry) in section.entries().iter().enumerate(){
-                self.build_const_initialize_global(build_context, index as u32 + import_global_count, entry)?;
-            }
-            Ok(())
+            self.build_global_entries(section.entries(),import_global_count,build_context)
         })
     }
 
-    fn build_const_initialize_global<'a>(&self, build_context:&'a BuildContext, index:u32, global_entry:&GlobalEntry)->Result<&'a Value,Error>{
-        let g = self.declare_global(build_context,index,global_entry.global_type());
+    fn build_global_entries(&self,entries:&[GlobalEntry],import_global_count:u32,build_context:&BuildContext)->Result<(),Error>{
+        for (index,entry) in entries.iter().enumerate(){
+            self.build_const_initialize_global( index as u32 + import_global_count, entry,build_context)?;
+        }
+        Ok(())
+    }
+
+    fn build_const_initialize_global<'a>(&self, index:u32, global_entry:&GlobalEntry,build_context:&'a BuildContext)->Result<&'a Value,Error>{
+        let g = self.declare_global(index,global_entry.global_type(),build_context);
         let instruction = global_entry.init_expr().code().first().ok_or(NotExistGlobalInitializerInstruction)?;
         match instruction{
             Instruction::I32Const(v) => Some(instructions::i32_const(build_context,*v)),
@@ -69,8 +73,8 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
 
-    fn declare_global<'a>(& self, build_context:&'a BuildContext, index:u32, global_type:&GlobalType) ->&'a Value{
-        build_context.module().set_global(instructions::get_global_name(index).as_ref(),Self::value_type_to_type(&global_type.content_type(),build_context.context()))
+    fn declare_global<'a>(& self,  index:u32, global_type:&GlobalType,build_context:&'a BuildContext) ->&'a Value{
+        build_context.module().declare_global(instructions::get_global_name(index).as_ref(), Self::value_type_to_type(&global_type.content_type(), build_context.context()))
     }
 
     fn value_type_to_type<'a>(value_type:&'a ValueType,context:&'a Context)->&'a Type{
@@ -144,12 +148,33 @@ fn f64_reinterpret_i64(v: i64) -> f64 {
 mod tests{
 
     use super::*;
+    use parity_wasm::elements::GlobalSection;
+    use parity_wasm::elements::Section;
+    use parity_wasm::elements::InitExpr;
+
     #[test]
-    pub fn build_data_segment_works(){
+    pub fn build_global_entries_works()->Result<(),Error>{
+
+        let context = Context::new();
+
+        let build_context = BuildContext::new("build_global_entries_works",&context);
+        let compiler = WasmCompiler::<u32>::new();
+        compiler.build_global_entries( &[
+            GlobalEntry::new(GlobalType::new(ValueType::I32,false),InitExpr::new(vec![
+                Instruction::I32Const(33),
+            ]))
+        ],0,&build_context)?;
+        Ok(())
+
+    }
+
+    #[test]
+    pub fn build_data_segment_works()->Result<(),Error>{
 
         let context = Context::new();
 
         let build_context = BuildContext::new("build_data_segment_works",&context);
+        Ok(())
     }
 
 

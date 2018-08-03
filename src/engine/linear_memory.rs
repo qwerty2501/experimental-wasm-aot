@@ -36,7 +36,7 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
 
     pub fn set_linear_memory<'a>(&self,build_context:&'a BuildContext,index:usize) ->&'a Value {
         let memory_pointer_type =  Type::ptr(Type::int8(  build_context.context()), 0);
-        build_context.module().set_global(self.get_linear_memory_name(index).as_ref(), memory_pointer_type)
+        build_context.module().declare_global(self.get_linear_memory_name(index).as_ref(), memory_pointer_type)
     }
 
     pub fn get_linear_memory_size_name(&self,index:usize)->String{
@@ -45,7 +45,7 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
 
     pub fn set_linear_memory_size<'a>(&self,build_context:&'a BuildContext,index:usize)->&'a Value{
         let wasm_int_type = Type::int_wasm_ptr::<T>(build_context.context());
-        build_context.module().set_global(self.get_linear_memory_size_name(index).as_ref(), wasm_int_type)
+        build_context.module().declare_global(self.get_linear_memory_size_name(index).as_ref(), wasm_int_type)
     }
 
     pub fn build_get_real_address<'a>(&self,build_context:&'a BuildContext,address:&Value, name:&str, index:usize)->&'a Value{
@@ -59,7 +59,7 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
         let int1_type = Type::int1(build_context.context());
         let params:[&Type;0] =[];
         let grow_linear_memory_type = Type::function(int1_type,&params,true);
-        build_context.module().set_function(self.get_init_linear_memory_function_name(index).as_ref(),grow_linear_memory_type)
+        build_context.module().declare_function(self.get_init_linear_memory_function_name(index).as_ref(), grow_linear_memory_type)
     }
 
     pub fn get_init_linear_memory_function_name(&self,index:usize)->String{
