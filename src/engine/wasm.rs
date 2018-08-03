@@ -32,11 +32,11 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
     pub fn set_init_module_function<'c>(&self,build_context:&'c BuildContext)->&'c Value{
         let void_type = Type::void(build_context.context());
-        build_context.module().declare_function("init_module", Type::function(void_type, &[void_type], false))
+        build_context.module().set_declare_function("init_module", Type::function(void_type, &[void_type], false))
     }
 
     pub fn set_init_data_sections_function<'c>(&self,build_context:&'c BuildContext)->&'c Value{
-        build_context.module().declare_function("init_data_sections", Type::function(Type::int8(build_context.context()), & [], false))
+        build_context.module().set_declare_function("init_data_sections", Type::function(Type::int8(build_context.context()), & [], false))
     }
 
     fn build_init_global_sections(&self,wasm_module:&WasmModule, build_context:&BuildContext)->Result<(),Error>{
@@ -74,7 +74,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
 
     fn declare_global<'a>(& self,  index:u32, global_type:&GlobalType,build_context:&'a BuildContext) ->&'a Value{
-        build_context.module().declare_global(instructions::get_global_name(index).as_ref(), Self::value_type_to_type(&global_type.content_type(), build_context.context()))
+        build_context.module().set_declare_global(instructions::get_global_name(index).as_ref(), Self::value_type_to_type(&global_type.content_type(), build_context.context()))
     }
 
     fn value_type_to_type<'a>(value_type:&'a ValueType,context:&'a Context)->&'a Type{
