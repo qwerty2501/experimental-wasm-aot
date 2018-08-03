@@ -67,7 +67,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
         }.map(|const_initializer|{
             g.set_initializer(const_initializer);
-            g.set_global_const(global_entry.global_type().is_mutable());
+            g.set_global_const(!global_entry.global_type().is_mutable());
         });
         Ok(g)
     }
