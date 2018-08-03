@@ -30,12 +30,12 @@ impl<T:WasmIntType> WasmCompiler<T>{
         Ok(build_context.move_module())
     }
 
-    pub fn set_init_module_function<'c>(&self,build_context:&'c BuildContext)->&'c Value{
+    pub fn set_declare_init_module_function<'c>(&self, build_context:&'c BuildContext) ->&'c Value{
         let void_type = Type::void(build_context.context());
         build_context.module().set_declare_function("init_module", Type::function(void_type, &[void_type], false))
     }
 
-    pub fn set_init_data_sections_function<'c>(&self,build_context:&'c BuildContext)->&'c Value{
+    pub fn set_declare_init_data_sections_function<'c>(&self, build_context:&'c BuildContext) ->&'c Value{
         build_context.module().set_declare_function("init_data_sections", Type::function(Type::int8(build_context.context()), & [], false))
     }
 
@@ -56,7 +56,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
     fn build_const_initialize_global<'a>(&self, index:u32, global_entry:&GlobalEntry,build_context:&'a BuildContext)->Result<&'a Value,Error>{
-        let g = self.declare_global(index,global_entry.global_type(),build_context);
+        let g = self.set_declare_global(index, global_entry.global_type(), build_context);
         let instruction = global_entry.init_expr().code().first().ok_or(NotExistGlobalInitializerInstruction)?;
         match instruction{
             Instruction::I32Const(v) => Some(instructions::i32_const(build_context,*v)),
@@ -73,7 +73,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
 
-    fn declare_global<'a>(& self,  index:u32, global_type:&GlobalType,build_context:&'a BuildContext) ->&'a Value{
+    fn set_declare_global<'a>(& self, index:u32, global_type:&GlobalType, build_context:&'a BuildContext) ->&'a Value{
         build_context.module().set_declare_global(instructions::get_global_name(index).as_ref(), Self::value_type_to_type(&global_type.content_type(), build_context.context()))
     }
 
@@ -87,7 +87,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
     fn build_init_data_sections_function(&self,wasm_module:&WasmModule,build_context:&BuildContext)->Result<(),Error>{
-        let function = self.set_init_data_sections_function(build_context);
+        let function = self.set_declare_init_data_sections_function(build_context);
         build_context.builder().build_function(build_context.context(),function,|builder,bb|{
             wasm_module.data_section().map_or(Ok(()),|data_section|{
                for segment in data_section.entries(){
@@ -154,9 +154,7 @@ mod tests{
 
     #[test]
     pub fn build_global_entries_works()->Result<(),Error>{
-
         let context = Context::new();
-
         let build_context = BuildContext::new("build_global_entries_works",&context);
         let compiler = WasmCompiler::<u32>::new();
         compiler.build_global_entries( &[
@@ -164,8 +162,80 @@ mod tests{
                 Instruction::I32Const(33),
             ]))
         ],0,&build_context)?;
+        test_initializer(get_global(&build_context,0)?,33,true,|initializer|initializer.const_int_get_sign_extended_value());
         Ok(())
 
+    }
+
+    fn test_initializer<T:WasmNumberType  + PartialEq + ::std::fmt::Debug,F:FnOnce(&Value)->T>(value:&Value,expected:T,constant:bool,actual_func:F){
+        let initializer = value.get_initializer();
+        assert!(initializer.is_some());
+        let initializer= initializer.unwrap();
+        assert_eq!(expected,actual_func(initializer));
+        assert_eq!(constant,value.is_global_const());
+    }
+
+    fn get_global<'a>(build_context:&'a BuildContext,index:u32)->Result<&'a Value,Error>{
+        let global_name = instructions::get_global_name(0);
+        Ok(build_context.module().get_named_global(global_name.as_ref()).ok_or(NoSuchLLVMGlobalValue {name:global_name})?)
+    }
+
+    #[test]
+    pub fn build_const_initialize_global_works_i32()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("build_const_initialize_global_works_i32",&context);
+        let compiler = WasmCompiler::<u32>::new();
+        compiler.build_const_initialize_global(0,&GlobalEntry::new(GlobalType::new(ValueType::I32,false),InitExpr::new(vec![
+            Instruction::I32Const(22),
+        ])),&&build_context)?;
+        test_initializer(get_global(&build_context,0)?,22,true,|initializer|initializer.const_int_get_sign_extended_value());
+        Ok(())
+    }
+
+    #[test]
+    pub fn build_const_initialize_global_works_i64()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("build_const_initialize_global_works_i64",&context);
+        let compiler = WasmCompiler::<u32>::new();
+        compiler.build_const_initialize_global(0,&GlobalEntry::new(GlobalType::new(ValueType::I64,true),InitExpr::new(vec![
+            Instruction::I64Const(5667),
+        ])),&&build_context)?;
+        test_initializer(get_global(&build_context,0)?,5667,false,|initializer|initializer.const_int_get_sign_extended_value());
+        Ok(())
+    }
+
+    #[test]
+    pub fn build_const_initialize_global_works_f32()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("build_const_initialize_global_works_f32",&context);
+        let compiler = WasmCompiler::<u32>::new();
+        compiler.build_const_initialize_global(0,&GlobalEntry::new(GlobalType::new(ValueType::F32,false),InitExpr::new(vec![
+            Instruction::F32Const(i32_reinterpret_f32(4.00) as u32),
+        ])),&&build_context)?;
+
+        test_initializer(get_global(&build_context,0)?,4.00,true,|initializer|{
+            let mut loses_info = false;
+            initializer.const_real_get_double(&mut loses_info)
+        });
+
+        Ok(())
+    }
+
+    #[test]
+    pub fn build_const_initialize_global_works_f64()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("build_const_initialize_global_works_f64",&context);
+        let compiler = WasmCompiler::<u32>::new();
+        compiler.build_const_initialize_global(0,&GlobalEntry::new(GlobalType::new(ValueType::F64,true),InitExpr::new(vec![
+            Instruction::F64Const(i64_reinterpret_f64(4.00) as u64),
+        ])),&&build_context)?;
+
+        test_initializer(get_global(&build_context,0)?,4.00,false,|initializer|{
+            let mut loses_info = false;
+            initializer.const_real_get_double(&mut loses_info)
+        });
+
+        Ok(())
     }
 
     #[test]

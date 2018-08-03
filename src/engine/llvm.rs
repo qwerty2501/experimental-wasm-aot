@@ -67,7 +67,7 @@ impl Module {
     }
     pub fn get_named_global(&self,name:&str)->Option<&Value>{
         unsafe {
-            to_optional_ref(LLVMGetNamedGlobal(self.into(),compiler_c_str!(name)))
+            ptr_to_optional_ref(LLVMGetNamedGlobal(self.into(), compiler_c_str!(name)))
         }
     }
 
@@ -83,7 +83,7 @@ impl Module {
 
     pub fn get_named_function(&self,name:&str)->Option<&Value>{
         unsafe{
-            to_optional_ref(LLVMGetNamedFunction(self.into(),compiler_c_str!(name)))
+            ptr_to_optional_ref(LLVMGetNamedFunction(self.into(), compiler_c_str!(name)))
         }
     }
 
@@ -244,13 +244,39 @@ impl  Value{
         }
     }
 
+    pub fn const_int_get_sign_extended_value(&self)-> ::libc::c_longlong{
+        unsafe{
+            LLVMConstIntGetSExtValue(self.into())
+        }
+    }
+
+    pub fn const_real_get_double(&self,loses_info:&mut bool)-> ::libc::c_double{
+        unsafe{
+            let mut loses_info_tmp:LLVMBool  = 0;
+            let ret = LLVMConstRealGetDouble(self.into(),&mut loses_info_tmp as *mut _);
+            *loses_info = loses_info_tmp != 0;
+            ret
+        }
+    }
+
     pub fn set_global_const(&self,is_constant:bool){
         unsafe{
             LLVMSetGlobalConstant(self.into(),is_constant as LLVMBool)
         }
     }
 
+    pub fn is_global_const(&self)->bool{
+        unsafe{
+            LLVMIsGlobalConstant(self.into()) != 0
+        }
+    }
 
+
+    pub fn get_initializer(&self)->Option<&Value>{
+        unsafe{
+            ptr_to_optional_ref( LLVMGetInitializer(self.into()))
+        }
+    }
 
     pub fn set_initializer(&self,constant_value:&Value){
         unsafe{
@@ -282,10 +308,10 @@ impl  Value{
     }
 
     pub fn get_first_param(&self) ->Option<&Value>{
-        unsafe{to_optional_ref(LLVMGetFirstParam(self.into()))}
+        unsafe{ ptr_to_optional_ref(LLVMGetFirstParam(self.into()))}
     }
     pub fn get_next_param(&self)->Option<&Value>{
-        unsafe{to_optional_ref(LLVMGetNextParam(self.into()))}
+        unsafe{ ptr_to_optional_ref(LLVMGetNextParam(self.into()))}
     }
     pub fn append_basic_block<'c>(&self,context:&'c Context,name:&str)->&'c BasicBlock{
         unsafe{LLVMAppendBasicBlockInContext(context.into(),self.into(),compiler_c_str!(name)).into()}
@@ -443,7 +469,7 @@ pub trait AsPtr<T> {
 }
 
 
-unsafe fn to_optional_ref<P,T >(ptr: *mut P)-> Option<&'static T>  where  &'static T:From<*mut P>  {
+unsafe fn ptr_to_optional_ref<P,T >(ptr: *mut P) -> Option<&'static T>  where &'static T:From<*mut P>  {
     if ptr.is_null() {
         None
     } else {
