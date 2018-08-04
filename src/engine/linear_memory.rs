@@ -31,21 +31,21 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
     }
 
     pub fn get_linear_memory_name(&self,index:usize)->String{
-        [LINEAR_MEMORY_NAME_BASE,index.to_string().as_ref()].concat()
+        [LINEAR_MEMORY_NAME_BASE,&index.to_string()].concat()
     }
 
     pub fn set_declare_linear_memory<'a>(&self, build_context:&'a BuildContext, index:usize) ->&'a Value {
         let memory_pointer_type =  Type::ptr(Type::int8(  build_context.context()), 0);
-        build_context.module().set_declare_global(self.get_linear_memory_name(index).as_ref(), memory_pointer_type)
+        build_context.module().set_declare_global(&self.get_linear_memory_name(index), memory_pointer_type)
     }
 
     pub fn get_linear_memory_size_name(&self,index:usize)->String{
-        [LINEAR_MEMORY_PAGE_SIZE_NAME_BASE,index.to_string().as_ref()].concat()
+        [LINEAR_MEMORY_PAGE_SIZE_NAME_BASE,&index.to_string()].concat()
     }
 
     pub fn set_declare_linear_memory_size<'a>(&self, build_context:&'a BuildContext, index:usize) ->&'a Value{
         let wasm_int_type = Type::int_wasm_ptr::<T>(build_context.context());
-        build_context.module().set_declare_global(self.get_linear_memory_size_name(index).as_ref(), wasm_int_type)
+        build_context.module().set_declare_global(&self.get_linear_memory_size_name(index), wasm_int_type)
     }
 
     pub fn build_get_real_address<'a>(&self,build_context:&'a BuildContext,address:&Value, name:&str, index:usize)->&'a Value{
@@ -59,12 +59,12 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
         let int1_type = Type::int1(build_context.context());
         let params:[&Type;0] =[];
         let grow_linear_memory_type = Type::function(int1_type,&params,true);
-        build_context.module().set_declare_function(self.get_init_linear_memory_function_name(index).as_ref(), grow_linear_memory_type)
+        build_context.module().set_declare_function(&self.get_init_linear_memory_function_name(index), grow_linear_memory_type)
     }
 
     pub fn get_init_linear_memory_function_name(&self,index:usize)->String{
         let bit_width = bit_width::<T>();
-        ["init_linear_memory",index.to_string().as_ref(),"_", bit_width.to_string().as_ref()].concat()
+        ["init_linear_memory",&index.to_string(),"_", &bit_width.to_string()].concat()
     }
 
     pub fn build_init_linear_memory_function(&self,build_context:&BuildContext,index:usize, minimum:u32, maximum:Option<u32>)->Result<(),Error>{
@@ -158,7 +158,7 @@ impl<'a,T:WasmIntType> MMapClosure<'a,T>{
             let extended_size_value = Value::const_int(self.int_type, extended_size as ::libc::c_ulonglong,false);
             let tail_addr = self.build_context.builder().build_pointer_cast( self.build_context.builder().build_gep(mapped_ptr, &[extended_size_value],""),Type::ptr(Type::void(self.context),0),"tail_addr");
             let addr = build_call_and_set_mmap(self.build_context.module(),self.build_context.builder(),tail_addr,extend_size_value,self.prot_value,self.flags_value,self.fd_value,self.offset_value,"mapped_ptr");
-            let stay_bb = self.function.append_basic_block(self.context,["count_",count.to_string().as_ref()].concat().as_ref());
+            let stay_bb = self.function.append_basic_block(self.context,&["count_",&count.to_string()].concat());
             self.build_context.builder().build_cond_br(self.build_context.builder().build_icmp(LLVMIntPredicate::LLVMIntEQ,addr, Value::const_int_to_ptr(  Value::const_int(self.int_type,::libc::MAP_FAILED as u64,true),Type::type_of(addr)),""),self.fail_bb,stay_bb);
             self.build_context.builder().position_builder_at_end(stay_bb);
             self.build_context.builder().position_builder_at_end(stay_bb);
@@ -221,9 +221,9 @@ mod tests{
         analysis::verify_module(build_context.module(),analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction)?;
         test_jit_init()?;
         test_module_in_engine(build_context.module(),|engine|{
-            let result = test_run_function_with_name(&engine, build_context.module(), compiler.get_init_linear_memory_function_name(0).as_ref(), &[])?;
+            let result = test_run_function_with_name(&engine, build_context.module(), &compiler.get_init_linear_memory_function_name(0), &[])?;
             let mapped_linear_memory_size= *engine.get_global_value_ref_from_address::<u32>(compiler.get_linear_memory_size_name(0).as_ref());
-            let mapped_linear_memory= *engine.get_global_value_ref_from_address::<*mut ::libc::c_void>(compiler.get_linear_memory_name(0).as_ref());
+            let mapped_linear_memory= *engine.get_global_value_ref_from_address::<*mut ::libc::c_void>(&compiler.get_linear_memory_name(0));
             assert_eq!(1,result.int_width());
             assert_eq!( minimum,mapped_linear_memory_size);
             assert_ne!(::std::ptr::null_mut(),mapped_linear_memory);
@@ -246,7 +246,7 @@ mod tests{
         let build_context = BuildContext::new("set_linear_memory_works",&context);
         let compiler = Compiler::new();
         assert_ne!(ptr::null(), compiler.set_declare_linear_memory(&build_context, 0).as_ptr());
-        assert!( build_context.module().get_named_global(compiler.get_linear_memory_name(0).as_ref()).is_some());
+        assert!( build_context.module().get_named_global(&compiler.get_linear_memory_name(0)).is_some());
     }
 
 }
