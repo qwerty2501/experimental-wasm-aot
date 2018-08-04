@@ -216,8 +216,10 @@ impl Disposable for Builder{
 
 
 
-
-
+pub struct ConstRealGetDoubleResult{
+    pub result: ::libc::c_double,
+    pub loses_info:bool,
+}
 pub enum Value{}
 impl_type_traits!(Value,LLVMValueRef);
 impl  Value{
@@ -250,12 +252,11 @@ impl  Value{
         }
     }
 
-    pub fn const_real_get_double(&self,loses_info:&mut bool)-> ::libc::c_double{
+    pub fn const_real_get_double(&self)-> ConstRealGetDoubleResult{
         unsafe{
-            let mut loses_info_tmp:LLVMBool  = 0;
-            let ret = LLVMConstRealGetDouble(self.into(),&mut loses_info_tmp as *mut _);
-            *loses_info = loses_info_tmp != 0;
-            ret
+            let mut loses_info:LLVMBool  = 0;
+            let ret = LLVMConstRealGetDouble(self.into(),&mut loses_info as *mut _);
+            ConstRealGetDoubleResult{result:ret,loses_info:loses_info != 0}
         }
     }
 

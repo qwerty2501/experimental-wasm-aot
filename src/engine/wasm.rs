@@ -215,7 +215,7 @@ mod tests{
 
         test_initializer(get_global(&build_context,0)?,4.00,true,|initializer|{
             let mut loses_info = false;
-            initializer.const_real_get_double(&mut loses_info)
+            initializer.const_real_get_double().result
         });
 
         Ok(())
@@ -232,7 +232,7 @@ mod tests{
 
         test_initializer(get_global(&build_context,0)?,4.00,false,|initializer|{
             let mut loses_info = false;
-            initializer.const_real_get_double(&mut loses_info)
+            initializer.const_real_get_double().result
         });
 
         Ok(())
