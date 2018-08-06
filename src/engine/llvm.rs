@@ -170,6 +170,10 @@ impl Builder {
         on_build(self,bb)
     }
 
+    pub fn build_bit_cast(&self,value:&Value,dest_ty:&Type,name:&str)->&Value{
+        unsafe{LLVMBuildBitCast(self.into(),value.into(),dest_ty.into(),compiler_c_str!(name)).into()}
+    }
+
     pub fn build_pointer_cast(&self,value:&Value,dest_ty:&Type,name:&str)->&Value{
         unsafe{LLVMBuildPointerCast(self.into(),value.into(),dest_ty.into(),compiler_c_str!(name)).into()}
     }
@@ -225,8 +229,11 @@ pub enum Value{}
 impl_type_traits!(Value,LLVMValueRef);
 impl  Value{
 
-    pub fn const_vector<'a>(scalar_const_values:&'a [&Value])->&'a Value{
-        unsafe{LLVMConstVector(scalar_const_values.as_ptr() as *mut _,scalar_const_values.len() as  ::libc::c_uint).into()}
+
+    pub fn const_array<'a>(element_type:&Type,const_values:&'a [&Value])->&'a Value{
+        unsafe{
+            LLVMConstArray(element_type.into(),const_values.as_ptr() as *mut _,const_values.len() as ::libc::c_uint).into()
+        }
     }
 
     pub fn const_int(type_ref:&Type, value: ::libc::c_ulonglong, sign_extend: bool) ->&Value{
@@ -413,16 +420,6 @@ pub fn build_call_and_set_munmap<'m>(module:&'m Module,builder:&'m Builder,addr:
     builder.build_call(munmap,&args,name)
 }
 
-
-pub fn build_call_and_set_memcpy<'m>(module:&'m Module,builder:&'m Builder,dest:&Value,src:&Value,n:&Value,name:&str)->&'m Value{
-    let context = module.context();
-    let void_ptr_type = Type::ptr(Type::void(context),0);
-    let param_types = [void_ptr_type,void_ptr_type,Type::int_ptr(context)];
-    let memcpy_type = Type::function(void_ptr_type,&param_types,false);
-    let memcpy = module.set_declare_function("memcpy", memcpy_type);
-    let args = [dest,src,n];
-    builder.build_call(memcpy,&args,name)
-}
 
 pub fn build_call_and_set<'m>(module:&'m  Module, builder:&'m Builder, args:&[&Value], function_name:&str, type_ref:& Type,return_name:&str) -> BuildCallAndSetResult<'m>{
     let function = module.set_declare_function(function_name, type_ref);

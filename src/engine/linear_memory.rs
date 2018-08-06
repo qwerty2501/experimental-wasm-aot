@@ -218,13 +218,15 @@ mod tests{
         let compiler = Compiler::new();
         compiler.build_init_linear_memory_function(&build_context, 0,minimum,maximum)?;
         analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction)?;
-        test_jit_init()?;
+        init_test_jit()?;
         test_module_in_engine(build_context.module(),|engine|{
-            let result = test_run_function_with_name(&engine, build_context.module(), &compiler.get_init_linear_memory_function_name(0), &[])?;
-            let mapped_linear_memory_size= *engine.get_global_value_ref_from_address::<u32>(compiler.get_linear_memory_size_name(0).as_ref());
-            let mapped_linear_memory= *engine.get_global_value_ref_from_address::<*mut ::libc::c_void>(&compiler.get_linear_memory_name(0));
+            let result = run_test_function_with_name(&engine, build_context.module(), &compiler.get_init_linear_memory_function_name(0), &[])?;
             assert_eq!(1,result.int_width());
+
+            let mapped_linear_memory_size= *engine.get_global_value_ref_from_address::<u32>(compiler.get_linear_memory_size_name(0).as_ref());
             assert_eq!( minimum,mapped_linear_memory_size);
+
+            let mapped_linear_memory= *engine.get_global_value_ref_from_address::<*mut ::libc::c_void>(&compiler.get_linear_memory_name(0));
             assert_ne!(::std::ptr::null_mut(),mapped_linear_memory);
             assert_ne!(-1_isize , unsafe{::std::mem::transmute::<*mut ::libc::c_void ,isize>(mapped_linear_memory)});
             unsafe{
@@ -255,7 +257,7 @@ mod tests{
         let compiler = Compiler::new();
         let test_function_name = "build_get_real_address_test";
         compiler.build_init_linear_memory_function(&build_context,0,17,Some(25))?;
-        build_context.builder().build_function(build_context.context(),build_context.module().set_declare_function(test_function_name,Type::function(Type::void(build_context.context()),&[],false)),|builder,bb|{
+        build_test_function(&build_context,test_function_name,&[], |builder,bb|{
             let addr = compiler.build_get_real_address(&build_context,0,Value::const_int(Type::int_wasm_ptr::<u32>(&context),32,false),"addr_value");
             builder.build_store(Value::const_int(Type::int8(build_context.context()),55,false),addr);
             builder.build_ret_void();
@@ -264,10 +266,12 @@ mod tests{
 
         analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction)?;
 
-        test_jit_init()?;
+        init_test_jit()?;
         test_module_in_engine(build_context.module(),|engine|{
-            let result = test_run_function_with_name(&engine, build_context.module(), &compiler.get_init_linear_memory_function_name(0), &[])?;
-            test_run_function_with_name(&engine,build_context.module(),test_function_name,&[])?;
+            let result = run_test_function_with_name(&engine, build_context.module(), &compiler.get_init_linear_memory_function_name(0), &[])?;
+            assert_eq!(1,result.int_width());
+
+            run_test_function_with_name(&engine,build_context.module(),test_function_name,&[])?;
             let mapped_linear_memory= *engine.get_global_value_ref_from_address::<*mut i8>(&compiler.get_linear_memory_name(0));
             assert_eq!(55,unsafe{*mapped_linear_memory.add(32)});
             Ok(())

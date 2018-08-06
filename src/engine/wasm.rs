@@ -106,11 +106,14 @@ impl<T:WasmIntType> WasmCompiler<T>{
             Instruction::GetGlobal(v)=>instructions::get_global(build_context,*v ),
             invalid_instruction => Err(InvalidInstruction {instruction:invalid_instruction.clone()})?,
         }?;
-        let dest = self.linear_memory_compiler.build_get_real_address(build_context,offset,"dest",segment.index() as usize);
-        let c_args = segment.value().iter().map(|v|Value::const_int(Type::int8(build_context.context()),*v as ::libc::c_ulonglong,false)).collect::<Vec<&Value>>();
-        let src = Value::const_vector( &c_args);
-        let n = Value::const_int(Type::int_ptr(build_context.context()),segment.value().len() as u64,false);
-        build_call_and_set_memcpy(build_context.module(),build_context.builder(),dest,src,n,"");
+        let dest = self.linear_memory_compiler.build_get_real_address(build_context,segment.index(),offset,"");
+
+        let int8 = Type::int8(build_context.context());
+        let c_args = segment.value().iter().map(|v|Value::const_int(int8,*v as ::libc::c_ulonglong,false)).collect::<Vec<&Value>>();
+        let src = Value::const_array( int8,&c_args);
+        let dest  = build_context.builder().build_pointer_cast(dest, Type::ptr(Type::type_of(src),0),"");
+        build_context.builder().build_store(src,dest);
+
         Ok(())
     }
 }
@@ -244,6 +247,38 @@ mod tests{
         let context = Context::new();
 
         let build_context = BuildContext::new("build_data_segment_works",&context);
+
+        let compiler = WasmCompiler::<u32>::new();
+        compiler.linear_memory_compiler.build_init_linear_memory_function(&build_context,0,17,Some(25))?;
+
+        let offset = 1024;
+        let expected_values:Vec<u8> =vec![221, 22, 254];
+        let data_segment = DataSegment::new(0,InitExpr::new(vec![
+            Instruction::I32Const(offset),
+        ]),expected_values.clone());
+
+        let function_name = "build_data_segment_works";
+        build_test_function(&build_context,function_name,&[],|builder,bb|{
+            compiler.build_data_segment(&data_segment,&build_context)?;
+            build_context.builder().build_ret_void();
+            Ok(())
+        })?;
+
+        analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction)?;
+        init_test_jit()?;
+
+        test_module_in_engine(build_context.module(),|engine|{
+
+            let result = run_test_function_with_name(&engine, build_context.module(), &compiler.linear_memory_compiler.get_init_linear_memory_function_name(0), &[])?;
+            assert_eq!(1,result.int_width());
+            run_test_function_with_name(engine,build_context.module(),function_name,&[])?;
+            let linear_memory =  engine.get_global_value_ref_from_address::<*mut u8>(&compiler.linear_memory_compiler.get_linear_memory_name(0));
+            for (index,expected) in expected_values.iter().enumerate(){
+                assert_eq!(*expected,unsafe{*linear_memory.add(offset as usize +index)});
+            }
+            Ok(())
+        })?;
+
         Ok(())
     }
 
