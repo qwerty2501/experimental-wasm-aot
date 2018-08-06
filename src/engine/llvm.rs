@@ -3,11 +3,12 @@ use llvm_sys::core::*;
 use std::ffi::CString;
 use std::ops::{Deref};
 use super::constants;
-pub use llvm_sys::LLVMIntPredicate;
+pub use llvm_sys::{LLVMIntPredicate as IntPredicate,LLVMLinkage as Linkage};
 use failure::Error;
 use error::RuntimeError::*;
 use std::mem;
 use engine::types::WasmIntType;
+
 macro_rules! compiler_c_str{
     ($s:expr) => (CString::new($s).unwrap().as_ptr())
 }
@@ -182,7 +183,7 @@ impl Builder {
     pub fn build_gep(&self,pointer:&Value,indices:&[&Value],name:&str)->&Value{
         unsafe{LLVMBuildGEP(self.into(),pointer.into(),indices.as_ptr() as *mut _,indices.len() as u32 ,compiler_c_str!(name)).into()}
     }
-    pub fn build_icmp(&self,int_predicate:LLVMIntPredicate,lhs:&Value,rhs:&Value,name:&str)->&Value{
+    pub fn build_icmp(&self,int_predicate:IntPredicate,lhs:&Value,rhs:&Value,name:&str)->&Value{
         unsafe{LLVMBuildICmp(self.into(),int_predicate,lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
     }
 
@@ -316,6 +317,12 @@ impl  Value{
     }
     pub fn append_basic_block<'c>(&self,context:&'c Context,name:&str)->&'c BasicBlock{
         unsafe{LLVMAppendBasicBlockInContext(context.into(),self.into(),compiler_c_str!(name)).into()}
+    }
+
+    pub fn set_linkage(&self,linkage:Linkage){
+        unsafe{
+            LLVMSetLinkage(self.into(),linkage)
+        }
     }
 }
 
@@ -487,8 +494,8 @@ fn convert_message_to_string(message: *mut ::libc::c_char)->Result<String,Error>
 pub mod analysis{
     use super::*;
     use llvm_sys::analysis::*;
-    pub use llvm_sys::analysis::LLVMVerifierFailureAction;
-    pub fn verify_module(module:&Module,verifier_failure_action:LLVMVerifierFailureAction)-> Result<(),Error>{
+    pub use llvm_sys::analysis::LLVMVerifierFailureAction as VerifierFailureAction;
+    pub fn verify_module(module:&Module,verifier_failure_action:VerifierFailureAction)-> Result<(),Error>{
 
         unsafe{
             let mut out_message:*mut ::libc::c_char = mem::uninitialized();
