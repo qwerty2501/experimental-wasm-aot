@@ -253,8 +253,9 @@ mod tests{
         let context = Context::new();
         let build_context = BuildContext::new("build_get_real_address_works",&context);
         let compiler = Compiler::new();
+        let test_function_name = "build_get_real_address_test";
         compiler.build_init_linear_memory_function(&build_context,0,17,Some(25))?;
-        build_context.builder().build_function(build_context.context(),build_context.module().set_declare_function("build_get_real_address_test",Type::function(Type::void(build_context.context()),&[],false)),|builder,bb|{
+        build_context.builder().build_function(build_context.context(),build_context.module().set_declare_function(test_function_name,Type::function(Type::void(build_context.context()),&[],false)),|builder,bb|{
             let addr = compiler.build_get_real_address(&build_context,0,Value::const_int(Type::int_wasm_ptr::<u32>(&context),32,false),"addr_value");
             builder.build_store(Value::const_int(Type::int8(build_context.context()),55,false),addr);
             builder.build_ret_void();
@@ -266,7 +267,7 @@ mod tests{
         test_jit_init()?;
         test_module_in_engine(build_context.module(),|engine|{
             let result = test_run_function_with_name(&engine, build_context.module(), &compiler.get_init_linear_memory_function_name(0), &[])?;
-            test_run_function_with_name(&engine,build_context.module(),"build_get_real_address_test",&[])?;
+            test_run_function_with_name(&engine,build_context.module(),test_function_name,&[])?;
             let mapped_linear_memory= *engine.get_global_value_ref_from_address::<*mut i8>(&compiler.get_linear_memory_name(0));
             assert_eq!(55,unsafe{*mapped_linear_memory.add(32)});
             Ok(())
