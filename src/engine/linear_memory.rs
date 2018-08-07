@@ -8,15 +8,30 @@ use parity_wasm::elements::Module as WasmModule;
 use parity_wasm::elements::External;
 
 const MODULE_ID:&str = "__wasm_linear_memory_module";
-const LINEAR_MEMORY_NAME_BASE:&str = "__wasm_linear_memory";
-const LINEAR_MEMORY_PAGE_SIZE_NAME_BASE:&str = "__wasm_linear_memory_size";
+const LINEAR_MEMORY_NAME_BASE:&str = "_memory";
+const LINEAR_MEMORY_PAGE_SIZE_NAME_BASE:&str = "_memory_size";
 
-pub struct LinearMemoryCompiler<T:WasmIntType>(::std::marker::PhantomData<T>);
 
-impl<T:WasmIntType> LinearMemoryCompiler<T> {
 
-    pub fn new()-> LinearMemoryCompiler<T>{
-        LinearMemoryCompiler(::std::marker::PhantomData::<T>{})
+pub trait MemoryTypeContext {
+    const MEMORY_NAME_PREFIX:&'static str;
+}
+
+pub struct LinearMemoryTypeContext;
+impl MemoryTypeContext for LinearMemoryTypeContext {
+    const MEMORY_NAME_PREFIX: &'static str = "__wasm_linear";
+}
+
+pub type LinearMemoryCompiler<T> =MemoryCompiler<LinearMemoryTypeContext,T>;
+
+pub struct MemoryCompiler<S: MemoryTypeContext,T:WasmIntType>(::std::marker::PhantomData<T>, ::std::marker::PhantomData<S>);
+
+
+
+impl<S: MemoryTypeContext,T:WasmIntType> MemoryCompiler<S,T> {
+
+    pub fn new()-> MemoryCompiler<S,T>{
+        MemoryCompiler(::std::marker::PhantomData::<T>{},::std::marker::PhantomData::<S>{})
     }
     pub fn compile<'a>(& self,context:&'a Context,wasm_module:&WasmModule) -> Result<ModuleGuard<'a>,Error>{
         let import_memory_count = wasm_module.import_section().map_or(0,|section|{
@@ -31,7 +46,7 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
     }
 
     pub fn get_linear_memory_name(&self,index:u32)->String{
-        [LINEAR_MEMORY_NAME_BASE,&index.to_string()].concat()
+        [S::MEMORY_NAME_PREFIX,LINEAR_MEMORY_NAME_BASE,&index.to_string()].concat()
     }
 
     pub fn set_declare_linear_memory<'a>(&self, build_context:&'a BuildContext, index:u32) ->&'a Value {
@@ -40,7 +55,7 @@ impl<T:WasmIntType> LinearMemoryCompiler<T> {
     }
 
     pub fn get_linear_memory_size_name(&self,index:u32)->String{
-        [LINEAR_MEMORY_PAGE_SIZE_NAME_BASE,&index.to_string()].concat()
+        [S::MEMORY_NAME_PREFIX, LINEAR_MEMORY_PAGE_SIZE_NAME_BASE,&index.to_string()].concat()
     }
 
     pub fn set_declare_linear_memory_size<'a>(&self, build_context:&'a BuildContext, index:u32) ->&'a Value{

@@ -8,7 +8,7 @@ mod build_context;
 mod instructions;
 mod llvm;
 mod constants;
-
+mod table;
 
 use self::types::*;
 use self::test_utils::*;
@@ -18,3 +18,4 @@ use self::engine::*;
 use self::build_context::*;
 use self::llvm::*;
 use self::constants::*;
+use self::table::*;
