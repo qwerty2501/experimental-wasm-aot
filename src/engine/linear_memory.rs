@@ -15,23 +15,27 @@ const LINEAR_MEMORY_PAGE_SIZE_NAME_BASE:&str = "_memory_size";
 
 pub trait MemoryTypeContext {
     const MEMORY_NAME_PREFIX:&'static str;
+    const UNIT_SIZE:u32;
+    const DEFAULT_MAXIMUM_UNIT_SIZE:u32;
 }
 
-pub struct LinearMemoryTypeContext;
+pub enum LinearMemoryTypeContext{}
 impl MemoryTypeContext for LinearMemoryTypeContext {
     const MEMORY_NAME_PREFIX: &'static str = "__wasm_linear";
+    const UNIT_SIZE: u32 = 65536;
+    const DEFAULT_MAXIMUM_UNIT_SIZE: u32 = 65536;
 }
 
 pub type LinearMemoryCompiler<T> =MemoryCompiler<LinearMemoryTypeContext,T>;
 
-pub struct MemoryCompiler<S: MemoryTypeContext,T:WasmIntType>(::std::marker::PhantomData<T>, ::std::marker::PhantomData<S>);
+pub struct MemoryCompiler<M: MemoryTypeContext,T:WasmIntType>(::std::marker::PhantomData<T>, ::std::marker::PhantomData<M>);
 
 
 
-impl<S: MemoryTypeContext,T:WasmIntType> MemoryCompiler<S,T> {
+impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
 
-    pub fn new()-> MemoryCompiler<S,T>{
-        MemoryCompiler(::std::marker::PhantomData::<T>{},::std::marker::PhantomData::<S>{})
+    pub fn new()-> MemoryCompiler<M,T>{
+        MemoryCompiler(::std::marker::PhantomData::<T>{},::std::marker::PhantomData::<M>{})
     }
     pub fn compile<'a>(& self,context:&'a Context,wasm_module:&WasmModule) -> Result<ModuleGuard<'a>,Error>{
         let import_memory_count = wasm_module.import_section().map_or(0,|section|{
@@ -46,7 +50,7 @@ impl<S: MemoryTypeContext,T:WasmIntType> MemoryCompiler<S,T> {
     }
 
     pub fn get_linear_memory_name(&self,index:u32)->String{
-        [S::MEMORY_NAME_PREFIX,LINEAR_MEMORY_NAME_BASE,&index.to_string()].concat()
+        [M::MEMORY_NAME_PREFIX,LINEAR_MEMORY_NAME_BASE,&index.to_string()].concat()
     }
 
     pub fn set_declare_linear_memory<'a>(&self, build_context:&'a BuildContext, index:u32) ->&'a Value {
@@ -55,7 +59,7 @@ impl<S: MemoryTypeContext,T:WasmIntType> MemoryCompiler<S,T> {
     }
 
     pub fn get_linear_memory_size_name(&self,index:u32)->String{
-        [S::MEMORY_NAME_PREFIX, LINEAR_MEMORY_PAGE_SIZE_NAME_BASE,&index.to_string()].concat()
+        [M::MEMORY_NAME_PREFIX, LINEAR_MEMORY_PAGE_SIZE_NAME_BASE,&index.to_string()].concat()
     }
 
     pub fn set_declare_linear_memory_size<'a>(&self, build_context:&'a BuildContext, index:u32) ->&'a Value{
@@ -88,8 +92,8 @@ impl<S: MemoryTypeContext,T:WasmIntType> MemoryCompiler<S,T> {
         linear_memory.set_initializer(Value::const_null(Type::ptr(Type::int8(build_context.context()),0)));
         let function = self.set_init_linear_memory_function(build_context,index);
         build_context.builder().build_function(build_context.context(),function,|builder,_|{
-            let maximum = maximum.unwrap_or_else(|| DEFAULT_MAXIMUM ) ;
-            check_range(maximum,1,DEFAULT_MAXIMUM,name_of!(maximum))?;
+            let maximum = maximum.unwrap_or(M::DEFAULT_MAXIMUM_UNIT_SIZE ) ;
+            check_range(maximum,1,M::DEFAULT_MAXIMUM_UNIT_SIZE,name_of!(maximum))?;
             check_range(minimum,1,maximum - 1,name_of!(minimum))?;
             let context = build_context.context();
             let wasm_int_type = Type::int_wasm_ptr::<T>(context);
@@ -114,7 +118,8 @@ impl<S: MemoryTypeContext,T:WasmIntType> MemoryCompiler<S,T> {
                 fail_bb,
                 function,
                 context,
-                phantom : ::std::marker::PhantomData::<T>
+                phantom_target : ::std::marker::PhantomData::<T>,
+                phantom_memory_context: ::std::marker::PhantomData::<M>,
             };
 
             let mapped_ptr = mmap_closure.extend_linear_memory(linear_memory_cache,maximum);
@@ -132,7 +137,7 @@ impl<S: MemoryTypeContext,T:WasmIntType> MemoryCompiler<S,T> {
 
 }
 
-struct MMapClosure<'a,T:WasmIntType>{
+struct MMapClosure<'a,T:WasmIntType,M:MemoryTypeContext>{
     build_context:&'a BuildContext<'a>,
     int_type:&'a Type,
     void_ptr_type:&'a Type,
@@ -143,21 +148,22 @@ struct MMapClosure<'a,T:WasmIntType>{
     fail_bb:&'a BasicBlock,
     function:&'a Value,
     context:&'a Context,
-    phantom: ::std::marker::PhantomData<T>
+    phantom_target: ::std::marker::PhantomData<T>,
+    phantom_memory_context: ::std::marker::PhantomData<M>,
 }
 
 #[derive(Clone,Copy)]
 struct ExtendSize(usize);
-fn to_extend(size:usize)->ExtendSize{
-    ExtendSize(size*PAGE_SIZE as usize)
+fn size_to_extend<M:MemoryTypeContext>(size:usize) ->ExtendSize{
+    ExtendSize(size* M::UNIT_SIZE as usize)
 }
-impl<'a,T:WasmIntType> MMapClosure<'a,T>{
-    const LIMIT_PAGE_SIZE:usize = ::std::usize::MAX / PAGE_SIZE as usize;
+impl<'a,T:WasmIntType,M:MemoryTypeContext> MMapClosure<'a,T,M>{
+    const LIMIT_PAGE_SIZE:usize = ::std::usize::MAX / M::UNIT_SIZE as usize;
     fn extend_linear_memory(&self,linear_memory_ptr:&'a Value,maximum:u32)->&'a Value{
 
 
-        let (addr,extended_size) = self.partial_extend_linear_memory(linear_memory_ptr, to_extend(Self::LIMIT_PAGE_SIZE), 0,maximum as usize/ Self::LIMIT_PAGE_SIZE );
-        let reminder_extend_size = to_extend(maximum  as usize % Self::LIMIT_PAGE_SIZE);
+        let (addr,extended_size) = self.partial_extend_linear_memory(linear_memory_ptr, size_to_extend::<M>(Self::LIMIT_PAGE_SIZE), 0, maximum as usize/ Self::LIMIT_PAGE_SIZE );
+        let reminder_extend_size = size_to_extend::<M>(maximum  as usize % Self::LIMIT_PAGE_SIZE);
         if reminder_extend_size.0 > 0{
             let (addr,_) = self.partial_extend_linear_memory(addr,reminder_extend_size,extended_size,1);
             addr
@@ -245,7 +251,7 @@ mod tests{
             assert_ne!(::std::ptr::null_mut(),mapped_linear_memory);
             assert_ne!(-1_isize , unsafe{::std::mem::transmute::<*mut ::libc::c_void ,isize>(mapped_linear_memory)});
             unsafe{
-                let  p:*mut i8 =mapped_linear_memory.add(((maximum.unwrap_or(DEFAULT_MAXIMUM)-1) *PAGE_SIZE) as usize) as *mut _;
+                let  p:*mut i8 =mapped_linear_memory.add(((maximum.unwrap_or(LinearMemoryTypeContext::DEFAULT_MAXIMUM_UNIT_SIZE)-1) *LinearMemoryTypeContext::UNIT_SIZE) as usize) as *mut _;
                 *p = 32;
                 assert_eq!(*p,32);
             }
