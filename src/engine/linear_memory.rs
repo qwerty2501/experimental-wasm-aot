@@ -6,6 +6,7 @@ use error::RuntimeError::*;
 use error::*;
 use parity_wasm::elements::Module as WasmModule;
 use parity_wasm::elements::External;
+use parity_wasm::elements::ResizableLimits;
 
 const MODULE_ID:&str = "__wasm_linear_memory_module";
 const LINEAR_MEMORY_NAME_BASE:&str = "_memory";
@@ -42,10 +43,7 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
             section.entries().iter().filter(|p| is_match_case!( p.external(),External::Memory(_))).count() as u32
         });
         let build_context = BuildContext::new(MODULE_ID,context);
-        for (index,segment) in wasm_module.memory_section().ok_or(NotExistMemorySection)?.entries().iter().enumerate(){
-            let memory_limits = segment.limits();
-            self.build_init_linear_memory_function(&build_context,import_memory_count + index as u32,  memory_limits.initial() ,memory_limits.maximum())?;
-        }
+        self.build_init_function(&build_context, import_memory_count, &wasm_module.memory_section().ok_or(NotExistMemorySection)?.entries().iter().map(|m|m.limits()).collect::<Vec<_>>())?;
         Ok(build_context.move_module())
     }
 
@@ -74,59 +72,64 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
         build_context.builder().build_gep(linear_memory,&[address],name)
     }
 
-    pub fn set_init_linear_memory_function<'a>(&self,build_context:&'a BuildContext,index:u32)->&'a Value{
+    pub fn set_init_function<'a>(&self, build_context:&'a BuildContext) ->&'a Value{
         let int1_type = Type::int1(build_context.context());
         let grow_linear_memory_type = Type::function(int1_type,&[],true);
-        build_context.module().set_declare_function(&self.get_init_linear_memory_function_name(index), grow_linear_memory_type)
+        build_context.module().set_declare_function(&self.get_init_function_name(), grow_linear_memory_type)
     }
 
-    pub fn get_init_linear_memory_function_name(&self,index:u32)->String{
+    pub fn get_init_function_name(&self) ->String{
         let bit_width = bit_width::<T>();
-        ["init_linear_memory",&index.to_string(),"_", &bit_width.to_string()].concat()
+        ["init_linear_memory_", &bit_width.to_string()].concat()
     }
 
-    pub fn build_init_linear_memory_function(&self,build_context:&BuildContext,index:u32, minimum:u32, maximum:Option<u32>)->Result<(),Error>{
-        let linear_memory = self.set_declare_linear_memory(build_context, index);
-        let linear_memory_size = self.set_declare_linear_memory_size(build_context, index);
-        linear_memory_size.set_initializer(Value::const_int(Type::int_wasm_ptr::<T>(build_context.context()),0,false));
-        linear_memory.set_initializer(Value::const_null(Type::ptr(Type::int8(build_context.context()),0)));
-        let function = self.set_init_linear_memory_function(build_context,index);
+    pub fn build_init_function(&self, build_context:&BuildContext, import_count:u32, limits:&[&ResizableLimits]) ->Result<(),Error>{
+
+        let function = self.set_init_function(build_context);
         build_context.builder().build_function(build_context.context(),function,|builder,_|{
-            let maximum = maximum.unwrap_or(M::DEFAULT_MAXIMUM_UNIT_SIZE ) ;
-            check_range(maximum,1,M::DEFAULT_MAXIMUM_UNIT_SIZE,name_of!(maximum))?;
-            check_range(minimum,1,maximum - 1,name_of!(minimum))?;
-            let context = build_context.context();
-            let wasm_int_type = Type::int_wasm_ptr::<T>(context);
-            let int_type = Type::int_ptr(context);
+            let fail_bb = function.append_basic_block(build_context.context(),"fail_bb");
+            for (index,limit) in limits.iter().enumerate(){
+                let index = index as u32 + import_count;
+                let minimum = limit.initial();
+                let maximum = limit.maximum();
+                let linear_memory = self.set_declare_linear_memory(build_context, index);
+                let linear_memory_size = self.set_declare_linear_memory_size(build_context, index);
+                linear_memory_size.set_initializer(Value::const_int(Type::int_wasm_ptr::<T>(build_context.context()),0,false));
+                linear_memory.set_initializer(Value::const_null(Type::ptr(Type::int8(build_context.context()),0)));
+                let maximum = maximum.unwrap_or(M::DEFAULT_MAXIMUM_UNIT_SIZE ) ;
+                check_range(maximum,1,M::DEFAULT_MAXIMUM_UNIT_SIZE,name_of!(maximum))?;
+                check_range(minimum,1,maximum - 1,name_of!(minimum))?;
+                let context = build_context.context();
+                let wasm_int_type = Type::int_wasm_ptr::<T>(context);
+                let int_type = Type::int_ptr(context);
+                let linear_memory_cache = builder.build_load(linear_memory,"linear_memory_cache");
+                let i32_type = Type::int32(context);
 
+                let void_type = Type::void(context);
+                let void_ptr_type = Type::ptr(void_type, 0);
 
+                let mmap_closure = MMapClosure {
+                    build_context,
+                    int_type,
+                    void_ptr_type,
+                    prot_value:Value::const_int(i32_type,(::libc::PROT_READ | ::libc::PROT_WRITE) as ::libc::c_ulonglong,true),
+                    flags_value:Value::const_int(i32_type, (::libc::MAP_PRIVATE | ::libc::MAP_ANONYMOUS) as ::libc::c_ulonglong,true ),
+                    fd_value:Value::const_int(i32_type,-1_isize as ::libc::c_ulonglong,true),
+                    offset_value:Value::const_int(i32_type,0,true),
+                    fail_bb,
+                    function,
+                    context,
+                    phantom_target : ::std::marker::PhantomData::<T>,
+                    phantom_memory_context: ::std::marker::PhantomData::<M>,
+                };
 
-            let linear_memory_cache = builder.build_load(linear_memory,"linear_memory_cache");
-            let i32_type = Type::int32(context);
+                let mapped_ptr = mmap_closure.extend_linear_memory(linear_memory_cache,maximum);
+                builder.build_store(builder.build_pointer_cast(mapped_ptr,Type::type_of(linear_memory_cache),""),linear_memory);
 
-            let void_type = Type::void(context);
-            let void_ptr_type = Type::ptr(void_type, 0);
-            let fail_bb = function.append_basic_block(context,"fail_bb");
-            let mmap_closure = MMapClosure {
-                build_context,
-                int_type,
-                void_ptr_type,
-                prot_value:Value::const_int(i32_type,(::libc::PROT_READ | ::libc::PROT_WRITE) as ::libc::c_ulonglong,true),
-                flags_value:Value::const_int(i32_type, (::libc::MAP_PRIVATE | ::libc::MAP_ANONYMOUS) as ::libc::c_ulonglong,true ),
-                fd_value:Value::const_int(i32_type,-1_isize as ::libc::c_ulonglong,true),
-                offset_value:Value::const_int(i32_type,0,true),
-                fail_bb,
-                function,
-                context,
-                phantom_target : ::std::marker::PhantomData::<T>,
-                phantom_memory_context: ::std::marker::PhantomData::<M>,
-            };
+                builder.build_store(Value::const_int(wasm_int_type,minimum as ::libc::c_ulonglong,false),linear_memory_size);
+            }
 
-            let mapped_ptr = mmap_closure.extend_linear_memory(linear_memory_cache,maximum);
-            builder.build_store(builder.build_pointer_cast(mapped_ptr,Type::type_of(linear_memory_cache),""),linear_memory);
-
-            builder.build_store(Value::const_int(wasm_int_type,minimum as ::libc::c_ulonglong,false),linear_memory_size);
-            let int1_type = Type::int1(context);
+            let int1_type = Type::int1(build_context.context());
             builder.build_ret(Value::const_int(int1_type,1 ,false));
 
             builder.position_builder_at_end(fail_bb);
@@ -237,11 +240,11 @@ mod tests{
         let context = Context::new();
         let build_context = BuildContext::new("grow_linear_memory_works",&context);
         let compiler = Compiler::new();
-        compiler.build_init_linear_memory_function(&build_context, 0,minimum,maximum)?;
+        compiler.build_init_function(&build_context, 0, &[&ResizableLimits::new(minimum, maximum)])?;
         analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction)?;
         init_test_jit()?;
         test_module_in_engine(build_context.module(),|engine|{
-            let result = run_test_function_with_name(&engine, build_context.module(), &compiler.get_init_linear_memory_function_name(0), &[])?;
+            let result = run_test_function_with_name(&engine, build_context.module(), &compiler.get_init_function_name(), &[])?;
             assert_eq!(1,result.int_width());
 
             let mapped_linear_memory_size= *engine.get_global_value_ref_from_address::<u32>(compiler.get_linear_memory_size_name(0).as_ref());
@@ -277,7 +280,7 @@ mod tests{
         let build_context = BuildContext::new("build_get_real_address_works",&context);
         let compiler = Compiler::new();
         let test_function_name = "build_get_real_address_test";
-        compiler.build_init_linear_memory_function(&build_context,0,17,Some(25))?;
+        compiler.build_init_function(&build_context, 0, &[&ResizableLimits::new(17, Some(25))])?;
         build_test_function(&build_context,test_function_name,&[], |builder,bb|{
             let addr = compiler.build_get_real_address(&build_context,0,Value::const_int(Type::int_wasm_ptr::<u32>(&context),32,false),"addr_value");
             builder.build_store(Value::const_int(Type::int8(build_context.context()),55,false),addr);
@@ -289,7 +292,7 @@ mod tests{
 
         init_test_jit()?;
         test_module_in_engine(build_context.module(),|engine|{
-            let result = run_test_function_with_name(&engine, build_context.module(), &compiler.get_init_linear_memory_function_name(0), &[])?;
+            let result = run_test_function_with_name(&engine, build_context.module(), &compiler.get_init_function_name(), &[])?;
             assert_eq!(1,result.int_width());
 
             run_test_function_with_name(&engine,build_context.module(),test_function_name,&[])?;

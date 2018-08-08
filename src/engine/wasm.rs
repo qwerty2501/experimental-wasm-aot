@@ -154,6 +154,7 @@ mod tests{
     use parity_wasm::elements::GlobalSection;
     use parity_wasm::elements::Section;
     use parity_wasm::elements::InitExpr;
+    use parity_wasm::elements::ResizableLimits;
 
     #[test]
     pub fn build_global_entries_works()->Result<(),Error>{
@@ -249,7 +250,7 @@ mod tests{
         let build_context = BuildContext::new("build_data_segment_works",&context);
 
         let compiler = WasmCompiler::<u32>::new();
-        compiler.linear_memory_compiler.build_init_linear_memory_function(&build_context,0,17,Some(25))?;
+        compiler.linear_memory_compiler.build_init_function(&build_context, 0, &[&ResizableLimits::new(17, Some(25))])?;
 
         let offset = 1024;
         let expected_values:Vec<u8> =vec![221, 22, 254];
@@ -269,7 +270,7 @@ mod tests{
 
         test_module_in_engine(build_context.module(),|engine|{
 
-            let result = run_test_function_with_name(&engine, build_context.module(), &compiler.linear_memory_compiler.get_init_linear_memory_function_name(0), &[])?;
+            let result = run_test_function_with_name(&engine, build_context.module(), &compiler.linear_memory_compiler.get_init_function_name(), &[])?;
             assert_eq!(1,result.int_width());
             run_test_function_with_name(engine,build_context.module(),function_name,&[])?;
             let linear_memory =  engine.get_global_value_ref_from_address::<*mut u8>(&compiler.linear_memory_compiler.get_linear_memory_name(0));
