@@ -293,13 +293,17 @@ impl  Value{
         }
     }
 
-    pub fn const_int_to_ptr<'a>(value:&'a Value,to_type:&Type)->&'a Value{
+    pub fn const_int_to_ptr(&self,to_type:&Type)->& Value{
         unsafe{
-            LLVMConstIntToPtr(value.into(),to_type.into()).into()
+            LLVMConstIntToPtr(self.into(),to_type.into()).into()
         }
     }
 
-
+    pub fn const_pointer_cast(&self,to_type:&Type)->& Value{
+        unsafe{
+            LLVMConstPointerCast(self.into(),to_type.into()).into()
+        }
+    }
 
     pub fn null_ptr(type_ref:&Type)->&Value {
         unsafe{LLVMConstPointerNull(type_ref.into()).into()}
