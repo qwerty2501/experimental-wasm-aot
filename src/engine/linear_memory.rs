@@ -7,6 +7,7 @@ use error::*;
 use parity_wasm::elements::Module as WasmModule;
 use parity_wasm::elements::External;
 use parity_wasm::elements::ResizableLimits;
+use parity_wasm::elements::ImportCountType;
 
 const MODULE_ID:&str = "__wasm_linear_memory_module";
 const LINEAR_MEMORY_NAME_BASE:&str = "_memory";
@@ -39,9 +40,8 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
         MemoryCompiler(::std::marker::PhantomData::<T>{},::std::marker::PhantomData::<M>{})
     }
     pub fn compile<'a>(& self,context:&'a Context,wasm_module:&WasmModule) -> Result<ModuleGuard<'a>,Error>{
-        let import_memory_count = wasm_module.import_section().map_or(0,|section|{
-            section.entries().iter().filter(|p| is_match_case!( p.external(),External::Memory(_))).count() as u32
-        });
+
+        let import_memory_count = wasm_module.import_count(ImportCountType::Memory) as u32;
         let build_context = BuildContext::new(MODULE_ID,context);
         self.build_init_function(&build_context, import_memory_count, &wasm_module.memory_section().ok_or(NotExistMemorySection)?.entries().iter().map(|m|m.limits()).collect::<Vec<_>>())?;
         Ok(build_context.move_module())

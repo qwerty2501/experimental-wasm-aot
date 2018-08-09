@@ -6,6 +6,7 @@ use failure::Error;
 use std::str;
 use parity_wasm::elements::{DataSegment,Instruction,External,GlobalType,ValueType,GlobalEntry};
 use error::RuntimeError::*;
+use parity_wasm::elements::ImportCountType;
 
 const WASM_FUNCTION_PREFIX:&str = "__WASM_FUNCTION_";
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
@@ -40,9 +41,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
     fn build_init_global_sections(&self,wasm_module:&WasmModule, build_context:&BuildContext)->Result<(),Error>{
-        let import_global_count = wasm_module.import_section().map_or(0,|section|{
-           section.entries().iter().filter(|entry|is_match_case!( entry.external(),External::Global(_))).count() as u32
-        });
+        let import_global_count = wasm_module.import_count(ImportCountType::Global) as u32;
         wasm_module.global_section().map_or(Ok(()),|section|{
             self.build_global_entries(section.entries(),import_global_count,build_context)
         })

@@ -10,10 +10,3 @@ macro_rules! error_should_be{
             }
         });
 }
-
-macro_rules! is_match_case {
-    ($result:expr,$case:pat) => (match $result{
-        $case=>true,
-        _=>false,
-    });
-}
