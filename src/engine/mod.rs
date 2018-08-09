@@ -2,7 +2,7 @@
 mod types;
 mod test_utils;
 mod wasm;
-mod linear_memory;
+mod memory;
 pub mod engine;
 mod build_context;
 mod instructions;
@@ -13,7 +13,7 @@ mod table;
 use self::types::*;
 use self::test_utils::*;
 use self::wasm::*;
-use self::linear_memory::*;
+use self::memory::*;
 use self::engine::*;
 use self::build_context::*;
 use self::llvm::*;

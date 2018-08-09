@@ -13,7 +13,7 @@ pub fn build_test_function_with_return<F:FnOnce(& Builder,& BasicBlock) -> Resul
     build_context.builder().build_function(build_context.context(),function,on_build)
 }
 
-pub fn init_test_jit() ->Result<(),Error>{
+fn init_test_jit() ->Result<(),Error>{
     link_in_mc_jit();
     initialize_native_target()?;
     initialize_native_asm_printer()?;
@@ -21,6 +21,7 @@ pub fn init_test_jit() ->Result<(),Error>{
 }
 
 pub fn test_module_in_engine<F:FnOnce(&ExecutionEngine)->Result<(),Error>>(module:&Module,f:F)->Result<(),Error>{
+    init_test_jit()?;
     let engine = ExecutionEngine::new_for_module(module)?;
     f(&engine)?;
     engine.remove_module(module)?;

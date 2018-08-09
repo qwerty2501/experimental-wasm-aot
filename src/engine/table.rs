@@ -34,9 +34,14 @@ pub struct TableCompiler<TType:TableType,T:WasmIntType>{
 
 impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
 
+    pub fn new()->TableCompiler<TType,T>{
+        TableCompiler::<TType,T>{table_memory_compiler:TableMemoryCompiler::<TType,T>::new(),table_type: ::std::marker::PhantomData::<TType>}
+    }
+
     pub fn build_init_function(&self, build_context:&BuildContext,table_types:&[&elements::TableType],initializers:&[TableInitializer], import_count:u32) -> Result<(),Error>{
 
         self.table_memory_compiler.build_init_function_internal(build_context,import_count,&table_types.iter().map(|t|t.limits()).collect::<Vec<_>>(),||{
+
             let address_type = Type::int_wasm_ptr::<T>(build_context.context());
             let function_pointer_type = Type::ptr(Type::void(build_context.context()),0);
             for initializer in initializers{
@@ -44,8 +49,10 @@ impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
 
                 let values = initializer.elements.iter().map(|e|e.const_pointer_cast(function_pointer_type)).collect::<Vec<_>>();
                 let array = Value::const_array(function_pointer_type,&values);
+                let address = build_context.builder().build_pointer_cast(address,Type::ptr(Type::type_of(array),0),"address");
                 build_context.builder().build_store(array,address);
             }
+
             Ok(())
         })?;
         Ok(())
@@ -62,4 +69,58 @@ pub struct TableInitializer<'a>{
     index:u32,
     offset:u32,
     elements:&'a [&'a Value]
+}
+
+impl<'a> TableInitializer<'a>{
+
+    pub fn new<'e>(index:u32,offset:u32,elements:&'e[&'e Value])->TableInitializer<'e>{
+        TableInitializer{index,offset,elements}
+    }
+}
+
+#[cfg(test)]
+mod tests{
+
+    use super::*;
+    #[test]
+    pub fn build_init_function_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("build_init_function_works",&context);
+        let compiler = FunctionTableCompiler::<u32>::new();
+        let table_types = [
+            &elements::TableType::new(2,Some(2)),
+        ];
+
+
+        let function_name = "test_function_name";
+        let int32  = Type::int32(build_context.context());
+        let target_function_type = Type::function(int32,&[],false);
+        let target_function = build_context.module().set_declare_function(function_name,target_function_type);
+        let expected:u32 = 32;
+        build_context.builder().build_function(build_context.context(),target_function,|_,_|{
+            build_context.builder().build_ret(Value::const_int(int32,expected as u64,false));
+            Ok(())
+        })?;
+
+        let elements = [target_function];
+        let initializers = [
+            TableInitializer::new(0,1,&elements),
+        ];
+
+
+        compiler.build_init_function(&build_context,&table_types,&initializers,0)?;
+        analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction)?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let _ = run_test_function_with_name(engine,build_context.module(),&compiler.table_memory_compiler.get_init_function_name(),&[])?;
+            let memory:*mut fn()->u32 = *engine.get_global_value_ref_from_address(&compiler.table_memory_compiler.get_memory_name(0));
+            unsafe{
+                let test_func_ptr = memory.add(1);
+                assert_ne!(::std::ptr::null_mut(),test_func_ptr);
+                assert_eq!(expected,(*test_func_ptr)());
+            }
+            Ok(())
+        })?;
+
+        Ok(())
+    }
 }

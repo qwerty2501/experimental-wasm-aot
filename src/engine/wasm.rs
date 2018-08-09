@@ -4,9 +4,8 @@ use parity_wasm::elements::Module as WasmModule;
 use super::*;
 use failure::Error;
 use std::str;
-use parity_wasm::elements::{DataSegment,Instruction,External,GlobalType,ValueType,GlobalEntry};
+use parity_wasm::elements::{DataSegment,Instruction,ImportCountType,GlobalType,ValueType,GlobalEntry};
 use error::RuntimeError::*;
-use parity_wasm::elements::ImportCountType;
 
 const WASM_FUNCTION_PREFIX:&str = "__WASM_FUNCTION_";
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
@@ -217,7 +216,6 @@ mod tests{
         ])),)?;
 
         test_initializer(get_global(&build_context,0)?,4.00,true,|initializer|{
-            let mut loses_info = false;
             initializer.const_real_get_double().result
         });
 
@@ -234,7 +232,6 @@ mod tests{
         ])),)?;
 
         test_initializer(get_global(&build_context,0)?,4.00,false,|initializer|{
-            let mut loses_info = false;
             initializer.const_real_get_double().result
         });
 
@@ -265,14 +262,13 @@ mod tests{
         })?;
 
         analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction)?;
-        init_test_jit()?;
 
         test_module_in_engine(build_context.module(),|engine|{
 
             let result = run_test_function_with_name(&engine, build_context.module(), &compiler.linear_memory_compiler.get_init_function_name(), &[])?;
             assert_eq!(1,result.int_width());
             run_test_function_with_name(engine,build_context.module(),function_name,&[])?;
-            let linear_memory =  engine.get_global_value_ref_from_address::<*mut u8>(&compiler.linear_memory_compiler.get_linear_memory_name(0));
+            let linear_memory =  engine.get_global_value_ref_from_address::<*mut u8>(&compiler.linear_memory_compiler.get_memory_name(0));
             for (index,expected) in expected_values.iter().enumerate(){
                 assert_eq!(*expected,unsafe{*linear_memory.add(offset as usize +index)});
             }
