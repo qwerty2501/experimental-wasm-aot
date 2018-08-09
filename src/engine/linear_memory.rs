@@ -83,7 +83,10 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
         ["init_linear_memory_", &bit_width.to_string()].concat()
     }
 
-    pub fn build_init_function(&self, build_context:&BuildContext, import_count:u32, limits:&[&ResizableLimits]) ->Result<(),Error>{
+    pub fn build_init_function(&self, build_context:&BuildContext, import_count:u32, limits:&[&ResizableLimits]) ->Result<(),Error> {
+        self.build_init_function_internal(build_context,import_count,limits,||Ok(()))
+    }
+    pub fn build_init_function_internal<F:FnOnce()->Result<(),Error>>(&self, build_context:&BuildContext, import_count:u32, limits:&[&ResizableLimits],and_then:F) ->Result<(),Error>{
 
         let function = self.set_init_function(build_context);
         build_context.builder().build_function(build_context.context(),function,|builder,_|{
@@ -128,7 +131,7 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
 
                 builder.build_store(Value::const_int(wasm_int_type,minimum as ::libc::c_ulonglong,false),linear_memory_size);
             }
-
+            and_then()?;
             let int1_type = Type::int1(build_context.context());
             builder.build_ret(Value::const_int(int1_type,1 ,false));
 
