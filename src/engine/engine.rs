@@ -2,7 +2,7 @@ extern crate parity_wasm;
 extern crate failure;
 use self::parity_wasm::elements::Module as WasmModule;
 use failure::Error;
-use super::linear_memory as memory;
+use super::memory as memory;
 use super::wasm;
 use error::RuntimeError::*;
 use super::llvm::*;
