@@ -58,7 +58,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
         Ok(())
     }
 
-    fn set_declare_types<'b>(&self,build_context:&'b BuildContext,types:&'b [elements::Type])->Vec<&'b Type>{
+    fn set_declare_types<'b>(&self,build_context:&'b BuildContext,types:&[elements::Type])->Vec<&'b Type>{
         types.iter().map(|ty|{
             match ty {
                 elements::Type::Function(function_type)=>{
