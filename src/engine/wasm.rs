@@ -5,6 +5,7 @@ use super::*;
 use failure::Error;
 use std::str;
 use parity_wasm::elements::{DataSegment,Instruction,ImportCountType,GlobalType,ValueType,GlobalEntry};
+use parity_wasm::elements;
 use error::RuntimeError::*;
 
 const WASM_FUNCTION_PREFIX:&str = "__WASM_FUNCTION_";
@@ -53,6 +54,25 @@ impl<T:WasmIntType> WasmCompiler<T>{
         Ok(())
     }
 
+    fn build_functions(&self,build_context:&BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
+        Ok(())
+    }
+
+    fn set_declare_types<'b>(&self,build_context:&'b BuildContext,types:&'b [elements::Type])->Vec<&'b Type>{
+        types.iter().map(|ty|{
+            match ty {
+                elements::Type::Function(function_type)=>{
+                    let param_types = function_type.params().iter().map(|value_type|Self::value_type_to_type(build_context,&value_type)).collect::<Vec<_>>();
+                    Type::function(
+                        function_type.return_type().map(|value_type|Self::value_type_to_type(build_context,&value_type)).unwrap_or(Type::void(build_context.context())),
+                        &param_types,
+                        false
+                    )
+                }
+            }
+        }).collect()
+    }
+
     fn build_const_initialize_global<'a>(&self, build_context:&'a BuildContext,index:u32, global_entry:&GlobalEntry)->Result<&'a Value,Error>{
         let g = self.set_declare_global(build_context,index, global_entry.global_type());
         let instruction = global_entry.init_expr().code().first().ok_or(NotExistGlobalInitializerInstruction)?;
@@ -72,15 +92,15 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
 
     fn set_declare_global<'a>(& self, build_context:&'a BuildContext, index:u32, global_type:&GlobalType) ->&'a Value{
-        build_context.module().set_declare_global(instructions::get_global_name(index).as_ref(), Self::value_type_to_type(&global_type.content_type(), build_context.context()))
+        build_context.module().set_declare_global(instructions::get_global_name(index).as_ref(), Self::value_type_to_type(build_context,&global_type.content_type()))
     }
 
-    fn value_type_to_type<'a>(value_type:&'a ValueType,context:&'a Context)->&'a Type{
+    fn value_type_to_type<'a>(build_context:&'a BuildContext, value_type:&ValueType)->&'a Type{
         match value_type{
-            ValueType::I32 => Type::int32(context),
-            ValueType::I64 => Type::int64(context),
-            ValueType::F32 => Type::float32(context),
-            ValueType::F64 => Type::float64(context),
+            ValueType::I32 => Type::int32(build_context.context()),
+            ValueType::I64 => Type::int64(build_context.context()),
+            ValueType::F32 => Type::float32(build_context.context()),
+            ValueType::F64 => Type::float64(build_context.context()),
         }
     }
 
@@ -143,6 +163,11 @@ fn f64_reinterpret_i64(v: i64) -> f64 {
     unsafe {
         ::std::mem::transmute(v)
     }
+}
+
+struct BuildFunctionContext<'a>{
+    types:&'a [&'a Value],
+    build_context:&'a BuildContext<'a>,
 }
 
 #[cfg(test)]

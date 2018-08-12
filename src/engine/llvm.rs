@@ -381,7 +381,7 @@ impl Type{
         unsafe {LLVMPointerType(type_ref.into(),address_space).into( )}
     }
 
-    pub fn function<'a>(return_type:&'a Type,param_types:&'a[&'a Type],is_var_arg:bool)->&'a Type{
+    pub fn function<'a>(return_type:&'a Type,param_types:&[&'a Type],is_var_arg:bool)->&'a Type{
         unsafe{LLVMFunctionType(return_type.into(),param_types.as_ptr() as *mut _,param_types.len() as ::libc::c_uint,is_var_arg as LLVMBool).into()}
     }
 
