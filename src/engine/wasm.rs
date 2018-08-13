@@ -62,57 +62,73 @@ impl<T:WasmIntType> WasmCompiler<T>{
     fn build_functions(&self,build_context:&BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
         wasm_module.type_section().map_or(Ok(()),|type_section|{
             let types = self.set_declare_types(build_context,type_section.types());
-            let imported_functions:Vec<&Value> = wasm_module.import_section().map_or(Ok(vec![]),|import_section|{
-                import_section.entries().iter().filter_map(|import_entry |{
-                    if let External::Function(type_index) = import_entry.external(){
-                        Some(self.set_declare_function(build_context,import_entry.field(),*type_index,&types))
-                    } else{
-                        None
-                    }
-                }).collect()
-            })?;
 
-            let exported_functions = wasm_module.export_section().map_or_else(|| vec![],|export_section|{
-                export_section.entries().iter().filter_map(|entry|{
-                    if let Internal::Function(function_index) = *entry.internal(){
-                        Some((function_index,entry.field()))
-                    } else {
-                        None
-                    }
-                }).collect()
-            });
+            let imported_functions = self.set_declare_imported_functions(build_context, wasm_module, &types)?;
 
-            let imported_count = imported_functions.len();
-            let functions:Vec<&Value> = wasm_module.function_section().map_or_else(||Ok((imported_functions.clone())),|function_section|{
-                let defined_functions = function_section.entries().iter().enumerate().map(|(index, function_entry)|{
-                    let function_index = imported_count + index;
-                    let internal_name = ["internal",&function_index.to_string()].concat();
-                    let name = exported_functions.iter().filter(|v|v.0 ==function_index as u32).map(|v|v.1).last().unwrap_or(&internal_name);
-                    self.set_declare_function(build_context,name,function_entry.type_ref(),&types)
-                }).collect::<Result<Vec<&Value>,Error>>()?;
+            let exported_function_pairs = self.get_exported_function_pairs(build_context,wasm_module);
 
-                let functions:Vec<&Value> = [(&imported_functions) as &[&Value],(&defined_functions) as &[&Value]].concat();
+            let imported_count= imported_functions.len() as u32;
 
-                let build_function_context = BuildFunctionContext::<T>{build_context,functions,linear_memory_compiler:&self.linear_memory_compiler,table_compiler:&self.table_compiler};
-                Ok::<Vec<&Value>, Error>(build_function_context.functions)
-            })?;
+            let declared_functions = self.set_declare_declared_functions(build_context, wasm_module,&exported_function_pairs,&types,imported_count)?;
 
+            let functions:Vec<&Value> = [(&imported_functions) as &[&Value],(&declared_functions) as &[&Value]].concat();
 
-            wasm_module.table_section().map_or(Ok(()),|table_section|{
-                wasm_module.elements_section().map_or(Ok(()),|elements_section|{
-                    let table_import_count = wasm_module.import_count(ImportCountType::Table);
-                    let table_initializers = elements_section.entries().iter().map(|element_segment|{
-                        let offset = Self::segment_init_expr_to_value(build_context ,element_segment.offset())?;
-                        let members = element_segment.members().iter().map(|member_index|{
-                            Ok(*functions.get((*member_index)as usize).ok_or(NoSuchFunctionIndex{index:*member_index})?)
-                        }).collect::<Result<Vec<_>,Error>>()?;
-                        Ok(TableInitializer::new(element_segment.index() ,offset,members))
-                    }).collect::<Result<Vec<_>,Error>>()?;
-                    self.table_compiler.build_init_function(build_context,table_section.entries(),&table_initializers,imported_count as u32)
-                })
-            })
+            let build_function_context = BuildFunctionContext::<T>{build_context,functions,linear_memory_compiler:&self.linear_memory_compiler,table_compiler:&self.table_compiler};
 
+            self.build_init_table_function(build_context,wasm_module,&build_function_context.functions,imported_count)
         })
+    }
+
+    fn set_declare_declared_functions<'a>(&self, build_context:&'a BuildContext, wasm_module:&WasmModule,exported_function_pairs:&[(u32,&str)], types:&[&Type], imported_count:u32) ->Result<Vec<&'a Value>,Error>{
+        wasm_module.function_section().map_or_else(||Ok((vec![])),|function_section|{
+            function_section.entries().iter().enumerate().map(|(index, function_entry)|{
+                let function_index = imported_count + index as u32;
+                let internal_name = ["internal",&function_index.to_string()].concat();
+                let name = exported_function_pairs.iter().filter(|v|v.0 ==function_index ).map(|v|v.1).last().unwrap_or(&internal_name);
+                self.set_declare_function(build_context,name,function_entry.type_ref(),&types)
+            }).collect::<Result<Vec<&Value>,Error>>()
+        })
+    }
+
+    fn set_declare_imported_functions<'a>(&self, build_context:&'a BuildContext, wasm_module:&WasmModule, types:&[&Type]) ->Result<Vec<&'a Value>,Error>{
+        wasm_module.import_section().map_or(Ok(vec![]),|import_section|{
+            import_section.entries().iter().filter_map(|import_entry |{
+                if let External::Function(type_index) = import_entry.external(){
+                    Some(self.set_declare_function(build_context,import_entry.field(),*type_index,types))
+                } else{
+                    None
+                }
+            }).collect()
+        })
+    }
+
+    fn get_exported_function_pairs<'a>(&self, build_context:&BuildContext,wasm_module:&'a WasmModule)->Vec<(u32,&'a str)>{
+        wasm_module.export_section().map_or_else(|| vec![],|export_section|{
+            export_section.entries().iter().filter_map(|entry|{
+                if let Internal::Function(function_index) = *entry.internal(){
+                    Some((function_index,entry.field()))
+                } else {
+                    None
+                }
+            }).collect()
+        })
+    }
+
+    fn build_init_table_function(&self, build_context:&BuildContext,wasm_module:&WasmModule,functions:&[&Value],imported_count:u32)->Result<(),Error>{
+        wasm_module.table_section().map_or(Ok(()),|table_section|{
+            wasm_module.elements_section().map_or(Ok(()),|elements_section|{
+                let table_import_count = wasm_module.import_count(ImportCountType::Table);
+                let table_initializers = elements_section.entries().iter().map(|element_segment|{
+                    let offset = Self::segment_init_expr_to_value(build_context ,element_segment.offset())?;
+                    let members = element_segment.members().iter().map(|member_index|{
+                        Ok(*functions.get((*member_index)as usize).ok_or(NoSuchFunctionIndex{index:*member_index})?)
+                    }).collect::<Result<Vec<_>,Error>>()?;
+                    Ok(TableInitializer::new(element_segment.index() ,offset,members))
+                }).collect::<Result<Vec<_>,Error>>()?;
+                self.table_compiler.build_init_function(build_context,table_section.entries(),&table_initializers,imported_count )
+            })
+        })
+
     }
 
     fn set_declare_function<'a>(&self,build_context:&'a BuildContext,name:&str,type_index:u32,types:&[&Type])->Result<&'a Value,Error>{
