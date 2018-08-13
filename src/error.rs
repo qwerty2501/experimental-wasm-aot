@@ -26,6 +26,11 @@ pub enum RuntimeError{
         name:String,
     },
 
+    #[fail(display = "no such type index:{}",index)]
+    NoSuchTypeIndex{
+        index:u32,
+    },
+
     #[fail(display = "not exist memory section.")]
     NotExistMemorySection,
 

@@ -4,7 +4,7 @@ use parity_wasm::elements::Module as WasmModule;
 use super::*;
 use failure::Error;
 use std::str;
-use parity_wasm::elements::{DataSegment,Instruction,ImportCountType,GlobalType,ValueType,GlobalEntry};
+use parity_wasm::elements::{DataSegment,Instruction,ImportCountType,GlobalType,ValueType,GlobalEntry,External};
 use parity_wasm::elements;
 use error::RuntimeError::*;
 
@@ -55,10 +55,28 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
     fn build_functions(&self,build_context:&BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
-        Ok(())
+        wasm_module.type_section().map_or(Ok(()),|type_section|{
+            let types = self.set_declare_types(build_context,type_section.types());
+            let import_functions:Vec<&Value> = wasm_module.import_section().map_or(Ok(vec![]),|import_section|{
+                import_section.entries().iter().filter_map(|import_entry |{
+                    if let External::Function(type_index) = import_entry.external(){
+                        Some(self.set_declare_function(build_context,import_entry.field(),*type_index,&types))
+                    } else{
+                        None
+                    }
+                }).collect()
+            })?;
+
+
+            Ok(())
+        })
     }
 
-    fn set_declare_types<'b>(&self,build_context:&'b BuildContext,types:&[elements::Type])->Vec<&'b Type>{
+    fn set_declare_function<'a>(&self,build_context:&'a BuildContext,name:&str,type_index:u32,types:&[&Type])->Result<&'a Value,Error>{
+        let function_type = types.get(type_index as usize).ok_or(NoSuchTypeIndex{index:type_index})?;
+        Ok(build_context.module().set_declare_function(&Self::function_name_to_wasm_function_name(name),function_type))
+    }
+    fn set_declare_types<'a>(&self,build_context:&'a BuildContext,types:&[elements::Type])->Vec<&'a Type>{
         types.iter().map(|ty|{
             match ty {
                 elements::Type::Function(function_type)=>{
@@ -72,6 +90,10 @@ impl<T:WasmIntType> WasmCompiler<T>{
             }
         }).collect()
     }
+    fn function_name_to_wasm_function_name(name:&str)->String{
+        ["WASM_FUNCTION_",name].concat()
+    }
+
 
     fn build_const_initialize_global<'a>(&self, build_context:&'a BuildContext,index:u32, global_entry:&GlobalEntry)->Result<&'a Value,Error>{
         let g = self.set_declare_global(build_context,index, global_entry.global_type());
@@ -165,10 +187,6 @@ fn f64_reinterpret_i64(v: i64) -> f64 {
     }
 }
 
-struct BuildFunctionContext<'a>{
-    types:&'a [&'a Value],
-    build_context:&'a BuildContext<'a>,
-}
 
 #[cfg(test)]
 mod tests{
