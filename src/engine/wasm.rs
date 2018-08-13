@@ -206,7 +206,7 @@ mod tests{
             GlobalEntry::new(GlobalType::new(ValueType::I32,false),InitExpr::new(vec![
                 Instruction::I32Const(33),
             ]))
-        ],0,)?;
+        ],0)?;
         test_initializer(get_global(&build_context,0)?,33,true,|initializer|initializer.const_int_get_sign_extended_value());
         Ok(())
 
