@@ -201,7 +201,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
         match expr.code().first().ok_or(NotExistInitExpr)? {
             Instruction::I64Const(v)=>Ok(instructions::i64_const(build_context,*v)),
             Instruction::I32Const(v)=>Ok(instructions::i32_const(build_context,*v )),
-            Instruction::GetGlobal(v)=>instructions::get_global(build_context,*v ),
+            Instruction::GetGlobal(v)=>Ok(instructions::get_global_internal(build_context, *v )?.get_initializer().ok_or(NotExistGlobalInitializerInstruction)?),
             invalid_instruction => Err(InvalidInstruction {instruction:invalid_instruction.clone()})?,
         }
     }
