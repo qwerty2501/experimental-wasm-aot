@@ -38,16 +38,16 @@ impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
         TableCompiler::<TType,T>{table_memory_compiler:TableMemoryCompiler::<TType,T>::new(),table_type: ::std::marker::PhantomData::<TType>}
     }
 
-    pub fn build_init_function(&self, build_context:&BuildContext,table_types:&[&elements::TableType],initializers:&[TableInitializer], import_count:u32) -> Result<(),Error>{
+    pub fn build_init_function(&self, build_context:&BuildContext,table_types:&[elements::TableType],initializers:&[TableInitializer], import_count:u32) -> Result<(),Error>{
 
         self.table_memory_compiler.build_init_function_internal(build_context,import_count,&table_types.iter().map(|t|t.limits()).collect::<Vec<_>>(),||{
 
             let address_type = Type::int_wasm_ptr::<T>(build_context.context());
             let function_pointer_type = Type::ptr(Type::void(build_context.context()),0);
             for initializer in initializers{
-                let address = self.table_memory_compiler.build_get_real_address(build_context,initializer.index,Value::const_int(address_type,Self::size_to_element_size(initializer.offset) as u64,false),"");
+                let address = self.table_memory_compiler.build_get_real_address(build_context,initializer.index,Self::build_size_to_element_size(build_context,initializer.offset),"");
 
-                let values = initializer.elements.iter().map(|e|e.const_pointer_cast(function_pointer_type)).collect::<Vec<_>>();
+                let values = initializer.members.iter().map(|e|e.const_pointer_cast(function_pointer_type)).collect::<Vec<_>>();
                 let array = Value::const_array(function_pointer_type,&values);
                 let address = build_context.builder().build_pointer_cast(address,Type::ptr(Type::type_of(array),0),"address");
                 build_context.builder().build_store(array,address);
@@ -59,6 +59,11 @@ impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
     }
 
 
+
+    fn build_size_to_element_size<'a>( build_context:&'a BuildContext,size:&Value)->&'a Value{
+        build_context.builder().build_mul(size,Value::const_int(Type::int32(build_context.context()),TType::ELEMENT_SIZE as u64,false),"")
+    }
+
     fn size_to_element_size(size:u32)->u32{
         size  * TType::ELEMENT_SIZE as u32
     }
@@ -67,14 +72,14 @@ impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
 
 pub struct TableInitializer<'a>{
     index:u32,
-    offset:u32,
-    elements:&'a [&'a Value]
+    offset:&'a Value,
+    members:Vec<&'a Value>,
 }
 
 impl<'a> TableInitializer<'a>{
 
-    pub fn new<'e>(index:u32,offset:u32,elements:&'e[&'e Value])->TableInitializer<'e>{
-        TableInitializer{index,offset,elements}
+    pub fn new<'e>(index:u32,offset:&'e Value,members:Vec<&'e Value>)->TableInitializer<'e>{
+        TableInitializer{index,offset, members }
     }
 }
 
@@ -88,7 +93,7 @@ mod tests{
         let build_context = BuildContext::new("build_init_function_works",&context);
         let compiler = FunctionTableCompiler::<u32>::new();
         let table_types = [
-            &elements::TableType::new(2,Some(2)),
+            elements::TableType::new(2,Some(2)),
         ];
 
 
@@ -102,9 +107,8 @@ mod tests{
             Ok(())
         })?;
 
-        let elements = [target_function];
         let initializers = [
-            TableInitializer::new(0,1,&elements),
+            TableInitializer::new(0,Value::const_int(Type::int32(build_context.context()),1 ,false),vec![target_function]),
         ];
 
 

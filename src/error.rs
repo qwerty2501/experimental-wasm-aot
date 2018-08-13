@@ -30,12 +30,16 @@ pub enum RuntimeError{
     NoSuchTypeIndex{
         index:u32,
     },
+    #[fail(display = "no such function index:{}",index)]
+    NoSuchFunctionIndex{
+        index:u32,
+    },
 
     #[fail(display = "not exist memory section.")]
     NotExistMemorySection,
 
-    #[fail(display = "not exist data section offset.")]
-    NotExistDataSectionOffset,
+    #[fail(display = "not exist init expr.")]
+    NotExistInitExpr,
 
     #[fail(display = "not exist global initializer instruction.")]
     NotExistGlobalInitializerInstruction,

@@ -7,17 +7,22 @@ use std::str;
 use parity_wasm::elements::{DataSegment,Instruction,ImportCountType,GlobalType,ValueType,GlobalEntry,External};
 use parity_wasm::elements;
 use error::RuntimeError::*;
+use parity_wasm::elements::Internal;
+use parity_wasm::elements::ExportEntry;
+use parity_wasm::elements::Func;
+use parity_wasm::elements::InitExpr;
 
 const WASM_FUNCTION_PREFIX:&str = "__WASM_FUNCTION_";
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
 pub struct WasmCompiler<T: WasmIntType>{
-    linear_memory_compiler: LinearMemoryCompiler<T>
+    linear_memory_compiler: LinearMemoryCompiler<T>,
+    table_compiler:FunctionTableCompiler<T>,
 }
 
 impl<T:WasmIntType> WasmCompiler<T>{
 
     pub fn new()->WasmCompiler<T>{
-        WasmCompiler{ linear_memory_compiler: LinearMemoryCompiler::<T>::new()}
+        WasmCompiler{ linear_memory_compiler: LinearMemoryCompiler::<T>::new(),table_compiler:FunctionTableCompiler::<T>::new()}
     }
     fn wasm_call_name(name:&str) ->String{
         [WASM_FUNCTION_PREFIX,name].concat()
@@ -57,7 +62,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
     fn build_functions(&self,build_context:&BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
         wasm_module.type_section().map_or(Ok(()),|type_section|{
             let types = self.set_declare_types(build_context,type_section.types());
-            let import_functions:Vec<&Value> = wasm_module.import_section().map_or(Ok(vec![]),|import_section|{
+            let imported_functions:Vec<&Value> = wasm_module.import_section().map_or(Ok(vec![]),|import_section|{
                 import_section.entries().iter().filter_map(|import_entry |{
                     if let External::Function(type_index) = import_entry.external(){
                         Some(self.set_declare_function(build_context,import_entry.field(),*type_index,&types))
@@ -67,8 +72,46 @@ impl<T:WasmIntType> WasmCompiler<T>{
                 }).collect()
             })?;
 
+            let exported_functions = wasm_module.export_section().map_or_else(|| vec![],|export_section|{
+                export_section.entries().iter().filter_map(|entry|{
+                    if let Internal::Function(function_index) = *entry.internal(){
+                        Some((function_index,entry.field()))
+                    } else {
+                        None
+                    }
+                }).collect()
+            });
 
-            Ok(())
+            let imported_count = imported_functions.len();
+            let functions:Vec<&Value> = wasm_module.function_section().map_or_else(||Ok((imported_functions.clone())),|function_section|{
+                let defined_functions = function_section.entries().iter().enumerate().map(|(index, function_entry)|{
+                    let function_index = imported_count + index;
+                    let internal_name = ["internal",&function_index.to_string()].concat();
+                    let name = exported_functions.iter().filter(|v|v.0 ==function_index as u32).map(|v|v.1).last().unwrap_or(&internal_name);
+                    self.set_declare_function(build_context,name,function_entry.type_ref(),&types)
+                }).collect::<Result<Vec<&Value>,Error>>()?;
+
+                let functions:Vec<&Value> = [(&imported_functions) as &[&Value],(&defined_functions) as &[&Value]].concat();
+
+                let build_function_context = BuildFunctionContext::<T>{build_context,functions,linear_memory_compiler:&self.linear_memory_compiler,table_compiler:&self.table_compiler};
+                Ok::<Vec<&Value>, Error>(build_function_context.functions)
+            })?;
+
+
+            wasm_module.table_section().map_or(Ok(()),|table_section|{
+                wasm_module.elements_section().map_or(Ok(()),|elements_section|{
+                    let table_import_count = wasm_module.import_count(ImportCountType::Table);
+                    let table_initializers = elements_section.entries().iter().map(|element_segment|{
+                        let offset = Self::segment_init_expr_to_value(build_context ,element_segment.offset())?;
+                        let members = element_segment.members().iter().map(|member_index|{
+                            Ok(*functions.get((*member_index)as usize).ok_or(NoSuchFunctionIndex{index:*member_index})?)
+                        }).collect::<Result<Vec<_>,Error>>()?;
+                        Ok(TableInitializer::new(element_segment.index() ,offset,members))
+                    }).collect::<Result<Vec<_>,Error>>()?;
+                    self.table_compiler.build_init_function(build_context,table_section.entries(),&table_initializers,imported_count as u32)
+                })
+            })
+
         })
     }
 
@@ -138,14 +181,17 @@ impl<T:WasmIntType> WasmCompiler<T>{
         })
     }
 
-    fn build_data_segment(&self,build_context:&BuildContext,segment:&DataSegment)->Result<(),Error>{
-        let instruction = segment.offset().code().first().ok_or(NotExistDataSectionOffset)?;
-        let offset = match instruction {
+    fn segment_init_expr_to_value<'a>(build_context:&'a BuildContext,expr:&InitExpr)->Result<&'a Value,Error>{
+        match expr.code().first().ok_or(NotExistInitExpr)? {
             Instruction::I64Const(v)=>Ok(instructions::i64_const(build_context,*v)),
             Instruction::I32Const(v)=>Ok(instructions::i32_const(build_context,*v )),
             Instruction::GetGlobal(v)=>instructions::get_global(build_context,*v ),
             invalid_instruction => Err(InvalidInstruction {instruction:invalid_instruction.clone()})?,
-        }?;
+        }
+    }
+
+    fn build_data_segment(&self,build_context:&BuildContext,segment:&DataSegment)->Result<(),Error>{
+        let offset = Self::segment_init_expr_to_value(build_context, segment.offset())?;
         let dest = self.linear_memory_compiler.build_get_real_address(build_context,segment.index(),offset,"");
 
         let int8 = Type::int8(build_context.context());
@@ -185,6 +231,13 @@ fn f64_reinterpret_i64(v: i64) -> f64 {
     unsafe {
         ::std::mem::transmute(v)
     }
+}
+
+struct BuildFunctionContext<'a,T:WasmIntType + 'a>{
+    build_context:&'a BuildContext<'a>,
+    functions:Vec<&'a Value>,
+    linear_memory_compiler:&'a LinearMemoryCompiler<T>,
+    table_compiler:&'a FunctionTableCompiler<T>,
 }
 
 
