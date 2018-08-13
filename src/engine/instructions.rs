@@ -39,7 +39,7 @@ pub fn progress_instruction<'a>(build_context:&'a BuildContext, instruction:Inst
         Instruction::I64Const(v)=> local_stack.push(i64_const(build_context,v)),
         Instruction::F32Const(v)=> local_stack.push(f32_const(build_context,f32_reinterpret_i32(v))),
         Instruction::F64Const(v)=> local_stack.push(  f64_const(build_context, f64_reinterpret_i64(v))),
-
+        _=>(),
     }
 }
 
@@ -69,5 +69,46 @@ pub fn f32_reinterpret_i32(v: u32) -> f32 {
 pub fn f64_reinterpret_i64(v: u64) -> f64 {
     unsafe {
         ::std::mem::transmute(v)
+    }
+}
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+
+    #[test]
+    pub fn i32_const_works(){
+        let context = Context::new();
+        let build_context = BuildContext::new("i32_const_works",&context);
+        let expected:i32 = ::std::i32::MAX;
+        let value= i32_const(&build_context,expected);
+        assert_eq!(expected,value.const_int_get_sign_extended_value() as i32);
+    }
+
+    #[test]
+    pub fn i64_const_works(){
+        let context = Context::new();
+        let build_context = BuildContext::new("i64_const_works",&context);
+        let expected = ::std::i64::MAX;
+        let value = i64_const(&build_context,expected);
+        assert_eq!(expected,value.const_int_get_sign_extended_value());
+    }
+
+    #[test]
+    pub fn f32_const_works(){
+        let context = Context::new();
+        let build_context = BuildContext::new("f32_const_works",&context);
+        let expected = ::std::f32::MAX;
+        let value = f32_const(&build_context,expected);
+        assert_eq!(expected,value.const_real_get_double().result as f32);
+    }
+
+    #[test]
+    pub fn f64_const_works(){
+        let context = Context::new();
+        let build_context = BuildContext::new("f64_const_works",&context);
+        let expected = ::std::f64::MAX;
+        let value = f64_const(&build_context,expected);
+        assert_eq!(expected,value.const_real_get_double().result);
     }
 }
