@@ -400,9 +400,6 @@ impl BasicBlock{
 }
 
 
-pub struct BuildCallAndSetResult<'a>{function:&'a  Value,return_value:&'a  Value}
-
-
 pub fn build_call_and_set_mmap<'m>(module:&'m  Module,builder:&'m Builder,addr:&Value,length:&Value,plot:&Value,flags:&Value,fd:&Value,offset:&Value,name:&str)->&'m Value{
     let context = module.context();
     let void_ptr_type = Type::ptr(Type::void(context),0);
@@ -423,14 +420,6 @@ pub fn build_call_and_set_munmap<'m>(module:&'m Module,builder:&'m Builder,addr:
     let args =[addr,length];
     builder.build_call(munmap,&args,name)
 }
-
-
-pub fn build_call_and_set<'m>(module:&'m  Module, builder:&'m Builder, args:&[&Value], function_name:&str, type_ref:& Type,return_name:&str) -> BuildCallAndSetResult<'m>{
-    let function = module.set_declare_function(function_name, type_ref);
-    BuildCallAndSetResult {function, return_value: builder.build_call(&function, args, return_name)}
-}
-
-
 
 
 
