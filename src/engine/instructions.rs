@@ -2,6 +2,7 @@
 use super::*;
 use failure::Error;
 use error::RuntimeError::*;
+use parity_wasm::elements::{Instruction};
 
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
 
@@ -32,30 +33,40 @@ pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
 
+pub fn progress_instruction<'a>(build_context:&'a BuildContext, instruction:Instruction,local_stack:&mut Vec<&'a Value>){
+    match instruction{
+        Instruction::I32Const(v)=> local_stack.push( i32_const(build_context,v)),
+        Instruction::I64Const(v)=> local_stack.push(i64_const(build_context,v)),
+        Instruction::F32Const(v)=> local_stack.push(f32_const(build_context,f32_reinterpret_i32(v))),
+        Instruction::F64Const(v)=> local_stack.push(  f64_const(build_context, f64_reinterpret_i64(v))),
+
+    }
+}
+
 
 #[inline]
-pub fn i32_reinterpret_f32(v: f32) -> i32 {
+pub fn i32_reinterpret_f32(v: f32) -> u32 {
     unsafe {
         ::std::mem::transmute(v)
     }
 }
 
 #[inline]
-pub fn i64_reinterpret_f64(v: f64) -> i64 {
+pub fn i64_reinterpret_f64(v: f64) -> u64 {
     unsafe {
         ::std::mem::transmute(v)
     }
 }
 
 #[inline]
-pub fn f32_reinterpret_i32(v: i32) -> f32 {
+pub fn f32_reinterpret_i32(v: u32) -> f32 {
     unsafe {
         ::std::mem::transmute(v)
     }
 }
 
 #[inline]
-pub fn f64_reinterpret_i64(v: i64) -> f64 {
+pub fn f64_reinterpret_i64(v: u64) -> f64 {
     unsafe {
         ::std::mem::transmute(v)
     }

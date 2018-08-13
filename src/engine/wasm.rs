@@ -160,8 +160,8 @@ impl<T:WasmIntType> WasmCompiler<T>{
         match instruction{
             Instruction::I32Const(v) => Some(instructions::i32_const(build_context,*v)),
             Instruction::I64Const(v)=>Some(instructions::i64_const(build_context,*v)),
-            Instruction::F32Const(v) => Some(instructions::f32_const(build_context, instructions::f32_reinterpret_i32(*v as i32))),
-            Instruction::F64Const(v)=>Some(instructions::f64_const(build_context,instructions::f64_reinterpret_i64(*v as i64))),
+            Instruction::F32Const(v) => Some(instructions::f32_const(build_context, instructions::f32_reinterpret_i32(*v ))),
+            Instruction::F64Const(v)=>Some(instructions::f64_const(build_context,instructions::f64_reinterpret_i64(*v ))),
             _=>None,
 
         }.map(|const_initializer|{
