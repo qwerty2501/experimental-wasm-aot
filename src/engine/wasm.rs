@@ -160,8 +160,8 @@ impl<T:WasmIntType> WasmCompiler<T>{
         match instruction{
             Instruction::I32Const(v) => Some(instructions::i32_const(build_context,*v)),
             Instruction::I64Const(v)=>Some(instructions::i64_const(build_context,*v)),
-            Instruction::F32Const(v) => Some(instructions::f32_const(build_context,f32_reinterpret_i32(*v as i32))),
-            Instruction::F64Const(v)=>Some(instructions::f64_const(build_context,f64_reinterpret_i64(*v as i64))),
+            Instruction::F32Const(v) => Some(instructions::f32_const(build_context, instructions::f32_reinterpret_i32(*v as i32))),
+            Instruction::F64Const(v)=>Some(instructions::f64_const(build_context,instructions::f64_reinterpret_i64(*v as i64))),
             _=>None,
 
         }.map(|const_initializer|{
@@ -221,33 +221,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
 }
 
 
-#[inline]
-fn i32_reinterpret_f32(v: f32) -> i32 {
-    unsafe {
-        ::std::mem::transmute(v)
-    }
-}
 
-#[inline]
-fn i64_reinterpret_f64(v: f64) -> i64 {
-    unsafe {
-        ::std::mem::transmute(v)
-    }
-}
-
-#[inline]
-fn f32_reinterpret_i32(v: i32) -> f32 {
-    unsafe {
-        ::std::mem::transmute(v)
-    }
-}
-
-#[inline]
-fn f64_reinterpret_i64(v: i64) -> f64 {
-    unsafe {
-        ::std::mem::transmute(v)
-    }
-}
 
 struct BuildFunctionContext<'a,T:WasmIntType + 'a>{
     build_context:&'a BuildContext<'a>,
@@ -324,7 +298,7 @@ mod tests{
         let build_context = BuildContext::new("build_const_initialize_global_works_f32",&context);
         let compiler = WasmCompiler::<u32>::new();
         compiler.build_const_initialize_global(&build_context,0,&GlobalEntry::new(GlobalType::new(ValueType::F32,false),InitExpr::new(vec![
-            Instruction::F32Const(i32_reinterpret_f32(4.00) as u32),
+            Instruction::F32Const(instructions::i32_reinterpret_f32(4.00) as u32),
         ])),)?;
 
         test_initializer(get_global(&build_context,0)?,4.00,true,|initializer|{
@@ -340,7 +314,7 @@ mod tests{
         let build_context = BuildContext::new("build_const_initialize_global_works_f64",&context);
         let compiler = WasmCompiler::<u32>::new();
         compiler.build_const_initialize_global(&build_context,0,&GlobalEntry::new(GlobalType::new(ValueType::F64,true),InitExpr::new(vec![
-            Instruction::F64Const(i64_reinterpret_f64(4.00) as u64),
+            Instruction::F64Const(instructions::i64_reinterpret_f64(4.00) as u64),
         ])),)?;
 
         test_initializer(get_global(&build_context,0)?,4.00,false,|initializer|{

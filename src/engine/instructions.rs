@@ -31,3 +31,32 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
 pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
+
+
+#[inline]
+pub fn i32_reinterpret_f32(v: f32) -> i32 {
+    unsafe {
+        ::std::mem::transmute(v)
+    }
+}
+
+#[inline]
+pub fn i64_reinterpret_f64(v: f64) -> i64 {
+    unsafe {
+        ::std::mem::transmute(v)
+    }
+}
+
+#[inline]
+pub fn f32_reinterpret_i32(v: i32) -> f32 {
+    unsafe {
+        ::std::mem::transmute(v)
+    }
+}
+
+#[inline]
+pub fn f64_reinterpret_i64(v: i64) -> f64 {
+    unsafe {
+        ::std::mem::transmute(v)
+    }
+}
