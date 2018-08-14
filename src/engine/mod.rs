@@ -9,6 +9,8 @@ mod instructions;
 mod llvm;
 mod constants;
 mod table;
+mod stack;
+mod frame;
 
 use self::types::*;
 use self::test_utils::*;
@@ -19,3 +21,5 @@ use self::build_context::*;
 use self::llvm::*;
 use self::constants::*;
 use self::table::*;
+use self::stack::*;
+use self::frame::*;
