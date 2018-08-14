@@ -247,7 +247,7 @@ mod tests{
         analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction)?;
         test_module_in_engine(build_context.module(),|engine|{
             let result = run_test_function_with_name(&engine, build_context.module(), &compiler.get_init_function_name(), &[])?;
-            assert_eq!(1,result.int_width());
+            assert_eq!(1,result.to_int(false));
 
             let mapped_memory_size= *engine.get_global_value_ref_from_address::<u32>(compiler.get_memory_size_name(0).as_ref());
             assert_eq!( minimum,mapped_memory_size);
@@ -294,7 +294,7 @@ mod tests{
 
         test_module_in_engine(build_context.module(),|engine|{
             let result = run_test_function_with_name(&engine, build_context.module(), &compiler.get_init_function_name(), &[])?;
-            assert_eq!(1,result.int_width());
+            assert_eq!(1,result.to_int(false));
 
             run_test_function_with_name(&engine,build_context.module(),test_function_name,&[])?;
             let mapped_memory= *engine.get_global_value_ref_from_address::<*mut i8>(&compiler.get_memory_name(0));

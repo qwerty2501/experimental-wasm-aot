@@ -35,6 +35,9 @@ pub enum RuntimeError{
         index:u32,
     },
 
+    #[fail(display = "not exist value")]
+    NotExistValue,
+
     #[fail(display = "not exist memory section.")]
     NotExistMemorySection,
 

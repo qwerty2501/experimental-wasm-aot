@@ -27,20 +27,31 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
     Ok(build_context.module().get_named_global(name.as_ref()).ok_or_else(|| NoSuchLLVMGlobalValue {name})?)
 }
 
+pub fn get_global<'c>(build_context:&'c BuildContext,index:u32)->Result<&'c Value,Error>{
+    let global_value = get_global_internal(build_context,index)?;
+    Ok(build_context.builder().build_load(global_value,""))
+}
 
+pub fn set_global<'c>(build_context:&'c BuildContext,index:u32,local_stack:&mut Vec<&Value>)->Result<(),Error>{
+    let global_value = get_global_internal(build_context,index)?;
+    build_context.builder().build_store(local_stack.pop().ok_or(NotExistValue)?,global_value);
+    Ok(())
+}
 
 pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
 
-pub fn progress_instruction<'a>(build_context:&'a BuildContext, instruction:Instruction,local_stack:&mut Vec<&'a Value>){
-    match instruction{
+pub fn progress_instruction<'a>(build_context:&'a BuildContext, instruction:Instruction,local_stack:&mut Vec<&'a Value>)->Result<(),Error>{
+    Ok(match instruction{
         Instruction::I32Const(v)=> local_stack.push( i32_const(build_context,v)),
-        Instruction::I64Const(v)=> local_stack.push(i64_const(build_context,v)),
-        Instruction::F32Const(v)=> local_stack.push(f32_const(build_context,f32_reinterpret_i32(v))),
-        Instruction::F64Const(v)=> local_stack.push(  f64_const(build_context, f64_reinterpret_i64(v))),
-        _=>(),
-    }
+        Instruction::I64Const(v)=> local_stack.push( i64_const(build_context,v)),
+        Instruction::F32Const(v)=> local_stack.push( f32_const(build_context,f32_reinterpret_i32(v))),
+        Instruction::F64Const(v)=> local_stack.push( f64_const(build_context, f64_reinterpret_i64(v))),
+        Instruction::GetGlobal(index)=> local_stack.push( get_global(build_context,index)?),
+        Instruction::SetGlobal(index)=> set_global(build_context,index,local_stack)?,
+        instruction=>Err(InvalidInstruction {instruction})?,
+    })
 }
 
 
@@ -110,5 +121,30 @@ mod tests{
         let expected = ::std::f64::MAX;
         let value = f64_const(&build_context,expected);
         assert_eq!(expected,value.const_real_get_double().result);
+    }
+
+    #[test]
+    pub fn globals_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("globals_works",&context);
+        let global_name = get_global_name(0);
+        let global_value = build_context.module().set_declare_global(&global_name,Type::int32(build_context.context()));
+        global_value.set_initializer(Value::const_int(Type::int32(build_context.context()),0,false));
+        let expected = 22;
+        let test_function_name = "test_function";
+        let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
+        build_context.builder().build_function(build_context.context(),test_function,|builder,bb|{
+            let mut local_stack = vec![Value::const_int(Type::int32(build_context.context()),expected,false)];
+            set_global(&build_context,0,&mut local_stack)?;
+
+            build_context.builder().build_ret(get_global(&build_context,0)?);
+            Ok(())
+        })?;
+
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected,ret.to_int(false));
+            Ok(())
+        })
     }
 }

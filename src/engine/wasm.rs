@@ -352,7 +352,7 @@ mod tests{
         test_module_in_engine(build_context.module(),|engine|{
 
             let result = run_test_function_with_name(&engine, build_context.module(), &compiler.linear_memory_compiler.get_init_function_name(), &[])?;
-            assert_eq!(1,result.int_width());
+            assert_eq!(1,result.to_int(false));
             run_test_function_with_name(engine,build_context.module(),function_name,&[])?;
             let linear_memory =  engine.get_global_value_ref_from_address::<*mut u8>(&compiler.linear_memory_compiler.get_memory_name(0));
             for (index,expected) in expected_values.iter().enumerate(){

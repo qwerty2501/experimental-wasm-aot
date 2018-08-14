@@ -602,9 +602,14 @@ pub mod execution_engine {
     pub type GenericValueGuard<'a> = Guard<'a,GenericValue>;
 
     impl GenericValue{
-        pub fn int_width(&self)->::libc::c_uint{
-            unsafe{LLVMGenericValueIntWidth(self.into())}
+
+        pub fn to_int(&self,is_signed:bool)->::libc::c_ulonglong{
+            unsafe{
+                LLVMGenericValueToInt(self.into(),if is_signed {1} else {0})
+            }
         }
+
+
         pub fn value_of_int(ty:&Type,n: ::libc::c_ulonglong,is_signed:bool)->GenericValueGuard{
             GenericValueGuard::new( unsafe{LLVMCreateGenericValueOfInt(ty.into(),n,is_signed as LLVMBool).into()})
         }
