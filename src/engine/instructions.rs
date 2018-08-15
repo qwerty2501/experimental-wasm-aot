@@ -67,6 +67,25 @@ pub fn get_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,stac
     Ok(stack)
 }
 
+pub fn set_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    {
+        let current_frame = stack.activations.current_mut()?;
+        let mut v = current_frame.locals.get_mut(index as usize).ok_or(NotExistValue)?;
+        *v = stack.values.pop().ok_or(NotExistValue)?;
+    }
+    Ok(stack)
+}
+
+pub fn tee_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    {
+        let current_frame = stack.activations.current_mut()?;
+        let mut v = current_frame.locals.get_mut(index as usize).ok_or(NotExistValue)?;
+        *v = stack.values.last().ok_or(NotExistValue)?;
+
+    }
+    Ok(stack)
+}
+
 pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
@@ -80,6 +99,8 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::GetGlobal(index)=> get_global(build_context,index,stack),
         Instruction::SetGlobal(index)=> set_global(build_context,index,stack),
         Instruction::GetLocal(index)=>get_local(build_context, index,stack),
+        Instruction::SetLocal(index)=>set_local(build_context,index,stack),
+        Instruction::TeeLocal(index)=>tee_local(build_context,index,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
 }

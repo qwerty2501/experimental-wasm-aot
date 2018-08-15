@@ -19,10 +19,15 @@ impl<'a,T:WasmIntType> Stack<'a,T>{
 
 pub trait Activations<'a,T:WasmIntType>{
     fn current(&self)->Result<&Frame<'a,T>,Error>;
+    fn current_mut(&mut self) -> Result<&mut Frame<'a, T>, Error>;
 }
 
 impl<'a,T:WasmIntType> Activations<'a,T> for Vec<Frame<'a,T>>{
     fn current(&self) -> Result<&Frame<'a, T>, Error> {
         Ok(self.first().ok_or(NotExistFrame)?)
+    }
+
+    fn current_mut(&mut self) -> Result<&mut Frame<'a, T>, Error> {
+        Ok(self.first_mut().ok_or(NotExistFrame)?)
     }
 }

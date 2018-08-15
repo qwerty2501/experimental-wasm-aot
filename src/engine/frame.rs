@@ -1,6 +1,6 @@
 use super::*;
 pub struct Frame<'a,T:WasmIntType + 'a>{
-    pub locals:&'a[&'a Value],
+    pub locals:&'a mut [&'a Value],
     pub module_instance:ModuleInstance<'a,T>,
 }
 
