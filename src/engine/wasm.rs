@@ -158,10 +158,10 @@ impl<T:WasmIntType> WasmCompiler<T>{
         let g = self.set_declare_global(build_context,index, global_entry.global_type());
         let instruction = global_entry.init_expr().code().first().ok_or(NotExistGlobalInitializerInstruction)?;
         match instruction{
-            Instruction::I32Const(v) => Some(instructions::i32_const(build_context,*v)),
-            Instruction::I64Const(v)=>Some(instructions::i64_const(build_context,*v)),
-            Instruction::F32Const(v) => Some(instructions::f32_const(build_context, instructions::f32_reinterpret_i32(*v ))),
-            Instruction::F64Const(v)=>Some(instructions::f64_const(build_context,instructions::f64_reinterpret_i64(*v ))),
+            Instruction::I32Const(v) => Some(instructions::i32_const_internal(build_context, *v)),
+            Instruction::I64Const(v)=>Some(instructions::i64_const_internal(build_context, *v)),
+            Instruction::F32Const(v) => Some(instructions::f32_const_internal(build_context, instructions::f32_reinterpret_i32(*v ))),
+            Instruction::F64Const(v)=>Some(instructions::f64_const_internal(build_context, instructions::f64_reinterpret_i64(*v ))),
             _=>None,
 
         }.map(|const_initializer|{
@@ -199,8 +199,8 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
     fn segment_init_expr_to_value<'a>(build_context:&'a BuildContext,expr:&InitExpr)->Result<&'a Value,Error>{
         match expr.code().first().ok_or(NotExistInitExpr)? {
-            Instruction::I64Const(v)=>Ok(instructions::i64_const(build_context,*v)),
-            Instruction::I32Const(v)=>Ok(instructions::i32_const(build_context,*v )),
+            Instruction::I64Const(v)=>Ok(instructions::i64_const_internal(build_context, *v)),
+            Instruction::I32Const(v)=>Ok(instructions::i32_const_internal(build_context, *v )),
             Instruction::GetGlobal(v)=>Ok(instructions::get_global_internal(build_context, *v )?.get_initializer().ok_or(NotExistGlobalInitializerInstruction)?),
             invalid_instruction => Err(InvalidInstruction {instruction:invalid_instruction.clone()})?,
         }
@@ -394,12 +394,10 @@ mod tests{
 
     fn test_value_type_to_type(build_context:&BuildContext, value_type:&ValueType,expected:&Type){
         let actual = WasmCompiler::<u32>::value_type_to_type(build_context,value_type);
-        unsafe{
-            use llvm_sys::prelude::LLVMTypeRef;
-            let expected_ptr:LLVMTypeRef = expected.into();
-            let actual_ptr:LLVMTypeRef = expected.into();
-            assert_eq!(  expected_ptr,actual_ptr.into());
-        }
+        use llvm_sys::prelude::LLVMTypeRef;
+        let expected_ptr:LLVMTypeRef = expected.into();
+        let actual_ptr:LLVMTypeRef = expected.into();
+        assert_eq!(  expected_ptr,actual_ptr.into());
 
     }
 

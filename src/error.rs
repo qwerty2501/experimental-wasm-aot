@@ -35,16 +35,18 @@ pub enum RuntimeError{
         index:u32,
     },
 
+    #[fail(display = "not exist frame")]
+    NotExistFrame,
     #[fail(display = "not exist value")]
     NotExistValue,
 
-    #[fail(display = "not exist memory section.")]
+    #[fail(display = "not exist memory section")]
     NotExistMemorySection,
 
-    #[fail(display = "not exist init expr.")]
+    #[fail(display = "not exist init expr")]
     NotExistInitExpr,
 
-    #[fail(display = "not exist global initializer instruction.")]
+    #[fail(display = "not exist global initializer instruction")]
     NotExistGlobalInitializerInstruction,
 
     #[fail(display = "invalid instruction : {}",instruction)]
@@ -52,12 +54,12 @@ pub enum RuntimeError{
         instruction:Instruction,
     },
 
-    #[fail(display = "size is too large. maximum:{}",message)]
+    #[fail(display = "size is too large maximum:{}",message)]
     SizeIsTooLarge{
         message:String,
     },
 
-    #[fail(display = "size is too small. minimum:{}",message)]
+    #[fail(display = "size is too small minimum:{}",message)]
     SizeIsTooSmall{
         message:String,
     },
@@ -72,12 +74,12 @@ pub enum RuntimeError{
         message:String,
     },
 
-    #[fail(display = "failure initialize native target.")]
+    #[fail(display = "failure initialize native target")]
     FailureLLVMInitializeNativeTarget,
-    #[fail(display = "failure initialize native asm printer.")]
+    #[fail(display = "failure initialize native asm printer")]
     FailureLLVMInitializeNativeAsmPrinter,
 
-    #[fail(display = "failure remove module. :{}",message)]
+    #[fail(display = "failure remove module :{}",message)]
     FailureLLVMRemoveModule{
         message:String,
     },
