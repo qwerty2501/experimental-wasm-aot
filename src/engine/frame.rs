@@ -1,13 +1,28 @@
 use super::*;
 pub struct Frame<'a,T:WasmIntType + 'a>{
-    pub locals:&'a mut [&'a Value],
+    pub locals:Vec<&'a Value>,
     pub module_instance:ModuleInstance<'a,T>,
 }
 
 pub struct ModuleInstance<'a,T:WasmIntType + 'a>{
-    pub types:&'a [&'a Type],
-    pub functions:&'a[&'a Value],
-    pub table_compiler:&'a FunctionTableCompiler<T>,
-    pub linear_memory_compiler:&'a LinearMemoryCompiler<T>,
+    pub types:Vec<&'a Type>,
+    pub functions:Vec<&'a Value>,
+    pub labels:Vec<&'a BasicBlock>,
+    pub table_compiler:FunctionTableCompiler<T>,
+    pub linear_memory_compiler:LinearMemoryCompiler<T>,
 
+}
+
+#[cfg(test)]
+pub mod tests{
+    use super::*;
+    pub fn new_test_frame<'a,T:WasmIntType>(locals:Vec<&'a Value>,types:Vec<&'a Type>,labels:Vec<&'a BasicBlock>, functions:Vec<&'a Value>)->Frame<'a,T>{
+        Frame{locals,module_instance:ModuleInstance::<T>{
+            types,
+            functions,
+            labels,
+            table_compiler: FunctionTableCompiler::<T>::new(),
+            linear_memory_compiler: LinearMemoryCompiler::<T>::new(),
+        }}
+    }
 }

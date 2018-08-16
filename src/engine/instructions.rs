@@ -198,4 +198,31 @@ mod tests{
             Ok(())
         })
     }
+
+
+    #[test]
+    pub fn get_local_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("locals_works",&context);
+        let expected = 22;
+        let test_function_name = "test_function";
+        let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
+        build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
+            let stack =  Stack::<u32>::new(vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
+
+                frame::tests::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()),expected as u64,false)],vec![],vec![],vec![])
+            ]);
+
+            let stack = get_local(&build_context,0,stack)?;
+            build_context.builder().build_ret(stack.values.last().ok_or(NotExistValue)?);
+            Ok(())
+        })?;
+
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected,ret.to_int(false));
+            Ok(())
+        })
+    }
+
 }
