@@ -59,10 +59,10 @@ pub fn set_global<'c,T:WasmIntType>(build_context:&'c BuildContext,index:u32,mut
     Ok(stack)
 }
 
-pub fn get_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+pub fn get_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current()?;
-        current_frame.locals.get(index as usize).ok_or(NotExistValue)?;
+        stack.values.push( current_frame.locals.get(index as usize).ok_or(NotExistValue)?);
     }
     Ok(stack)
 }
@@ -203,18 +203,18 @@ mod tests{
     #[test]
     pub fn get_local_works()->Result<(),Error>{
         let context = Context::new();
-        let build_context = BuildContext::new("locals_works",&context);
+        let build_context = BuildContext::new("get_local_works",&context);
         let expected = 22;
         let test_function_name = "test_function";
         let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
-            let stack =  Stack::<u32>::new(vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
+            let stack =  Stack::<u32>::new(vec![],vec![
 
                 frame::tests::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()),expected as u64,false)],vec![],vec![],vec![])
             ]);
 
-            let stack = get_local(&build_context,0,stack)?;
-            build_context.builder().build_ret(stack.values.last().ok_or(NotExistValue)?);
+            let mut stack = get_local(&build_context,0,stack)?;
+            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
             Ok(())
         })?;
 
