@@ -225,4 +225,55 @@ mod tests{
         })
     }
 
+    #[test]
+    pub fn set_local_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("set_local_works",&context);
+        let expected = 35;
+        let test_function_name = "test_function";
+        let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
+        build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
+            let stack =  Stack::<u32>::new(vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
+
+                frame::tests::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()),0,false)],vec![],vec![],vec![])
+            ]);
+
+            let stack = set_local(&build_context,0,stack)?;
+            let mut stack = get_local(&build_context,0,stack)?;
+            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+            Ok(())
+        })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected,ret.to_int(false));
+            Ok(())
+        })
+
+    }
+
+    #[test]
+    pub fn tee_local_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("tee_local_works",&context);
+        let expected = 35;
+        let test_function_name = "test_function";
+        let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
+        build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
+            let stack =  Stack::<u32>::new(vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
+
+                frame::tests::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()),0,false)],vec![],vec![],vec![])
+            ]);
+
+            let mut stack = tee_local(&build_context,0,stack)?;
+            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+            Ok(())
+        })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected,ret.to_int(false));
+            Ok(())
+        })
+
+    }
+
 }
