@@ -202,7 +202,19 @@ impl<'a,T:WasmIntType,M:MemoryTypeContext> MMapClosure<'a,T,M>{
     }
 }
 
+#[cfg(test)]
+pub mod test_utils{
+    use super::*;
+    use super::super::llvm::execution_engine::*;
+    use super::super::test_utils::*;
+    type Compiler = LinearMemoryCompiler<u32>;
 
+    pub fn init_test_memory(build_context:&BuildContext)->Result<String,Error>{
+        let compiler = Compiler::new();
+        compiler.build_init_function(&build_context, 0, &[&ResizableLimits::new(17, Some(25))])?;
+        Ok(compiler.get_init_function_name())
+    }
+}
 
 #[cfg(test)]
 mod tests{

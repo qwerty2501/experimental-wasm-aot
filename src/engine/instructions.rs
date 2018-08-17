@@ -62,7 +62,7 @@ pub fn set_global<'c,T:WasmIntType>(build_context:&'c BuildContext,index:u32,mut
 pub fn get_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current()?;
-        stack.values.push( current_frame.locals.get(index as usize).ok_or(NotExistValue)?);
+        stack.values.push( current_frame.locals.get(index as usize).ok_or(NoSuchLocalValue{index})?);
     }
     Ok(stack)
 }
@@ -70,7 +70,7 @@ pub fn get_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut 
 pub fn set_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        let mut v = current_frame.locals.get_mut(index as usize).ok_or(NotExistValue)?;
+        let  v = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
         *v = stack.values.pop().ok_or(NotExistValue)?;
     }
     Ok(stack)
@@ -79,11 +79,32 @@ pub fn set_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut 
 pub fn tee_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        let mut v = current_frame.locals.get_mut(index as usize).ok_or(NotExistValue)?;
+        let  v = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
         *v = stack.values.last().ok_or(NotExistValue)?;
 
     }
     Ok(stack)
+}
+
+pub fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    {
+        let current_frame = stack.activations.current_mut()?;
+        let v = stack.values.pop().ok_or(NotExistValue)?;
+        let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,Value::const_int(Type::int32(build_context.context()),offset as u64,false),"");
+        let value_type = match align{
+            1 => Type::int8(build_context.context()),
+            2 => Type::int16(build_context.context()),
+            4 => Type::int32(build_context.context()),
+            8 => Type::int64(build_context.context()),
+            _=>Err(InCorrectAlign{align})?,
+        };
+        let v = build_context.builder().build_cast(Opcode::LLVMTrunc,v,value_type,"");
+        let memory = build_context.builder().build_bit_cast(memory,Type::ptr(value_type,0),"");
+        build_context.builder().build_store(v,memory);
+        stack.values.push(v);
+    }
+    Ok(stack)
+
 }
 
 pub fn get_global_name(index:u32) -> String {
@@ -101,6 +122,15 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::GetLocal(index)=>get_local(build_context, index,stack),
         Instruction::SetLocal(index)=>set_local(build_context,index,stack),
         Instruction::TeeLocal(index)=>tee_local(build_context,index,stack),
+        Instruction::F32Store(offset,align)=>store(build_context,offset,align,stack),
+        Instruction::F64Store(offset,align)=>store(build_context,offset,align,stack),
+        Instruction::I32Store(offset,align)=>store(build_context,offset,align,stack),
+        Instruction::I64Store(offset,align)=>store(build_context,offset,align,stack),
+        Instruction::I32Store8(offset,align)=>store(build_context,offset,align,stack),
+        Instruction::I32Store16(offset,align)=>store(build_context,offset,align,stack),
+        Instruction::I64Store8(offset,align)=>store(build_context,offset,align,stack),
+        Instruction::I64Store16(offset,align)=>store(build_context,offset,align,stack),
+        Instruction::I64Store32(offset,align)=>store(build_context,offset,align,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
 }
@@ -210,7 +240,7 @@ mod tests{
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
             let stack =  Stack::<u32>::new(test_function,vec![],vec![
 
-                frame::tests::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()),expected as u64,false)],vec![],vec![],vec![])
+                frame::test_utils::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()), expected as u64, false)], vec![], vec![], vec![])
             ]);
 
             let mut stack = get_local(&build_context,0,stack)?;
@@ -235,7 +265,7 @@ mod tests{
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
             let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
 
-                frame::tests::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()),0,false)],vec![],vec![],vec![])
+                frame::test_utils::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()), 0, false)], vec![], vec![], vec![])
             ]);
 
             let stack = set_local(&build_context,0,stack)?;
@@ -261,7 +291,7 @@ mod tests{
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
             let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
 
-                frame::tests::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()),0,false)],vec![],vec![],vec![])
+                frame::test_utils::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()), 0, false)], vec![], vec![], vec![])
             ]);
 
             let mut stack = tee_local(&build_context,0,stack)?;
@@ -274,6 +304,39 @@ mod tests{
             Ok(())
         })
 
+    }
+
+    #[test]
+    pub fn store_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("load_and_store_works",&context);
+        let expected = 3000;
+        let test_function_name = "test_function";
+        let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
+        build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
+            let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
+
+                frame::test_utils::new_test_frame(vec![], vec![], vec![], vec![])
+            ]);
+
+            let mut stack = store(&build_context,500,4,stack)?;
+            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+            Ok(())
+        })?;
+
+        let  int_memory_function_name = memory::test_utils::init_test_memory(&build_context)?;
+        let linear_memory_compiler = LinearMemoryCompiler::<u32>::new();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),&int_memory_function_name,&[])?;
+            assert_eq!(1,ret.to_int(false));
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected,ret.to_int(false));
+            let memory_ptr:*mut u8 = *engine.get_global_value_ref_from_address(&linear_memory_compiler.get_memory_name(0));
+            unsafe{
+               assert_eq!(expected as u16,*( memory_ptr.add(500) as *mut u16));
+            }
+            Ok(())
+        })
     }
 
 }

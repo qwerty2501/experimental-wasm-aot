@@ -35,6 +35,11 @@ pub enum RuntimeError{
         index:u32,
     },
 
+    #[fail(display = "no such local value index:{}",index)]
+    NoSuchLocalValue{
+      index:u32,
+    },
+
     #[fail(display = "not exist frame")]
     NotExistFrame,
     #[fail(display = "not exist value")]
@@ -48,6 +53,11 @@ pub enum RuntimeError{
 
     #[fail(display = "not exist global initializer instruction")]
     NotExistGlobalInitializerInstruction,
+
+    #[fail(display = "incorrect align : {}",align)]
+    InCorrectAlign{
+        align:u32,
+    },
 
     #[fail(display = "invalid instruction : {}",instruction)]
     InvalidInstruction{

@@ -3,7 +3,7 @@ use llvm_sys::core::*;
 use std::ffi::CString;
 use std::ops::{Deref};
 use super::constants;
-pub use llvm_sys::{LLVMIntPredicate as IntPredicate,LLVMLinkage as Linkage};
+pub use llvm_sys::{LLVMIntPredicate as IntPredicate,LLVMLinkage as Linkage , LLVMOpcode as Opcode};
 use failure::Error;
 use error::RuntimeError::*;
 use std::mem;
@@ -147,7 +147,6 @@ impl Builder {
 
     pub fn build_call(&self,func:&Value,args:&[&Value],name:&str)-> &Value{
         unsafe{
-
             LLVMBuildCall(self.into(),func.into(),args.as_ptr()  as *mut _,args.len() as u32,compiler_c_str!(name)).into( )
         }
     }
@@ -168,6 +167,12 @@ impl Builder {
         let bb = func.append_basic_block(context,"entry");
         self.position_builder_at_end(bb);
         on_build(self,bb)
+    }
+
+    pub fn build_cast(&self,op_code:Opcode,value:&Value,dest_ty:&Type,name:&str)->&Value{
+        unsafe{
+            LLVMBuildCast(self.into(),op_code,value.into(),dest_ty.into(),compiler_c_str!(name)).into()
+        }
     }
 
     pub fn build_bit_cast(&self,value:&Value,dest_ty:&Type,name:&str)->&Value{
@@ -346,6 +351,13 @@ impl Type{
     pub fn int8(context:&Context)->&Type{
         unsafe {LLVMInt8TypeInContext(context.into()).into()}
     }
+
+    pub fn int16(context:&Context)->&Type{
+        unsafe{
+            LLVMInt16TypeInContext(context.into()).into()
+        }
+    }
+
     pub fn int32(context:&Context)->&Type {
         unsafe{LLVMInt32TypeInContext(context.into()).into()}
     }

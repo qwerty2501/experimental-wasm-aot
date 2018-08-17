@@ -13,6 +13,7 @@
       <w>mmap</w>
       <w>munmap</w>
       <w>nameof</w>
+      <w>opcode</w>
       <w>prot</w>
       <w>splitted</w>
       <w>wasm</w>

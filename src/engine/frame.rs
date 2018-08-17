@@ -14,7 +14,7 @@ pub struct ModuleInstance<'a,T:WasmIntType + 'a>{
 }
 
 #[cfg(test)]
-pub mod tests{
+pub mod test_utils {
     use super::*;
     pub fn new_test_frame<'a,T:WasmIntType>(locals:Vec<&'a Value>,types:Vec<&'a Type>,labels:Vec<&'a BasicBlock>, functions:Vec<&'a Value>)->Frame<'a,T>{
         Frame{locals,module_instance:ModuleInstance::<T>{
