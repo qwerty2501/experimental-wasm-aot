@@ -185,7 +185,7 @@ mod tests{
         let test_function_name = "test_function";
         let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb|{
-            let stack = Stack::<u32>::new(vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![]);
+            let stack = Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![]);
             let stack = set_global(&build_context,0,stack)?;
             let stack = get_global(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.last().ok_or(NotExistValue)?);
@@ -208,7 +208,7 @@ mod tests{
         let test_function_name = "test_function";
         let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
-            let stack =  Stack::<u32>::new(vec![],vec![
+            let stack =  Stack::<u32>::new(test_function,vec![],vec![
 
                 frame::tests::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()),expected as u64,false)],vec![],vec![],vec![])
             ]);
@@ -233,7 +233,7 @@ mod tests{
         let test_function_name = "test_function";
         let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
-            let stack =  Stack::<u32>::new(vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
+            let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
 
                 frame::tests::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()),0,false)],vec![],vec![],vec![])
             ]);
@@ -259,7 +259,7 @@ mod tests{
         let test_function_name = "test_function";
         let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
-            let stack =  Stack::<u32>::new(vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
+            let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
 
                 frame::tests::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()),0,false)],vec![],vec![],vec![])
             ]);

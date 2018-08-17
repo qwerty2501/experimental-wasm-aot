@@ -2,14 +2,15 @@ use super::*;
 use failure::Error;
 use error::RuntimeError::*;
 pub struct Stack<'a,T:WasmIntType + 'a>{
+    pub current_function:&'a Value,
     pub values:Vec<&'a Value>,
     pub activations:Vec<Frame<'a,T>>,
 }
 
 impl<'a,T:WasmIntType> Stack<'a,T>{
 
-    pub fn new<'b>(values:Vec<&'b Value>,activations:Vec<Frame<'b,T>>)-> Stack<'b,T>{
-        Stack{values,activations}
+    pub fn new<'b>(current_function:&'b Value, values:Vec<&'b Value>,activations:Vec<Frame<'b,T>>)-> Stack<'b,T>{
+        Stack{current_function, values,activations}
     }
 
     pub fn current_frame(&self)->Result<&Frame<'a,T>,Error>{
