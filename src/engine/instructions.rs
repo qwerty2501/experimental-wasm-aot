@@ -62,7 +62,7 @@ pub fn set_global<'c,T:WasmIntType>(build_context:&'c BuildContext,index:u32,mut
 pub fn get_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current()?;
-        stack.values.push( current_frame.locals.get(index as usize).ok_or(NoSuchLocalValue{index})?);
+        stack.values.push( current_frame.locals.get(index as usize).ok_or(NoSuchLocalValue{index})?.value.ok_or(NoSuchLocalValue {index})?);
     }
     Ok(stack)
 }
@@ -70,8 +70,8 @@ pub fn get_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut 
 pub fn set_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        let  v = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
-        *v = stack.values.pop().ok_or(NotExistValue)?;
+        let  mut v = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
+        v.value = Some(stack.values.pop().ok_or(NotExistValue)?);
     }
     Ok(stack)
 }
@@ -79,8 +79,8 @@ pub fn set_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut 
 pub fn tee_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        let  v = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
-        *v = stack.values.last().ok_or(NotExistValue)?;
+        let  mut v = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
+        v.value = Some(stack.values.last().ok_or(NotExistValue)?);
 
     }
     Ok(stack)
@@ -249,7 +249,7 @@ mod tests{
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
             let stack =  Stack::<u32>::new(test_function,vec![],vec![
 
-                frame::test_utils::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()), expected as u64, false)], vec![], vec![], vec![])
+                frame::test_utils::new_test_frame(vec![LocalValue::new(Value::const_int(Type::int32(build_context.context()), expected as u64, false))], vec![], vec![], vec![])
             ]);
 
             let mut stack = get_local(&build_context,0,stack)?;
@@ -274,7 +274,7 @@ mod tests{
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
             let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
 
-                frame::test_utils::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()), 0, false)], vec![], vec![], vec![])
+                frame::test_utils::new_test_frame(vec![LocalValue::new(Value::const_int(Type::int32(build_context.context()), 0, false))], vec![], vec![], vec![])
             ]);
 
             let stack = set_local(&build_context,0,stack)?;
@@ -300,7 +300,7 @@ mod tests{
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
             let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
 
-                frame::test_utils::new_test_frame(vec![Value::const_int(Type::int32(build_context.context()), 0, false)], vec![], vec![], vec![])
+                frame::test_utils::new_test_frame(vec![LocalValue::new(Value::const_int(Type::int32(build_context.context()), 0, false))], vec![], vec![], vec![])
             ]);
 
             let mut stack = tee_local(&build_context,0,stack)?;
