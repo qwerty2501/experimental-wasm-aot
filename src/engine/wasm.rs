@@ -139,9 +139,9 @@ impl<T:WasmIntType> WasmCompiler<T>{
         types.iter().map(|ty|{
             match ty {
                 elements::Type::Function(function_type)=>{
-                    let param_types = function_type.params().iter().map(|value_type|Self::value_type_to_type(build_context,&value_type)).collect::<Vec<_>>();
+                    let param_types = function_type.params().iter().map(|value_type|instructions::value_type_to_type(build_context,&value_type)).collect::<Vec<_>>();
                     Type::function(
-                        function_type.return_type().map(|value_type|Self::value_type_to_type(build_context,&value_type)).unwrap_or(Type::void(build_context.context())),
+                        function_type.return_type().map(|value_type|instructions::value_type_to_type(build_context,&value_type)).unwrap_or(Type::void(build_context.context())),
                         &param_types,
                         false
                     )
@@ -173,17 +173,9 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
 
     fn set_declare_global<'a>(& self, build_context:&'a BuildContext, index:u32, global_type:&GlobalType) ->&'a Value{
-        build_context.module().set_declare_global(instructions::get_global_name(index).as_ref(), Self::value_type_to_type(build_context,&global_type.content_type()))
+        build_context.module().set_declare_global(instructions::get_global_name(index).as_ref(), instructions::value_type_to_type(build_context,&global_type.content_type()))
     }
 
-    fn value_type_to_type<'a>(build_context:&'a BuildContext, value_type:&ValueType)->&'a Type{
-        match value_type{
-            ValueType::I32 => Type::int32(build_context.context()),
-            ValueType::I64 => Type::int64(build_context.context()),
-            ValueType::F32 => Type::float32(build_context.context()),
-            ValueType::F64 => Type::float64(build_context.context()),
-        }
-    }
 
     fn build_init_data_sections_function(&self,build_context:&BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
         let function = self.set_declare_init_data_sections_function(build_context);
@@ -364,41 +356,5 @@ mod tests{
         Ok(())
     }
 
-    #[test]
-    fn i32_value_type_to_type_works(){
-        let context = Context::new();
-        let build_context = BuildContext::new("i32_value_type_to_type",&context);
-        test_value_type_to_type(&build_context,&ValueType::I32,Type::int32(build_context.context()));
-    }
-
-    #[test]
-    fn i64_value_type_to_type_works(){
-        let context = Context::new();
-        let build_context = BuildContext::new("i64_value_type_to_type",&context);
-        test_value_type_to_type(&build_context,&ValueType::I64,Type::int64(build_context.context()));
-    }
-
-    #[test]
-    fn f32_value_type_to_type_works(){
-        let context = Context::new();
-        let build_context = BuildContext::new("f32_value_type_to_type",&context);
-        test_value_type_to_type(&build_context,&ValueType::F32,Type::float32(build_context.context()));
-    }
-
-    #[test]
-    fn f64_value_type_to_type_works(){
-        let context = Context::new();
-        let build_context = BuildContext::new("f64_value_type_to_type",&context);
-        test_value_type_to_type(&build_context,&ValueType::F64,Type::float64(build_context.context()));
-    }
-
-    fn test_value_type_to_type(build_context:&BuildContext, value_type:&ValueType,expected:&Type){
-        let actual = WasmCompiler::<u32>::value_type_to_type(build_context,value_type);
-        use llvm_sys::prelude::LLVMTypeRef;
-        let expected_ptr:LLVMTypeRef = expected.into();
-        let actual_ptr:LLVMTypeRef = expected.into();
-        assert_eq!(  expected_ptr,actual_ptr.into());
-
-    }
 
 }

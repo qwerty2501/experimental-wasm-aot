@@ -2,7 +2,7 @@
 use super::*;
 use failure::Error;
 use error::RuntimeError::*;
-use parity_wasm::elements::{Instruction};
+use parity_wasm::elements::{Instruction,ValueType};
 
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
 
@@ -161,6 +161,15 @@ pub fn f32_reinterpret_i32(v: u32) -> f32 {
 pub fn f64_reinterpret_i64(v: u64) -> f64 {
     unsafe {
         ::std::mem::transmute(v)
+    }
+}
+
+pub fn value_type_to_type<'a>(build_context:&'a BuildContext, value_type:&ValueType)->&'a Type{
+    match value_type{
+        ValueType::I32 => Type::int32(build_context.context()),
+        ValueType::I64 => Type::int64(build_context.context()),
+        ValueType::F32 => Type::float32(build_context.context()),
+        ValueType::F64 => Type::float64(build_context.context()),
     }
 }
 
@@ -337,6 +346,43 @@ mod tests{
             }
             Ok(())
         })
+    }
+
+    #[test]
+    fn i32_value_type_to_type_works(){
+        let context = Context::new();
+        let build_context = BuildContext::new("i32_value_type_to_type",&context);
+        test_value_type_to_type(&build_context,&ValueType::I32,Type::int32(build_context.context()));
+    }
+
+    #[test]
+    fn i64_value_type_to_type_works(){
+        let context = Context::new();
+        let build_context = BuildContext::new("i64_value_type_to_type",&context);
+        test_value_type_to_type(&build_context,&ValueType::I64,Type::int64(build_context.context()));
+    }
+
+    #[test]
+    fn f32_value_type_to_type_works(){
+        let context = Context::new();
+        let build_context = BuildContext::new("f32_value_type_to_type",&context);
+        test_value_type_to_type(&build_context,&ValueType::F32,Type::float32(build_context.context()));
+    }
+
+    #[test]
+    fn f64_value_type_to_type_works(){
+        let context = Context::new();
+        let build_context = BuildContext::new("f64_value_type_to_type",&context);
+        test_value_type_to_type(&build_context,&ValueType::F64,Type::float64(build_context.context()));
+    }
+
+    fn test_value_type_to_type(build_context:&BuildContext, value_type:&ValueType,expected:&Type){
+        let actual = value_type_to_type(build_context,value_type);
+        use llvm_sys::prelude::LLVMTypeRef;
+        let expected_ptr:LLVMTypeRef = expected.into();
+        let actual_ptr:LLVMTypeRef = expected.into();
+        assert_eq!(  expected_ptr,actual_ptr.into());
+
     }
 
 }
