@@ -4,6 +4,7 @@ use failure::Error;
 use parity_wasm::elements::ResizableLimits;
 use parity_wasm::elements::ElementSegment;
 use parity_wasm::elements;
+use parity_wasm::elements::ImportCountType;
 use parity_wasm::elements::Module as WasmModule;
 
 pub struct TableTypeContext<TType:TableType>(::std::marker::PhantomData<TType>);
@@ -36,6 +37,17 @@ impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
 
     pub fn new()->TableCompiler<TType,T>{
         TableCompiler::<TType,T>{table_memory_compiler:TableMemoryCompiler::<TType,T>::new(),table_type: ::std::marker::PhantomData::<TType>}
+    }
+
+    pub fn get_init_function_name(&self)->String{
+        self.table_memory_compiler.get_init_function_name()
+    }
+
+    pub fn compile(&self, build_context:&BuildContext,wasm_module:&WasmModule,initializers:&[TableInitializer])->Result<(),Error>{
+        wasm_module.table_section().map_or(Ok(()),|table_section|{
+            self.build_init_function(build_context,table_section.entries(),initializers,wasm_module.import_count(ImportCountType::Table ) as u32)
+        })
+
     }
 
     pub fn build_init_function(&self, build_context:&BuildContext,table_types:&[elements::TableType],initializers:&[TableInitializer], import_count:u32) -> Result<(),Error>{
