@@ -137,8 +137,8 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
     fn build_function_codes(&self,build_context:&BuildContext,wasm_module:&WasmModule,functions:&[&Value],import_count:u32)->Result<(),Error>{
         if let Some(code_section) = wasm_module.code_section(){
-            for (index,function_body) in code_section.bodies().iter().enumerate().map(|(index,function_body)|(index+import_count,function_body)) {
-                let current_function = functions.get(index).ok_or(NoSuchFunctionIndex {index })?;
+            for (index,function_body) in code_section.bodies().iter().enumerate().map(|(index,function_body)|(index +import_count as usize,function_body)) {
+                let current_function = functions.get(index).ok_or(NoSuchFunctionIndex {index :index as u32 })?;
                 let stack = Stack::<T>::new(current_function,vec![],vec![
                 ]);
             }
