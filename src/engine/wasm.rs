@@ -11,6 +11,7 @@ use parity_wasm::elements::Internal;
 use parity_wasm::elements::ExportEntry;
 use parity_wasm::elements::Func;
 use parity_wasm::elements::InitExpr;
+use parity_wasm::elements::ElementSegment;
 
 const WASM_FUNCTION_PREFIX:&str = "__WASM_FUNCTION_";
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
@@ -29,20 +30,80 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
 
-    pub fn compile<'c>(&self, module_id:&str,wasm_module:&WasmModule,context:&'c Context)->Result<ModuleGuard<'c>,Error> {
+    pub fn compile<'c>(&self,module_id:&str,wasm_module:&WasmModule,context:&'c Context)->Result<ModuleGuard<'c>,Error>{
         let build_context = BuildContext::new(module_id,context);
-        self.build_init_global_sections(&build_context,wasm_module)?;
-        self.build_init_data_sections_function(&build_context,wasm_module)?;
+        {
+            let int32_type = Type::int32(build_context.context());
+            let str_ptr_type = Type::ptr(Type::int8(build_context.context()),0);
+            let main_function_type = Type::function(int32_type,&[int32_type,str_ptr_type],false);
+            let main_function = build_context.module().set_declare_function("main",main_function_type);
+            self.compile_internal(module_id,&build_context,wasm_module,main_function)?;
+        }
+
         Ok(build_context.move_module())
+
     }
 
-    pub fn set_declare_init_module_function<'c>(&self, build_context:&'c BuildContext) ->&'c Value{
-        let void_type = Type::void(build_context.context());
-        build_context.module().set_declare_function("init_module", Type::function(void_type, &[void_type], false))
+    pub fn compile_internal<'c>(&self, module_id:&str,build_context:&BuildContext<'c>, wasm_module:&WasmModule,main_function:&Value)->Result<(),Error> {
+
+        self.build_init_global_sections(build_context,wasm_module)?;
+        self.build_init_data_sections_function(build_context,wasm_module)?;
+        let functions = self.build_functions(&build_context,wasm_module)?;
+
+        let entries=  if let Some(elements_section) =  wasm_module.elements_section(){
+            elements_section.entries().iter().collect::<Vec<_>>()
+        } else{
+            vec![]
+        };
+
+        let initializers:Vec<TableInitializer> = entries.iter().map(|element_segment|{
+                let elements = element_segment.members().iter().map(|member_index|{
+                    Ok(*functions.get(*member_index as usize).ok_or(NoSuchFunctionIndex {index:*member_index})?)
+                }).collect::<Result<Vec<_>,Error>>()?;
+                Ok(TableInitializer::new(element_segment.index(),Self::segment_init_expr_to_value(build_context, element_segment.offset())?,elements))
+            }).collect::<Result<Vec<TableInitializer>,Error>>()?;
+
+
+        self.table_compiler.compile(build_context,wasm_module,&initializers)?;
+        self.build_main_function(build_context, wasm_module,main_function)?;
+        Ok(())
     }
 
+    fn build_main_function(&self, build_context:&BuildContext, wasm_module:&WasmModule,main_function:&Value) -> Result<(),Error>{
+        let init_memory_function_name = self.linear_memory_compiler.get_init_function_name();
+        let init_memory_function = build_context.module().get_named_function(&init_memory_function_name).ok_or(NoSuchLLVMFunction {name:init_memory_function_name})?;
+        let init_table_function_name = self.table_compiler.get_init_function_name();
+        let init_table_function = build_context.module().get_named_function(&init_table_function_name).ok_or(NoSuchLLVMFunction {name:init_table_function_name})?;
+        let int32_type = Type::int32(build_context.context());
+        let str_ptr_type = Type::ptr(Type::int8(build_context.context()),0);
+        build_context.builder().build_function(build_context.context(),main_function,|builder,bb|{
+            let ret_init_memory = builder.build_call(init_memory_function,&[],"");
+            let init_table_block = main_function.append_basic_block(build_context.context(),"");
+            let failed_init_block = main_function.append_basic_block(build_context.context(),"");
+            builder.build_cond_br(ret_init_memory,init_table_block,failed_init_block);
+
+            builder.position_builder_at_end(failed_init_block);
+            let void_type = Type::void(build_context.context());
+            let abort_function_type = Type::function(void_type,&[],false);
+            let abort_function = build_context.module().set_declare_function("abort",abort_function_type);
+            builder.build_call(abort_function,&[],"");
+            builder.build_ret(Value::const_int(Type::int32(build_context.context()),-1_i64 as u64,true));
+
+
+            builder.position_builder_at_end(init_table_block);
+            let ret_init_table = builder.build_call(init_table_function,&[],"");
+            let init_data_section_block = main_function.append_basic_block(build_context.context(),"");
+            builder.build_cond_br(ret_init_table,init_data_section_block,failed_init_block);
+
+            builder.position_builder_at_end(init_data_section_block);
+
+            Ok(())
+        })
+    }
+
+    const INIT_DATA_SECTIONS_NAME:&'static str = "init_data_sections";
     pub fn set_declare_init_data_sections_function<'c>(&self, build_context:&'c BuildContext) ->&'c Value{
-        build_context.module().set_declare_function("init_data_sections", Type::function(Type::int8(build_context.context()), & [], false))
+        build_context.module().set_declare_function(Self::INIT_DATA_SECTIONS_NAME, Type::function(Type::int8(build_context.context()), & [], false))
     }
 
     fn build_init_global_sections(&self,build_context:&BuildContext,wasm_module:&WasmModule )->Result<(),Error>{
@@ -59,8 +120,8 @@ impl<T:WasmIntType> WasmCompiler<T>{
         Ok(())
     }
 
-    fn build_functions(&self,build_context:&BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
-        wasm_module.type_section().map_or(Ok(()),|type_section|{
+    fn build_functions<'a>(&'a self,build_context:&'a BuildContext,wasm_module:&WasmModule)->Result<Vec<&'a Value>,Error>{
+        wasm_module.type_section().map_or(Ok(vec![]),|type_section|{
             let types = self.set_declare_types(build_context,type_section.types());
 
             let imported_functions = self.set_declare_imported_functions(build_context, wasm_module, &types)?;
@@ -75,7 +136,8 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
             let build_function_context = BuildFunctionContext::<T>{build_context,functions,linear_memory_compiler:&self.linear_memory_compiler,table_compiler:&self.table_compiler};
 
-            self.build_init_table_function(build_context,wasm_module,&build_function_context.functions,imported_count)
+            self.build_init_table_function(build_context,wasm_module,&build_function_context.functions,imported_count)?;
+            Ok(build_function_context.functions)
         })
     }
 

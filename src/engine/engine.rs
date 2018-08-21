@@ -1,18 +1,12 @@
-extern crate parity_wasm;
-extern crate failure;
-use self::parity_wasm::elements::Module as WasmModule;
+use super ::*;
+use parity_wasm::elements::Module as WasmModule;
 use failure::Error;
-use super::memory as memory;
-use super::wasm;
 use error::RuntimeError::*;
-use super::llvm::*;
-use engine::types::WasmIntType;
-use self::parity_wasm::elements::External;
-
 
 pub struct Engine<T:  WasmIntType>{
-    wasm_compiler:wasm::WasmCompiler<T>,
-    linear_memory_compiler:memory::LinearMemoryCompiler<T>,
+    wasm_compiler: WasmCompiler<T>,
+    linear_memory_compiler: LinearMemoryCompiler<T>,
+    function_table_compiler: FunctionTableCompiler<T>,
 }
 impl<'a,T:WasmIntType>  Engine<T>{
 
@@ -20,7 +14,8 @@ impl<'a,T:WasmIntType>  Engine<T>{
         let  linear_memory_compiler =  memory::LinearMemoryCompiler::<T>::new();
         Engine{
             linear_memory_compiler,
-            wasm_compiler:wasm::WasmCompiler::<T>::new(),
+            wasm_compiler:WasmCompiler::<T>::new(),
+            function_table_compiler:FunctionTableCompiler::<T>::new()
         }
     }
     pub fn build( &self ,wasm_module:&WasmModule)->Result<(),Error>{
@@ -29,4 +24,8 @@ impl<'a,T:WasmIntType>  Engine<T>{
         self.wasm_compiler.compile("main_module",wasm_module,&context)?;
         Ok(())
     }
+
+
+
+
 }

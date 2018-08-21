@@ -12,10 +12,6 @@ impl<'a,T:WasmIntType> Stack<'a,T>{
     pub fn new<'b>(current_function:&'b Value, values:Vec<&'b Value>,activations:Vec<Frame<'b,T>>)-> Stack<'b,T>{
         Stack{current_function, values,activations}
     }
-
-    pub fn current_frame(&self)->Result<&Frame<'a,T>,Error>{
-        Ok(self.activations.first().ok_or(NotExistFrame)?)
-    }
 }
 
 pub trait Activations<'a,T:WasmIntType>{

@@ -76,9 +76,6 @@ impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
         build_context.builder().build_mul(size,Value::const_int(Type::int32(build_context.context()),TType::ELEMENT_SIZE as u64,false),"")
     }
 
-    fn size_to_element_size(size:u32)->u32{
-        size  * TType::ELEMENT_SIZE as u32
-    }
 
 }
 
@@ -90,7 +87,7 @@ pub struct TableInitializer<'a>{
 
 impl<'a> TableInitializer<'a>{
 
-    pub fn new<'e>(index:u32,offset:&'e Value,members:Vec<&'e Value>)->TableInitializer<'e>{
+    pub fn new(index:u32,offset:&'a Value,members:Vec<&'a Value>)->TableInitializer<'a>{
         TableInitializer{index,offset, members }
     }
 }

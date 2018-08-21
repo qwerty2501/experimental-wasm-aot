@@ -16,7 +16,6 @@ use std::env;
 #[macro_use] mod engine;
 pub mod error;
 
-
 use failure::Error;
 fn main() {
     env_logger::init();
@@ -43,6 +42,9 @@ fn build(args:&[String])->Result<(),Error>{
         name:"Now, the argument is given only wasm file.".to_string()
     })?;
 
-    Ok(())
+    let wasm_module = parity_wasm::deserialize_file(wasm_file_name)?;
+
+    let engine = engine::Engine::<u32>::new();
+    engine.build(&wasm_module)
 
 }
