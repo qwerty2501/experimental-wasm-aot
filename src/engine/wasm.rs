@@ -54,24 +54,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
         self.linear_memory_compiler.compile(build_context.context(),wasm_module)?;
         self.build_init_global_sections(build_context,wasm_module)?;
         self.build_init_data_sections_function(build_context,wasm_module)?;
-        let functions = self.build_functions(&build_context,wasm_module)?;
-
-        let entries=  if let Some(elements_section) =  wasm_module.elements_section(){
-            elements_section.entries().iter().collect::<Vec<_>>()
-        } else{
-            vec![]
-        };
-
-        let initializers:Vec<TableInitializer> = entries.iter().map(|element_segment|{
-                let elements = element_segment.members().iter().map(|member_index|{
-                    Ok(*functions.get(*member_index as usize).ok_or(NoSuchFunctionIndex {index:*member_index})?)
-                }).collect::<Result<Vec<_>,Error>>()?;
-                Ok(TableInitializer::new(element_segment.index(),Self::segment_init_expr_to_value(build_context, element_segment.offset())?,elements))
-            }).collect::<Result<Vec<TableInitializer>,Error>>()?;
-
-
-        self.table_compiler.compile(build_context,wasm_module,&initializers)?;
-
+        self.build_functions(&build_context,wasm_module)?;
         Ok(())
     }
 
@@ -131,7 +114,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
         Ok(())
     }
 
-    fn build_functions<'a>(&'a self,build_context:&'a BuildContext,wasm_module:&WasmModule)->Result<Vec<&'a Value>,Error>{
+    fn build_functions<'a>(&'a self,build_context:&'a BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
         if let Some(type_section) = wasm_module.type_section(){
             let types = self.set_declare_types(build_context,type_section.types());
 
@@ -148,10 +131,9 @@ impl<T:WasmIntType> WasmCompiler<T>{
             let build_function_context = BuildFunctionContext::<T>{build_context,functions,linear_memory_compiler:&self.linear_memory_compiler,table_compiler:&self.table_compiler};
 
             self.build_init_table_function(build_context,wasm_module,&build_function_context.functions,imported_count)?;
-            Ok(build_function_context.functions)
-        } else{
-            Ok(vec![])
+
         }
+        Ok(())
     }
 
     fn set_declare_declared_functions<'a>(&self, build_context:&'a BuildContext, wasm_module:&WasmModule,exported_function_pairs:&[(u32,&str)], types:&[&Type], imported_count:u32) ->Result<Vec<&'a Value>,Error>{
