@@ -114,7 +114,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
         Ok(())
     }
 
-    fn build_functions<'a>(&'a self,build_context:&'a BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
+    fn build_functions(&self,build_context:&BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
         if let Some(type_section) = wasm_module.type_section(){
             let types = self.set_declare_types(build_context,type_section.types());
 
@@ -124,19 +124,29 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
             let imported_count= imported_functions.len() as u32;
 
-            let declared_functions = self.set_declare_declared_functions(build_context, wasm_module,&exported_function_pairs,&types,imported_count)?;
+            let current_module_functions = self.set_declare_current_module_functions(build_context, wasm_module, &exported_function_pairs, &types, imported_count)?;
 
-            let functions:Vec<&Value> = [(&imported_functions) as &[&Value],(&declared_functions) as &[&Value]].concat();
+            let functions:Vec<&Value> = [(&imported_functions) as &[&Value],(&current_module_functions) as &[&Value]].concat();
 
-            let build_function_context = BuildFunctionContext::<T>{build_context,functions,linear_memory_compiler:&self.linear_memory_compiler,table_compiler:&self.table_compiler};
+            self.build_init_table_function(build_context,wasm_module,&functions,imported_count)?;
 
-            self.build_init_table_function(build_context,wasm_module,&build_function_context.functions,imported_count)?;
-
+            self.build_function_codes(build_context,wasm_module,&functions,imported_count)?;
         }
         Ok(())
     }
 
-    fn set_declare_declared_functions<'a>(&self, build_context:&'a BuildContext, wasm_module:&WasmModule,exported_function_pairs:&[(u32,&str)], types:&[&Type], imported_count:u32) ->Result<Vec<&'a Value>,Error>{
+    fn build_function_codes(&self,build_context:&BuildContext,wasm_module:&WasmModule,functions:&[&Value],import_count:u32)->Result<(),Error>{
+        if let Some(code_section) = wasm_module.code_section(){
+            for (index,function_body) in code_section.bodies().iter().enumerate().map(|(index,function_body)|(index+import_count,function_body)) {
+                let current_function = functions.get(index).ok_or(NoSuchFunctionIndex {index })?;
+                let stack = Stack::<T>::new(current_function,vec![],vec![
+                ]);
+            }
+        }
+        Ok(())
+    }
+
+    fn set_declare_current_module_functions<'a>(&self, build_context:&'a BuildContext, wasm_module:&WasmModule, exported_function_pairs:&[(u32, &str)], types:&[&Type], imported_count:u32) ->Result<Vec<&'a Value>,Error>{
         if let Some(function_section) = wasm_module.function_section(){
             function_section.entries().iter().enumerate().map(|(index, function_entry)|{
                 let function_index = imported_count + index as u32;
@@ -278,12 +288,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
 
 
-struct BuildFunctionContext<'a,T:WasmIntType + 'a>{
-    build_context:&'a BuildContext<'a>,
-    functions:Vec<&'a Value>,
-    linear_memory_compiler:&'a LinearMemoryCompiler<T>,
-    table_compiler:&'a FunctionTableCompiler<T>,
-}
+
 
 
 #[cfg(test)]
