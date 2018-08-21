@@ -108,9 +108,11 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
     fn build_init_global_sections(&self,build_context:&BuildContext,wasm_module:&WasmModule )->Result<(),Error>{
         let import_global_count = wasm_module.import_count(ImportCountType::Global) as u32;
-        wasm_module.global_section().map_or(Ok(()),|section|{
+        if let Some(section) = wasm_module.global_section(){
             self.build_global_entries(build_context,section.entries(),import_global_count)
-        })
+        } else{
+            Ok(())
+        }
     }
 
     fn build_global_entries(&self,build_context:&BuildContext,entries:&[GlobalEntry],import_global_count:u32)->Result<(),Error>{
@@ -121,7 +123,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
     fn build_functions<'a>(&'a self,build_context:&'a BuildContext,wasm_module:&WasmModule)->Result<Vec<&'a Value>,Error>{
-        wasm_module.type_section().map_or(Ok(vec![]),|type_section|{
+        if let Some(type_section) = wasm_module.type_section(){
             let types = self.set_declare_types(build_context,type_section.types());
 
             let imported_functions = self.set_declare_imported_functions(build_context, wasm_module, &types)?;
@@ -138,22 +140,26 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
             self.build_init_table_function(build_context,wasm_module,&build_function_context.functions,imported_count)?;
             Ok(build_function_context.functions)
-        })
+        } else{
+            Ok(vec![])
+        }
     }
 
     fn set_declare_declared_functions<'a>(&self, build_context:&'a BuildContext, wasm_module:&WasmModule,exported_function_pairs:&[(u32,&str)], types:&[&Type], imported_count:u32) ->Result<Vec<&'a Value>,Error>{
-        wasm_module.function_section().map_or_else(||Ok((vec![])),|function_section|{
+        if let Some(function_section) = wasm_module.function_section(){
             function_section.entries().iter().enumerate().map(|(index, function_entry)|{
                 let function_index = imported_count + index as u32;
                 let internal_name = ["internal",&function_index.to_string()].concat();
                 let name = exported_function_pairs.iter().filter(|v|v.0 ==function_index ).map(|v|v.1).last().unwrap_or(&internal_name);
                 self.set_declare_function(build_context,name,function_entry.type_ref(),&types)
             }).collect::<Result<Vec<&Value>,Error>>()
-        })
+        } else{
+            Ok(vec![])
+        }
     }
 
     fn set_declare_imported_functions<'a>(&self, build_context:&'a BuildContext, wasm_module:&WasmModule, types:&[&Type]) ->Result<Vec<&'a Value>,Error>{
-        wasm_module.import_section().map_or(Ok(vec![]),|import_section|{
+        if let Some(import_section) = wasm_module.import_section(){
             import_section.entries().iter().filter_map(|import_entry |{
                 if let External::Function(type_index) = import_entry.external(){
                     Some(self.set_declare_function(build_context,import_entry.field(),*type_index,types))
@@ -161,11 +167,13 @@ impl<T:WasmIntType> WasmCompiler<T>{
                     None
                 }
             }).collect()
-        })
+        } else{
+            Ok(vec![])
+        }
     }
 
     fn get_exported_function_pairs<'a>(&self, build_context:&BuildContext,wasm_module:&'a WasmModule)->Vec<(u32,&'a str)>{
-        wasm_module.export_section().map_or_else(|| vec![],|export_section|{
+        if let Some(export_section) = wasm_module.export_section(){
             export_section.entries().iter().filter_map(|entry|{
                 if let Internal::Function(function_index) = *entry.internal(){
                     Some((function_index,entry.field()))
@@ -173,12 +181,14 @@ impl<T:WasmIntType> WasmCompiler<T>{
                     None
                 }
             }).collect()
-        })
+        } else{
+            vec![]
+        }
     }
 
     fn build_init_table_function(&self, build_context:&BuildContext,wasm_module:&WasmModule,functions:&[&Value],imported_count:u32)->Result<(),Error>{
-        wasm_module.table_section().map_or(Ok(()),|table_section|{
-            wasm_module.elements_section().map_or(Ok(()),|elements_section|{
+        if let Some(table_section) = wasm_module.table_section()  {
+            if let Some(elements_section) = wasm_module.elements_section(){
                 let table_import_count = wasm_module.import_count(ImportCountType::Table);
                 let table_initializers = elements_section.entries().iter().map(|element_segment|{
                     let offset = Self::segment_init_expr_to_value(build_context ,element_segment.offset())?;
@@ -187,10 +197,10 @@ impl<T:WasmIntType> WasmCompiler<T>{
                     }).collect::<Result<Vec<_>,Error>>()?;
                     Ok(TableInitializer::new(element_segment.index() ,offset,members))
                 }).collect::<Result<Vec<_>,Error>>()?;
-                self.table_compiler.build_init_function(build_context,table_section.entries(),&table_initializers,imported_count )
-            })
-        })
-
+                self.table_compiler.build_init_function(build_context,table_section.entries(),&table_initializers,imported_count )?;
+            }
+        }
+        Ok(())
     }
 
     fn set_declare_function<'a>(&self,build_context:&'a BuildContext,name:&str,type_index:u32,types:&[&Type])->Result<&'a Value,Error>{
@@ -242,12 +252,12 @@ impl<T:WasmIntType> WasmCompiler<T>{
     fn build_init_data_sections_function(&self,build_context:&BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
         let function = self.set_declare_init_data_sections_function(build_context);
         build_context.builder().build_function(build_context.context(),function,|builder,bb|{
-            wasm_module.data_section().map_or(Ok(()),|data_section|{
-               for segment in data_section.entries(){
+            if let Some(data_section) = wasm_module.data_section(){
+                for segment in data_section.entries(){
                     self.build_data_segment(build_context,segment)?;
-               }
-                Ok(())
-            })
+                }
+            }
+            Ok(())
         })
     }
 

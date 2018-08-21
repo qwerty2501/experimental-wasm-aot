@@ -44,10 +44,10 @@ impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
     }
 
     pub fn compile(&self, build_context:&BuildContext,wasm_module:&WasmModule,initializers:&[TableInitializer])->Result<(),Error>{
-        wasm_module.table_section().map_or(Ok(()),|table_section|{
-            self.build_init_function(build_context,table_section.entries(),initializers,wasm_module.import_count(ImportCountType::Table ) as u32)
-        })
-
+        if let Some(table_section) = wasm_module.table_section(){
+            self.build_init_function(build_context,table_section.entries(),initializers,wasm_module.import_count(ImportCountType::Table ) as u32)?;
+        }
+        Ok(())
     }
 
     pub fn build_init_function(&self, build_context:&BuildContext,table_types:&[elements::TableType],initializers:&[TableInitializer], import_count:u32) -> Result<(),Error>{
