@@ -20,7 +20,6 @@ impl<'a,T:WasmIntType>  Engine<T>{
     }
     pub fn build( &self ,wasm_module:&WasmModule)->Result<(),Error>{
         let context = Context::new();
-        self.linear_memory_compiler.compile(&context,wasm_module)?;
         self.wasm_compiler.compile("main_module",wasm_module,&context)?;
         Ok(())
     }

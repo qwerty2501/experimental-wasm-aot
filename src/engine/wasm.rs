@@ -37,15 +37,21 @@ impl<T:WasmIntType> WasmCompiler<T>{
             let str_ptr_type = Type::ptr(Type::int8(build_context.context()),0);
             let main_function_type = Type::function(int32_type,&[int32_type,str_ptr_type],false);
             let main_function = build_context.module().set_declare_function("main",main_function_type);
-            self.compile_internal(module_id,&build_context,wasm_module,main_function)?;
+
+            self.build_main_function(&build_context, module_id,wasm_module,main_function,||{
+                let entry_function_name = Self::wasm_call_name("main");
+                let entry_function = build_context.module().get_named_function(&entry_function_name).ok_or(NoSuchLLVMFunction {name:entry_function_name})?;
+                build_context.builder().build_ret(build_context.builder().build_call(entry_function,&[],""));
+                Ok(())
+            })?;
         }
 
         Ok(build_context.move_module())
 
     }
 
-    pub fn compile_internal<'c>(&self, module_id:&str,build_context:&BuildContext<'c>, wasm_module:&WasmModule,main_function:&Value)->Result<(),Error> {
-
+    pub fn build_init_instance_functions<'c>(&self, module_id:&str, build_context:&BuildContext<'c>, wasm_module:&WasmModule) ->Result<(),Error> {
+        self.linear_memory_compiler.compile(build_context.context(),wasm_module)?;
         self.build_init_global_sections(build_context,wasm_module)?;
         self.build_init_data_sections_function(build_context,wasm_module)?;
         let functions = self.build_functions(&build_context,wasm_module)?;
@@ -65,18 +71,18 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
 
         self.table_compiler.compile(build_context,wasm_module,&initializers)?;
-        self.build_main_function(build_context, wasm_module,main_function)?;
+
         Ok(())
     }
 
-    fn build_main_function(&self, build_context:&BuildContext, wasm_module:&WasmModule,main_function:&Value) -> Result<(),Error>{
-        let init_memory_function_name = self.linear_memory_compiler.get_init_function_name();
-        let init_memory_function = build_context.module().get_named_function(&init_memory_function_name).ok_or(NoSuchLLVMFunction {name:init_memory_function_name})?;
-        let init_table_function_name = self.table_compiler.get_init_function_name();
-        let init_table_function = build_context.module().get_named_function(&init_table_function_name).ok_or(NoSuchLLVMFunction {name:init_table_function_name})?;
+    fn build_main_function<F:FnOnce()->Result<(),Error>>(&self, build_context:&BuildContext,module_id:&str, wasm_module:&WasmModule,main_function:&Value,on_build_entry:F) -> Result<(),Error>{
+
+        self.build_init_instance_functions(module_id, build_context, wasm_module)?;
         let int32_type = Type::int32(build_context.context());
         let str_ptr_type = Type::ptr(Type::int8(build_context.context()),0);
         build_context.builder().build_function(build_context.context(),main_function,|builder,bb|{
+            let init_memory_function_name = self.linear_memory_compiler.get_init_function_name();
+            let init_memory_function = build_context.module().get_named_function(&init_memory_function_name).ok_or(NoSuchLLVMFunction {name:init_memory_function_name})?;
             let ret_init_memory = builder.build_call(init_memory_function,&[],"");
             let init_table_block = main_function.append_basic_block(build_context.context(),"");
             let failed_init_block = main_function.append_basic_block(build_context.context(),"");
@@ -91,13 +97,16 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
 
             builder.position_builder_at_end(init_table_block);
+            let init_table_function_name = self.table_compiler.get_init_function_name();
+            let init_table_function = build_context.module().get_named_function(&init_table_function_name).ok_or(NoSuchLLVMFunction {name:init_table_function_name})?;
             let ret_init_table = builder.build_call(init_table_function,&[],"");
             let init_data_section_block = main_function.append_basic_block(build_context.context(),"");
             builder.build_cond_br(ret_init_table,init_data_section_block,failed_init_block);
 
             builder.position_builder_at_end(init_data_section_block);
-
-            Ok(())
+            let init_data_sections_function = build_context.module().get_named_function(Self::INIT_DATA_SECTIONS_NAME).ok_or(NoSuchLLVMFunction {name:Self::INIT_DATA_SECTIONS_NAME.to_string()})?;
+            builder.build_call(init_data_sections_function,&[],"");
+            on_build_entry()
         })
     }
 
