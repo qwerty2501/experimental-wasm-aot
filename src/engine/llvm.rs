@@ -310,7 +310,7 @@ impl  Value{
         }
     }
 
-    pub fn null_ptr(type_ref:&Type)->&Value {
+    pub fn const_null_ptr(type_ref:&Type) ->&Value {
         unsafe{LLVMConstPointerNull(type_ref.into()).into()}
     }
 
