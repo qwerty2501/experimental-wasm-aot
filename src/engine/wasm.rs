@@ -148,7 +148,23 @@ impl<T:WasmIntType> WasmCompiler<T>{
                     Ok(LocalValue::from_value_type(instructions::value_type_to_type(build_context,&local.value_type())))
                 })).collect::<Result<Vec<LocalValue>,Error>>()?;
 
+                build_context.builder().build_function(build_context.context(),current_function,|builder,bb|{
+                    let stack = Stack::new(current_function,vec![],vec![
+                        Frame::new(locals,ModuleInstance::new(types,functions,vec![bb],&self.table_compiler,&self.linear_memory_compiler))
+                    ]);
 
+                    let  stack = function_body.code().elements().iter().try_fold(stack,|stack,instruction|{
+                        instructions::progress_instruction(build_context,instruction.clone(),stack)
+                    })?;
+
+                    if let Some(result) = stack.values.last(){
+                        builder.build_ret(result);
+                    } else{
+                        builder.build_ret_void();
+                    }
+
+                    Ok(())
+                })?;
             }
         }
         Ok(())
