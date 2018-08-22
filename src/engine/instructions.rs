@@ -249,7 +249,7 @@ mod tests{
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
             let stack =  Stack::<u32>::new(test_function,vec![],vec![
 
-                frame::test_utils::new_test_frame(vec![LocalValue::new(Value::const_int(Type::int32(build_context.context()), expected as u64, false))], vec![], vec![], vec![])
+                frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), expected as u64, false))], vec![], vec![], vec![])
             ]);
 
             let mut stack = get_local(&build_context,0,stack)?;
@@ -274,7 +274,7 @@ mod tests{
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
             let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
 
-                frame::test_utils::new_test_frame(vec![LocalValue::new(Value::const_int(Type::int32(build_context.context()), 0, false))], vec![], vec![], vec![])
+                frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))], vec![], vec![], vec![])
             ]);
 
             let stack = set_local(&build_context,0,stack)?;
@@ -300,7 +300,7 @@ mod tests{
         build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
             let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
 
-                frame::test_utils::new_test_frame(vec![LocalValue::new(Value::const_int(Type::int32(build_context.context()), 0, false))], vec![], vec![], vec![])
+                frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))], vec![], vec![], vec![])
             ]);
 
             let mut stack = tee_local(&build_context,0,stack)?;

@@ -235,8 +235,11 @@ impl_type_traits!(Value,LLVMValueRef);
 impl  Value{
 
 
+
+
     pub fn const_array<'a>(element_type:&Type,const_values:&'a [&Value])->&'a Value{
         unsafe{
+
             LLVMConstArray(element_type.into(),const_values.as_ptr() as *mut _,const_values.len() as ::libc::c_uint).into()
         }
     }
@@ -262,6 +265,22 @@ impl  Value{
     pub fn const_int_get_sign_extended_value(&self)-> ::libc::c_longlong{
         unsafe{
             LLVMConstIntGetSExtValue(self.into())
+        }
+    }
+
+    pub fn count_params(&self)-> ::libc::c_uint{
+        unsafe{
+            LLVMCountParams(self.into())
+        }
+    }
+
+    pub fn get_param(&self,index: ::libc::c_uint)->Option<&Value>{
+        unsafe{
+            if index < self.count_params(){
+                Some(LLVMGetParam(self.into(),index).into())
+            } else{
+                None
+            }
         }
     }
 

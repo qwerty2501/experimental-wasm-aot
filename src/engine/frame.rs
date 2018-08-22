@@ -34,8 +34,12 @@ impl<'a,T:WasmIntType + 'a> ModuleInstance<'a,T>{
 }
 
 impl<'a> LocalValue<'a>{
-    pub fn new (value:&Value)->LocalValue{
+    pub fn from_value(value:&Value) ->LocalValue{
         LocalValue{value:Some(value),value_type:Type::type_of(value)}
+    }
+
+    pub fn from_value_type(value_type:&Type)->LocalValue{
+        LocalValue{value:None,value_type}
     }
 }
 

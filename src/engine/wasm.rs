@@ -12,6 +12,7 @@ use parity_wasm::elements::ExportEntry;
 use parity_wasm::elements::Func;
 use parity_wasm::elements::InitExpr;
 use parity_wasm::elements::ElementSegment;
+use std::slice::Iter;
 
 const WASM_FUNCTION_PREFIX:&str = "__WASM_FUNCTION_";
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
@@ -130,18 +131,24 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
             self.build_init_table_function(build_context,wasm_module,&functions,imported_count)?;
 
-            self.build_function_codes(build_context,wasm_module,&functions,imported_count)?;
+            self.build_function_codes(build_context,wasm_module,&functions,&types,imported_count)?;
         }
         Ok(())
     }
 
-    fn build_function_codes(&self,build_context:&BuildContext,wasm_module:&WasmModule,functions:&[&Value],import_count:u32)->Result<(),Error>{
+    fn build_function_codes(&self,build_context:&BuildContext,wasm_module:&WasmModule,functions:&[&Value],types:&[&Type],import_count:u32)->Result<(),Error>{
         if let Some(code_section) = wasm_module.code_section(){
-            for (index,function_body) in code_section.bodies().iter().enumerate().map(|(index,function_body)|(index +import_count as usize,function_body)) {
-                let current_function = functions.get(index).ok_or(NoSuchFunctionIndex {index :index as u32 })?;
+            for (index,function_body) in code_section.bodies().iter().enumerate() {
+                let index = index +import_count as usize;
+                let current_function:&Value = functions.get(index).ok_or(NoSuchFunctionIndex {index :index as u32 })?;
 
-                let stack = Stack::<T>::new(current_function,vec![],vec![
-                ]);
+                let locals= (0..current_function.count_params()).map(|i|->Result<LocalValue,Error> {
+                    Ok(LocalValue::from_value(current_function.get_param(i).ok_or(NotExistValue)?))
+                }).into_iter().chain(function_body.locals().iter().map(|local|{
+                    Ok(LocalValue::from_value_type(instructions::value_type_to_type(build_context,&local.value_type())))
+                })).collect::<Result<Vec<LocalValue>,Error>>()?;
+
+
             }
         }
         Ok(())
