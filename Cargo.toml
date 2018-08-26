@@ -2,7 +2,7 @@
 name = "experimental-wasm-aot"
 version = "0.1.0"
 authors = ["qwerty2501 <qwerty2501@live.jp>"]
-
+build = "build.rs"
 
 [dependencies]
 llvm-sys = "60.1.0"
@@ -12,3 +12,6 @@ log = "0.4.3"
 env_logger = "*"
 num = "*"
 nameof = "*"
+
+[build-dependencies]
+filetime = "*"
