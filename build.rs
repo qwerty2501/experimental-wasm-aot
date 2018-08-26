@@ -37,9 +37,8 @@ fn build_wat(dir:&str,out_dir:&str){
         let path_in_project = OsString::from(format!("{}/{}",dir,file_name));
         let path_in_project = Path::new(&path_in_project);
         let path_in_project_str = path_in_project.to_str().unwrap_or("");
-        let source_meta = path_in_project.metadata().unwrap();
 
-        if   meta_data.is_file() && ext == "wat"  &&  (!out_path.exists() || filetime::FileTime::from_last_access_time(&source_meta) >= filetime::FileTime::from_last_access_time(&meta_data)) {
+        if   meta_data.is_file() && ext == "wat"  &&  (!out_path.exists() || filetime::FileTime::from_last_access_time(&meta_data) >= filetime::FileTime::from_last_access_time(&out_path.metadata().unwrap())) {
             Command::new("wat2wasm").args(&[path_in_project_str,"-o"])
                 .arg(&format!("{}.wasm",out_path.to_str().unwrap()))
                 .status()
