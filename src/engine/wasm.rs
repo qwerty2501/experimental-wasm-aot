@@ -13,7 +13,7 @@ use parity_wasm::elements::Func;
 use parity_wasm::elements::InitExpr;
 use parity_wasm::elements::ElementSegment;
 use std::slice::Iter;
-
+use parity_wasm;
 const WASM_FUNCTION_PREFIX:&str = "__WASM_FUNCTION_";
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
 pub struct WasmCompiler<T: WasmIntType>{
@@ -449,4 +449,9 @@ mod tests{
     }
 
 
+    fn load_wasm_compiler_test_case(case_name:&str)->Result<WasmModule,Error>{
+        let path_buf = get_target_dir()?;
+        let wasm_path = path_buf.join("test_cases").join("wasm_compiler").join(case_name).with_extension("wasm");
+        Ok(parity_wasm::deserialize_file(wasm_path)?)
+    }
 }

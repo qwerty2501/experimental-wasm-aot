@@ -3,6 +3,17 @@ use super::llvm::execution_engine::*;
 use super::llvm::target::*;
 use failure::*;
 use error::RuntimeError::*;
+use std::path::Path;
+use std::env;
+use std::path::PathBuf;
+
+pub fn get_target_dir()->Result<PathBuf,Error>{
+   env::var("CARGO_TARGET_DIR").map(|v|Ok(Path::new(&v).to_path_buf())).unwrap_or_else(|_| {
+        let manifest_dir = env::var("CARGO_MANIFEST_DIR")?;
+        let manifest_dir = Path::new(&manifest_dir);
+        Ok(manifest_dir.join("target"))
+    })
+}
 
 pub fn build_test_function<F:FnOnce(& Builder,& BasicBlock) -> Result<(),Error>>(build_context:&BuildContext,function_name:&str,args:&[&Value],on_build:F)->Result<(),Error>{
     build_test_function_with_return(build_context,function_name,Type::void(build_context.context()),args,on_build)
