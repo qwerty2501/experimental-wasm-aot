@@ -39,12 +39,14 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
     pub fn new()-> MemoryCompiler<M,T>{
         MemoryCompiler(::std::marker::PhantomData::<T>{},::std::marker::PhantomData::<M>{})
     }
-    pub fn compile<'a>(& self,context:&'a Context,wasm_module:&WasmModule) -> Result<ModuleGuard<'a>,Error>{
+    pub fn compile<'a>(& self,build_context:&'a BuildContext,wasm_module:&WasmModule) -> Result<(),Error>{
 
         let import_memory_count = wasm_module.import_count(ImportCountType::Memory) as u32;
-        let build_context = BuildContext::new(MODULE_ID,context);
-        self.build_init_function(&build_context, import_memory_count, &wasm_module.memory_section().ok_or(NotExistMemorySection)?.entries().iter().map(|m|m.limits()).collect::<Vec<_>>())?;
-        Ok(build_context.move_module())
+        if let Some(memory_section) = wasm_module.memory_section(){
+            self.build_init_function(build_context, import_memory_count, &memory_section.entries().iter().map(|m|m.limits()).collect::<Vec<_>>())?;
+        }
+
+        Ok(())
     }
 
     pub fn get_memory_name(&self, index:u32) ->String{

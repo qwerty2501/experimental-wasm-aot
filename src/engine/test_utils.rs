@@ -6,7 +6,7 @@ use error::RuntimeError::*;
 use std::path::Path;
 use std::env;
 use std::path::PathBuf;
-
+use parity_wasm::elements::Module as WasmModule;
 #[cfg(test)]
 pub fn get_target_dir()->Result<PathBuf,Error>{
    env::var("CARGO_TARGET_DIR").map(|v|Ok(Path::new(&v).to_path_buf())).unwrap_or_else(|_| {
@@ -49,3 +49,4 @@ pub fn run_test_function_with_name<'a>(engine:&ExecutionEngine, module:&'a Modul
     let function = module.get_named_function(function_name).ok_or_else(||NoSuchLLVMFunction{ name:function_name.to_string()})?;
     Ok(engine.run_function(function,args))
 }
+

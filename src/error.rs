@@ -45,8 +45,7 @@ pub enum RuntimeError{
     #[fail(display = "not exist value")]
     NotExistValue,
 
-    #[fail(display = "not exist memory section")]
-    NotExistMemorySection,
+
 
     #[fail(display = "not exist init expr")]
     NotExistInitExpr,

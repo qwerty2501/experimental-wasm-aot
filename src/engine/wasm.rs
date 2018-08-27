@@ -52,7 +52,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
     pub fn build_init_instance_functions<'c>(&self, module_id:&str, build_context:&BuildContext<'c>, wasm_module:&WasmModule) ->Result<(),Error> {
-        self.linear_memory_compiler.compile(build_context.context(),wasm_module)?;
+        self.linear_memory_compiler.compile(build_context,wasm_module)?;
         self.build_init_global_sections(build_context,wasm_module)?;
         self.build_init_data_sections_function(build_context,wasm_module)?;
         self.build_functions(&build_context,wasm_module)?;
@@ -448,10 +448,25 @@ mod tests{
         Ok(())
     }
 
+    #[test]
+    pub fn return_only_works()->Result<(),Error>{
+        let return_only_module =  load_wasm_compiler_test_case("return_only")?;
+        let wasm_compiler = WasmCompiler::<u32>::new();
+        let context = Context::new();
+        let function_name = "return_only";
+        let module =  wasm_compiler.compile(function_name,&return_only_module,&context)?;
+
+        test_module_in_engine(&module,|engine|{
+            let result =  run_test_function_with_name(engine,&module,&WasmCompiler::<u32>::wasm_call_name(function_name),&[])?;
+            assert_eq!(32,result.to_int(false));
+            Ok(())
+        })
+    }
+
 
     fn load_wasm_compiler_test_case(case_name:&str)->Result<WasmModule,Error>{
         let path_buf = get_target_dir()?;
-        let wasm_path = path_buf.join("test_cases").join("wasm_compiler").join(case_name).with_extension("wasm");
+        let wasm_path = path_buf.join("test_cases").join("wasm_compiler").join(case_name).join(case_name).with_extension("wasm");
         Ok(parity_wasm::deserialize_file(wasm_path)?)
     }
 }
