@@ -150,7 +150,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
                 build_context.builder().build_function(build_context.context(),current_function,|builder,bb|{
                     let stack = Stack::new(current_function,vec![],vec![
-                        Frame::new(locals,ModuleInstance::new(types,functions,vec![bb],&self.table_compiler,&self.linear_memory_compiler))
+                        Frame::new(locals,ModuleInstance::new(types,functions,vec![],&self.table_compiler,&self.linear_memory_compiler))
                     ]);
 
                     let  stack = function_body.code().elements().iter().try_fold(stack,|stack,instruction|{
