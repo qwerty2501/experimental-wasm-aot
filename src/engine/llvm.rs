@@ -200,6 +200,12 @@ impl Builder {
         unsafe{LLVMBuildCondBr(self.into(),if_value.into(),then_block.into(),else_block.into()).into()}
     }
 
+    pub fn build_br(&self,dest:&BasicBlock)->&Value{
+        unsafe{
+            LLVMBuildBr(self.into(),dest.into()).into()
+        }
+    }
+
     pub fn build_add(&self,lhs:&Value,rhs:&Value,name:&str)-> &Value{
         unsafe{LLVMBuildAdd(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
     }

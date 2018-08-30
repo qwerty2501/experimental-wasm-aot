@@ -21,7 +21,7 @@ pub fn i32_const<'c,T:WasmIntType>(build_context:&'c BuildContext,v:i32,mut stac
 }
 
 pub fn i32_const_internal<'c>(build_context:&'c BuildContext, v:i32) ->&'c Value{
-    Value::const_int(Type::int64(build_context.context()),v as u64,true)
+    Value::const_int(Type::int32(build_context.context()),v as u64,true)
 }
 
 pub fn f64_const<'c,T:WasmIntType>(build_context:&'c BuildContext,v:f64,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
@@ -107,6 +107,10 @@ pub fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u
 
 }
 
+pub fn end<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    Ok(stack)
+}
+
 pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
@@ -131,6 +135,8 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Store8(offset,align)=>store(build_context,offset,align,stack),
         Instruction::I64Store16(offset,align)=>store(build_context,offset,align,stack),
         Instruction::I64Store32(offset,align)=>store(build_context,offset,align,stack),
+
+        Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
 }

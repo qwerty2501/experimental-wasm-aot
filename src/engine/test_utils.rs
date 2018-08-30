@@ -37,11 +37,21 @@ fn init_test_jit() ->Result<(),Error>{
 
 #[cfg(test)]
 pub fn test_module_in_engine<F:FnOnce(&ExecutionEngine)->Result<(),Error>>(module:&Module,f:F)->Result<(),Error>{
+    analysis::verify_module(module,analysis::VerifierFailureAction::LLVMReturnStatusAction)?;
     init_test_jit()?;
     let engine = ExecutionEngine::new_for_module(module)?;
     f(&engine)?;
     engine.remove_module(module)?;
     Ok(())
+}
+
+#[cfg(test)]
+pub fn test_module_main_in_engine(module:&Module,expected:i32)->Result<(),Error>{
+    test_module_in_engine(module,|engine|{
+        let result =  run_test_function_with_name(engine, module, "main", &[])?;
+        assert_eq!(expected,result.to_int(false) as i32);
+        Ok(())
+    })
 }
 
 #[cfg(test)]

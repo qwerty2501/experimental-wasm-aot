@@ -82,7 +82,7 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
 
     pub fn get_init_function_name(&self) ->String{
         let bit_width = bit_width::<T>();
-        ["init_memory_", &bit_width.to_string()].concat()
+        [M::MEMORY_NAME_PREFIX,"_init_",MEMORY_NAME_BASE, &bit_width.to_string()].concat()
     }
 
     pub fn build_init_function(&self, build_context:&BuildContext, import_count:u32, limits:&[&ResizableLimits]) ->Result<(),Error> {
@@ -258,7 +258,6 @@ mod tests{
         let build_context = BuildContext::new("grow_memory_works",&context);
         let compiler = Compiler::new();
         compiler.build_init_function(&build_context, 0, &[&ResizableLimits::new(minimum, maximum)])?;
-        analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction)?;
         test_module_in_engine(build_context.module(),|engine|{
             let result = run_test_function_with_name(&engine, build_context.module(), &compiler.get_init_function_name(), &[])?;
             assert_eq!(1,result.to_int(false));
