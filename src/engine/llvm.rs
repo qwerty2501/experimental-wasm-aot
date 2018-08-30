@@ -436,6 +436,17 @@ impl BasicBlock{
     }
 }
 
+pub fn build_call_and_set_raise_const<'m>(module:&'m Module,builder:&'m Builder,sig: ::libc::c_int)->&'m Value{
+    build_call_and_set_raise(module,builder,Value::const_int(Type::int32(module.context()),sig as ::libc::c_ulonglong,false))
+}
+
+pub fn build_call_and_set_raise<'m>(module:&'m Module,builder:&'m Builder,sig: &Value)->&'m Value{
+    let context = module.context();
+    let int32_type = Type::int32(&context);
+    let raise_type = Type::function(int32_type,&[int32_type],false);
+    let raise = module.set_declare_function("raise",raise_type);
+    builder.build_call(raise,&[sig],"")
+}
 
 pub fn build_call_and_set_mmap<'m>(module:&'m  Module,builder:&'m Builder,addr:&Value,length:&Value,plot:&Value,flags:&Value,fd:&Value,offset:&Value,name:&str)->&'m Value{
     let context = module.context();
@@ -443,7 +454,7 @@ pub fn build_call_and_set_mmap<'m>(module:&'m  Module,builder:&'m Builder,addr:&
     let int32_type = Type::int32(context);
     let param_types = [void_ptr_type,Type::int_ptr(context),int32_type,int32_type,int32_type,int32_type];
     let mmap_type = Type::function(void_ptr_type,&param_types,false);
-    let mmap = module.set_declare_function("mmap", &mmap_type);
+    let mmap = module.set_declare_function("mmap", mmap_type);
     let args = [addr,length,plot,flags,fd,offset];
     builder.build_call(mmap,&args,name)
 }

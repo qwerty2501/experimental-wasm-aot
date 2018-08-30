@@ -70,8 +70,12 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
     pub fn build_get_real_address<'a>(&self,build_context:&'a BuildContext,index:u32,address:&Value, name:&str )->&'a Value{
         let memory = self.set_declare_memory(build_context, index);
         let memory = build_context.builder().build_load(memory,"");
-        let zero = Value::const_int(Type::int_ptr(build_context.context()),0,false);
         build_context.builder().build_gep(memory,&[address],name)
+    }
+
+    pub fn build_get_memory_size<'a>(&self,build_context:&'a BuildContext,index:u32)->&'a Value{
+        let memory_size = self.set_declare_memory_size(build_context,index);
+        build_context.builder().build_load(memory_size,"")
     }
 
     pub fn set_init_function<'a>(&self, build_context:&'a BuildContext) ->&'a Value{

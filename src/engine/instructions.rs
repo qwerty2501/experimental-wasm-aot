@@ -88,7 +88,9 @@ pub fn tee_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut 
 
 pub fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
+
         let current_frame = stack.activations.current_mut()?;
+        build_check_memory_const(build_context,0,offset,stack.current_function,current_frame.module_instance.linear_memory_compiler);
         let v = stack.values.pop().ok_or(NotExistValue)?;
         let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,Value::const_int(Type::int32(build_context.context()),offset as u64,false),"");
         let value_type = match align{
@@ -141,6 +143,25 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
     }
 }
 
+
+#[inline]
+fn build_check_memory_const<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32, target:u32, function:&'a Value,linear_memory_compiler:&LinearMemoryCompiler<T>){
+    build_check_memory_size(build_context,index,Value::const_int(Type::int32(build_context.context()),target as ::libc::c_ulonglong,false),function,linear_memory_compiler);
+}
+
+
+#[inline]
+fn build_check_memory_size<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32, target:&'a Value, function:&'a Value,linear_memory_compiler:&LinearMemoryCompiler<T>){
+    let memory_size = linear_memory_compiler.build_get_memory_size(build_context, index);
+    let cmp_ret = build_context.builder().build_icmp(IntPredicate::LLVMIntULT,target,memory_size,"");
+    let then_bb = function.append_basic_block(build_context.context(),"");
+    let else_bb = function.append_basic_block(build_context.context(),"");
+    build_context.builder().build_cond_br(cmp_ret,then_bb,else_bb);
+    build_context.builder().position_builder_at_end(else_bb);
+    build_call_and_set_raise_const(build_context.module(),build_context.builder(),::libc::SIGSEGV);
+    build_context.builder().build_br(then_bb);
+    build_context.builder().position_builder_at_end(then_bb);
+}
 
 #[inline]
 pub fn i32_reinterpret_f32(v: f32) -> u32 {
