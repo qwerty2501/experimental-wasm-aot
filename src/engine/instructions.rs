@@ -90,22 +90,25 @@ pub fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u
     {
 
         let current_frame = stack.activations.current_mut()?;
-        build_check_memory_const(build_context,0,offset,stack.current_function,current_frame.module_instance.linear_memory_compiler);
+        build_check_memory_size_const(build_context, 0, offset, stack.current_function, current_frame.module_instance.linear_memory_compiler);
         let v = stack.values.pop().ok_or(NotExistValue)?;
         let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,Value::const_int(Type::int32(build_context.context()),offset as u64,false),"");
-        let value_type = match align{
-            1 => Type::int8(build_context.context()),
-            2 => Type::int16(build_context.context()),
-            4 => Type::int32(build_context.context()),
-            8 => Type::int64(build_context.context()),
-            _=>Err(InCorrectAlign{align})?,
-        };
+        let value_type =get_value_type_from_align( build_context,align)?;
         let v = build_context.builder().build_cast(Opcode::LLVMTrunc,v,value_type,"");
         let memory = build_context.builder().build_bit_cast(memory,Type::ptr(value_type,0),"");
         build_context.builder().build_store(v,memory);
         stack.values.push(v);
     }
     Ok(stack)
+
+}
+
+pub fn load<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    let current_frame = stack.activations.current_mut()?;
+    build_check_memory_size_const(build_context,0,offset,stack.current_function,current_frame.module_instance.linear_memory_compiler);
+    let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,Value::const_int(Type::int32(build_context.context()),offset as u64,false),"");
+    let value_type = get_value_type_from_align(build_context,align)?;
+
 
 }
 
@@ -143,9 +146,20 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
     }
 }
 
+#[inline]
+fn get_value_type_from_align(build_context:&BuildContext, align:u32)->Result<&Type,Error>{
+    Ok(match align{
+        1 => Type::int8(build_context.context()),
+        2 => Type::int16(build_context.context()),
+        4 => Type::int32(build_context.context()),
+        8 => Type::int64(build_context.context()),
+        _=>Err(InCorrectAlign{align})?,
+    })
+}
+
 
 #[inline]
-fn build_check_memory_const<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32, target:u32, function:&'a Value,linear_memory_compiler:&LinearMemoryCompiler<T>){
+fn build_check_memory_size_const<'a,T:WasmIntType>(build_context:&'a BuildContext, index:u32, target:u32, function:&'a Value, linear_memory_compiler:&LinearMemoryCompiler<T>){
     build_check_memory_size(build_context,index,Value::const_int(Type::int32(build_context.context()),target as ::libc::c_ulonglong,false),function,linear_memory_compiler);
 }
 
