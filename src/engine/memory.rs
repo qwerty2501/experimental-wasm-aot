@@ -73,6 +73,9 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
         build_context.builder().build_gep(memory,&[address],name)
     }
 
+    pub fn build_get_real_memory_size<'a>(&self,build_context:&'a BuildContext,index:u32)->&'a Value {
+        build_context.builder().build_mul(self.build_get_memory_size(build_context,index),Value::const_int(Type::int32(build_context.context()),M::UNIT_SIZE as u64,false),"")
+    }
     pub fn build_get_memory_size<'a>(&self,build_context:&'a BuildContext,index:u32)->&'a Value{
         let memory_size = self.set_declare_memory_size(build_context,index);
         build_context.builder().build_load(memory_size,"")

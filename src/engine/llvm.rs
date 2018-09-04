@@ -240,9 +240,6 @@ pub enum Value{}
 impl_type_traits!(Value,LLVMValueRef);
 impl  Value{
 
-
-
-
     pub fn const_array<'a>(element_type:&Type,const_values:&'a [&Value])->&'a Value{
         unsafe{
 
@@ -362,6 +359,7 @@ impl  Value{
 
     pub fn set_linkage(&self,linkage:Linkage){
         unsafe{
+
             LLVMSetLinkage(self.into(),linkage)
         }
     }
@@ -370,6 +368,14 @@ impl  Value{
 pub enum Type{}
 impl_type_traits!(Type,LLVMTypeRef);
 impl Type{
+
+
+    pub fn get_return_type(&self)->&Type{
+        unsafe{
+            LLVMGetReturnType(self.into()).into()
+        }
+    }
+
     pub fn int1(context:&Context)->&Type{
         unsafe{LLVMInt1TypeInContext(context.into()).into()}
     }
@@ -410,6 +416,8 @@ impl Type{
     pub fn int_wasm_ptr<T:WasmIntType>(context:&Context) ->&Type{
         Type::int(context,constants::bit_width::<T>() as ::libc::c_uint)
     }
+
+
     pub fn void(context:&Context)->&Type{
         unsafe{LLVMVoidTypeInContext(context.into()).into()}
     }
@@ -438,6 +446,14 @@ impl BasicBlock{
 
 pub fn build_call_and_set_raise_const<'m>(module:&'m Module,builder:&'m Builder,sig: ::libc::c_int)->&'m Value{
     build_call_and_set_raise(module,builder,Value::const_int(Type::int32(module.context()),sig as ::libc::c_ulonglong,false))
+}
+
+pub fn build_call_and_set_abort<'m>(module:&'m Module,builder:&'m Builder){
+    let context = module.context();
+    let void_type = Type::void(&context);
+    let abort_type = Type::function(void_type,&[],false);
+    let abort = module.set_declare_function("abort",abort_type);
+    builder.build_call(abort,&[],"");
 }
 
 pub fn build_call_and_set_raise<'m>(module:&'m Module,builder:&'m Builder,sig: &Value)->&'m Value{

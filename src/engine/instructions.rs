@@ -97,7 +97,6 @@ pub fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u
         let v = build_context.builder().build_cast(Opcode::LLVMTrunc,v,value_type,"");
         let memory = build_context.builder().build_bit_cast(memory,Type::ptr(value_type,0),"");
         build_context.builder().build_store(v,memory);
-        stack.values.push(v);
     }
     Ok(stack)
 
@@ -109,7 +108,9 @@ pub fn load<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u3
         build_check_memory_size_const(build_context,0,offset,stack.current_function,current_frame.module_instance.linear_memory_compiler);
         let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,Value::const_int(Type::int32(build_context.context()),offset as u64,false),"");
         let value_type = get_value_type_from_align(build_context,align)?;
+
         let memory = build_context.builder().build_bit_cast(memory,Type::ptr(value_type,0),"");
+
         let v = build_context.builder().build_load(memory,"");
         stack.values.push(v);
     }
@@ -181,13 +182,14 @@ fn build_check_memory_size_const<'a,T:WasmIntType>(build_context:&'a BuildContex
 
 #[inline]
 fn build_check_memory_size<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32, target:&'a Value, function:&'a Value,linear_memory_compiler:&LinearMemoryCompiler<T>){
-    let memory_size = linear_memory_compiler.build_get_memory_size(build_context, index);
+    let memory_size = linear_memory_compiler.build_get_real_memory_size(build_context, index);
     let cmp_ret = build_context.builder().build_icmp(IntPredicate::LLVMIntULT,target,memory_size,"");
     let then_bb = function.append_basic_block(build_context.context(),"");
     let else_bb = function.append_basic_block(build_context.context(),"");
     build_context.builder().build_cond_br(cmp_ret,then_bb,else_bb);
     build_context.builder().position_builder_at_end(else_bb);
     build_call_and_set_raise_const(build_context.module(),build_context.builder(),::libc::SIGSEGV);
+    build_call_and_set_raise_const(build_context.module(),build_context.builder(),::libc::SIGSEGV); // for test on JIT. It need to send it twice why.
     build_context.builder().build_br(then_bb);
     build_context.builder().position_builder_at_end(then_bb);
 }
@@ -385,7 +387,7 @@ mod tests{
     }
 
     #[test]
-    pub fn store_works()->Result<(),Error>{
+    pub fn store_and_load_works()->Result<(),Error>{
         let context = Context::new();
         let build_context = BuildContext::new("load_and_store_works",&context);
         let expected = 3000;
@@ -401,24 +403,33 @@ mod tests{
             ]);
 
             let mut stack = store(&build_context,500,4,stack)?;
+            let mut stack = load(&build_context,500,4,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
             Ok(())
         })?;
 
         let  int_memory_function_name = memory::test_utils::init_test_memory(&build_context)?;
         let linear_memory_compiler = LinearMemoryCompiler::<u32>::new();
+
         test_module_in_engine(build_context.module(),|engine|{
+
             let ret = run_test_function_with_name(engine,build_context.module(),&int_memory_function_name,&[])?;
             assert_eq!(1,ret.to_int(false));
+
+
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected,ret.to_int(false));
+
+
             let memory_ptr:*mut u8 = *engine.get_global_value_ref_from_address(&linear_memory_compiler.get_memory_name(0));
             unsafe{
                assert_eq!(expected as u16,*( memory_ptr.add(500) as *mut u16));
             }
+
             Ok(())
         })
     }
+
 
     #[test]
     fn i32_value_type_to_type_works(){
