@@ -104,12 +104,16 @@ pub fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u
 }
 
 pub fn load<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    let current_frame = stack.activations.current_mut()?;
-    build_check_memory_size_const(build_context,0,offset,stack.current_function,current_frame.module_instance.linear_memory_compiler);
-    let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,Value::const_int(Type::int32(build_context.context()),offset as u64,false),"");
-    let value_type = get_value_type_from_align(build_context,align)?;
-
-
+    {
+        let current_frame = stack.activations.current_mut()?;
+        build_check_memory_size_const(build_context,0,offset,stack.current_function,current_frame.module_instance.linear_memory_compiler);
+        let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,Value::const_int(Type::int32(build_context.context()),offset as u64,false),"");
+        let value_type = get_value_type_from_align(build_context,align)?;
+        let memory = build_context.builder().build_bit_cast(memory,Type::ptr(value_type,0),"");
+        let v = build_context.builder().build_load(memory,"");
+        stack.values.push(v);
+    }
+    Ok(stack)
 }
 
 pub fn end<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
@@ -140,14 +144,25 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Store8(offset,align)=>store(build_context,offset,align,stack),
         Instruction::I64Store16(offset,align)=>store(build_context,offset,align,stack),
         Instruction::I64Store32(offset,align)=>store(build_context,offset,align,stack),
-
+        Instruction::I32Load8S(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::I32Load8U(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::I32Load16S(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::I32Load16U(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::I32Load(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::I64Load(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::I64Load8S(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::I64Load8U(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::I64Load16S(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::I64Load16U(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::I64Load32S(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::I64Load32U(offset,align)=>load(build_context,offset,align,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
 }
 
 #[inline]
-fn get_value_type_from_align(build_context:&BuildContext, align:u32)->Result<&Type,Error>{
+fn get_value_type_from_align<'a>(build_context:&'a BuildContext, align:u32)->Result<&'a Type,Error>{
     Ok(match align{
         1 => Type::int8(build_context.context()),
         2 => Type::int16(build_context.context()),
