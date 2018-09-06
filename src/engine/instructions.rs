@@ -121,6 +121,16 @@ pub fn end<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->
     Ok(stack)
 }
 
+pub fn current_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,v:u8,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    {
+        let current_frame = stack.activations.current_mut()?;
+
+        stack.values.push(current_frame.module_instance.linear_memory_compiler.build_get_memory_size(build_context,v as u32));
+    }
+    Ok(stack)
+
+}
+
 pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
@@ -157,6 +167,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Load16U(offset,align)=>load(build_context,offset,align,stack),
         Instruction::I64Load32S(offset,align)=>load(build_context,offset,align,stack),
         Instruction::I64Load32U(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::CurrentMemory(v)=>current_memory(build_context,v,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
