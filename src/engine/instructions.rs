@@ -294,10 +294,9 @@ mod tests{
         let global_value = build_context.module().set_declare_global(&global_name,Type::int32(build_context.context()));
         global_value.set_initializer(Value::const_int(Type::int32(build_context.context()),0,false));
         let expected = 22;
+        let (ft,lt) = new_compilers();
         let test_function_name = "test_function";
-        let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
-        build_context.builder().build_function(build_context.context(),test_function,|builder,bb|{
-            let stack = Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![]);
+        build_test_run_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![],|stack:Stack<u32>,bb|{
             let stack = set_global(&build_context,0,stack)?;
             let stack = get_global(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.last().ok_or(NotExistValue)?);
@@ -318,17 +317,14 @@ mod tests{
         let build_context = BuildContext::new("get_local_works",&context);
         let expected = 22;
         let test_function_name = "test_function";
-        let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
-        build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
-            let (ft,lt) = new_compilers();
-            let stack =  Stack::<u32>::new(test_function,vec![],vec![
+        let (ft,lt) = new_compilers();
+        build_test_run_function(&build_context,test_function_name,vec![],vec![
 
-                frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), expected as u64, false))],
-                                                  &[], &[], vec![],
-                                                    &ft,
-                                                    &lt)
-            ]);
-
+            frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), expected as u64, false))],
+                                              &[], &[], vec![],
+                                              &ft,
+                                              &lt)
+        ],|stack,bb|{
             let mut stack = get_local(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
             Ok(())
@@ -347,16 +343,11 @@ mod tests{
         let build_context = BuildContext::new("set_local_works",&context);
         let expected = 35;
         let test_function_name = "test_function";
-        let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
-        build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
-            let (ft,lt) = new_compilers();
-            let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
-                frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
-                                                  &[], &[], vec![],
-                                                  &ft,
-                                                  &lt)
-            ]);
-
+        let (ft,lt) = new_compilers();
+        build_test_run_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
+            frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
+                                              &[], &[], vec![],
+                                              &ft,&lt)],|stack,bb|{
             let stack = set_local(&build_context,0,stack)?;
             let mut stack = get_local(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
@@ -376,20 +367,18 @@ mod tests{
         let build_context = BuildContext::new("tee_local_works",&context);
         let expected = 35;
         let test_function_name = "test_function";
-        let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
-        build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
-            let (ft,lt) = new_compilers();
-            let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
+        let (ft,lt) = new_compilers();
+        build_test_run_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
 
-                frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
-                                                  &[], &[], vec![],
-                                                  &ft,
-                                                  &lt)
-            ]);
-
+            frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
+                                              &[], &[], vec![],
+                                              &ft,
+                                              &lt)
+        ],|stack,bb|{
             let mut stack = tee_local(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
             Ok(())
+
         })?;
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
