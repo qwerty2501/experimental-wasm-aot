@@ -245,6 +245,8 @@ pub fn value_type_to_type<'a>(build_context:&'a BuildContext, value_type:&ValueT
 #[cfg(test)]
 mod tests{
     use super::*;
+    use parity_wasm::elements::ResizableLimits;
+
     fn new_compilers()->(FunctionTableCompiler<u32> ,LinearMemoryCompiler<u32>){
         ( FunctionTableCompiler::<u32>::new(),LinearMemoryCompiler::<u32>::new())
     }
@@ -402,29 +404,22 @@ mod tests{
         let context = Context::new();
         let build_context = BuildContext::new("load_and_store_works",&context);
         let expected = 3000;
+        let (ft,lt) = new_compilers();
         let test_function_name = "test_function";
-        let test_function = build_context.module().set_declare_function(test_function_name,Type::function(Type::int32(build_context.context()),&[],false));
-        build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
-            let (ft,lt) = new_compilers();
-            let stack =  Stack::<u32>::new(test_function,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
-
-                frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                  &ft,
-                                                  &lt)
-            ]);
-
+        build_test_run_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                                 &ft,
+                                                                                                 &lt)],
+        |stack,bb|{
             let mut stack = store(&build_context,500,4,stack)?;
             let mut stack = load(&build_context,500,4,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
             Ok(())
         })?;
-
-        let  int_memory_function_name = memory::test_utils::init_test_memory(&build_context)?;
-        let linear_memory_compiler = LinearMemoryCompiler::<u32>::new();
+        let  init_memory_function_name = memory::test_utils::init_test_memory(&build_context)?;
 
         test_module_in_engine(build_context.module(),|engine|{
 
-            let ret = run_test_function_with_name(engine,build_context.module(),&int_memory_function_name,&[])?;
+            let ret = run_test_function_with_name(engine,build_context.module(),&init_memory_function_name,&[])?;
             assert_eq!(1,ret.to_int(false));
 
 
@@ -432,7 +427,7 @@ mod tests{
             assert_eq!(expected,ret.to_int(false));
 
 
-            let memory_ptr:*mut u8 = *engine.get_global_value_ref_from_address(&linear_memory_compiler.get_memory_name(0));
+            let memory_ptr:*mut u8 = *engine.get_global_value_ref_from_address(&lt.get_memory_name(0));
             unsafe{
                assert_eq!(expected as u16,*( memory_ptr.add(500) as *mut u16));
             }
@@ -441,30 +436,62 @@ mod tests{
         })
     }
 
+    #[test]
+    pub fn current_memory_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("current_memory_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 17;
+        lt.build_init_function(&build_context,0,&[&ResizableLimits::new(expected,None)])?;
+        let test_function_name = "test_function";
+        build_test_run_function(&build_context,test_function_name,vec![],vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                                                &ft,
+                                                                                                                &lt)],
+        |stack,bb|{
+            let mut stack = current_memory(&build_context,0,stack)?;
+            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+            Ok(())
+        })?;
+
+        let  init_memory_function_name = memory::test_utils::init_test_memory(&build_context)?;
+
+        test_module_in_engine(build_context.module(),|engine|{
+
+            let ret = run_test_function_with_name(engine,build_context.module(),&init_memory_function_name,&[])?;
+            assert_eq!(1,ret.to_int(false));
+
+
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected as u64,ret.to_int(false));
+
+            Ok(())
+        })
+    }
+
 
     #[test]
-    fn i32_value_type_to_type_works(){
+    pub fn i32_value_type_to_type_works(){
         let context = Context::new();
         let build_context = BuildContext::new("i32_value_type_to_type",&context);
         test_value_type_to_type(&build_context,&ValueType::I32,Type::int32(build_context.context()));
     }
 
     #[test]
-    fn i64_value_type_to_type_works(){
+    pub fn i64_value_type_to_type_works(){
         let context = Context::new();
         let build_context = BuildContext::new("i64_value_type_to_type",&context);
         test_value_type_to_type(&build_context,&ValueType::I64,Type::int64(build_context.context()));
     }
 
     #[test]
-    fn f32_value_type_to_type_works(){
+    pub fn f32_value_type_to_type_works(){
         let context = Context::new();
         let build_context = BuildContext::new("f32_value_type_to_type",&context);
         test_value_type_to_type(&build_context,&ValueType::F32,Type::float32(build_context.context()));
     }
 
     #[test]
-    fn f64_value_type_to_type_works(){
+    pub fn f64_value_type_to_type_works(){
         let context = Context::new();
         let build_context = BuildContext::new("f64_value_type_to_type",&context);
         test_value_type_to_type(&build_context,&ValueType::F64,Type::float64(build_context.context()));
@@ -478,5 +505,7 @@ mod tests{
         assert_eq!(  expected_ptr,actual_ptr.into());
 
     }
+
+
 
 }

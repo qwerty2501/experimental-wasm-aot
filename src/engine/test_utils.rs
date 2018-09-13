@@ -17,6 +17,15 @@ pub fn get_target_dir()->Result<PathBuf,Error>{
 }
 
 #[cfg(test)]
+pub fn build_test_run_function<'a,T:WasmIntType, F:Fn(Stack<T>,&BasicBlock)->Result<(),Error>>(build_context:&'a BuildContext, function_name:&str,values:Vec<&'a Value>,activations:Vec<Frame<'a,T>>,on_build:F)->Result<(),Error>{
+    let test_function = build_context.module().set_declare_function(function_name,Type::function(Type::int32(build_context.context()),&[],false));
+    let stack = Stack::<T>::new(test_function,values,activations);
+    build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
+        on_build(stack,bb)
+    })
+}
+
+#[cfg(test)]
 pub fn build_test_function<F:FnOnce(& Builder,& BasicBlock) -> Result<(),Error>>(build_context:&BuildContext,function_name:&str,args:&[&Value],on_build:F)->Result<(),Error>{
     build_test_function_with_return(build_context,function_name,Type::void(build_context.context()),args,on_build)
 }
@@ -59,4 +68,6 @@ pub fn run_test_function_with_name<'a>(engine:&ExecutionEngine, module:&'a Modul
     let function = module.get_named_function(function_name).ok_or_else(||NoSuchLLVMFunction{ name:function_name.to_string()})?;
     Ok(engine.run_function(function,args))
 }
+
+
 
