@@ -3,6 +3,7 @@ use super::*;
 use failure::Error;
 use error::RuntimeError::*;
 use parity_wasm::elements::{Instruction,ValueType};
+use parity_wasm::elements::Module as WasmModule;
 
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
 
@@ -121,21 +122,43 @@ pub fn end<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->
     Ok(stack)
 }
 
-pub fn current_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,v:u8,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+pub fn current_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
 
-        stack.values.push(current_frame.module_instance.linear_memory_compiler.build_get_memory_size(build_context,v as u32));
+        stack.values.push(current_frame.module_instance.linear_memory_compiler.build_get_memory_size(build_context,index as u32));
     }
     Ok(stack)
 
+}
+
+pub fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut stack:Stack<'a,T>,wasm_module:&'a WasmModule)->Result<Stack<'a,T>,Error>{
+    {
+        let current_frame = stack.activations.current_mut()?;
+        let grow_size = stack.values.pop().ok_or(NotExistValue)?;
+        let memory_limits = wasm_module.memory_section().ok_or(NotExistMemory)?.entries().first().ok_or(NotExistMemory)?.limits();
+        let max_memory_size_value = Value::const_int(Type::int32(build_context.context()),memory_limits.maximum().unwrap_or(LinearMemoryTypeContext::DEFAULT_MAXIMUM_UNIT_SIZE) as u64,false);
+        let current_memory_size = current_frame.module_instance.linear_memory_compiler.build_get_memory_size(build_context,index as u32);
+        let target_memory_size = build_context.builder().build_add(grow_size,current_memory_size,"");
+        let grow_bb = stack.current_function.append_basic_block(build_context.context(),"");
+        let fail_bb = stack.current_function.append_basic_block(build_context.context(),"");
+        stack.values.push(
+        build_context.builder().build_cond_br(build_context.builder().build_icmp(IntPredicate::LLVMIntULE,target_memory_size,max_memory_size_value,""), grow_bb,fail_bb)
+        );
+        build_context.builder().position_builder_at_end(grow_bb);
+        current_frame.module_instance.linear_memory_compiler.build_set_memory_size(build_context,index as u32,target_memory_size);
+        build_context.builder().build_ret(current_memory_size);
+        build_context.builder().position_builder_at_end(fail_bb);
+        Value::const_int(Type::int32(build_context.context()),-1_i64 as u64,false);
+    }
+    Ok(stack)
 }
 
 pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
 
-pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>,wasm_module:&'a WasmModule)->Result<Stack<'a,T>,Error>{
     match instruction{
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
         Instruction::I64Const(v)=> i64_const(build_context, v,stack),
@@ -168,6 +191,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Load32S(offset,align)=>load(build_context,offset,align,stack),
         Instruction::I64Load32U(offset,align)=>load(build_context,offset,align,stack),
         Instruction::CurrentMemory(v)=>current_memory(build_context,v,stack),
+        Instruction::GrowMemory(v)=>grow_memory(build_context,v,stack,wasm_module),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }

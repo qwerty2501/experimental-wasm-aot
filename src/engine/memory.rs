@@ -81,6 +81,11 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
         build_context.builder().build_load(memory_size,"")
     }
 
+    pub fn build_set_memory_size<'a>(&self,build_context:&'a BuildContext,index:u32, new_memory_size:&'a Value){
+        let memory_size = self.set_declare_memory_size(build_context,index);
+        build_context.builder().build_store(new_memory_size,memory_size);
+    }
+
     pub fn set_init_function<'a>(&self, build_context:&'a BuildContext) ->&'a Value{
         let int1_type = Type::int1(build_context.context());
         let grow_memory_type = Type::function(int1_type,&[],true);
