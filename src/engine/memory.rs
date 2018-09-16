@@ -8,6 +8,7 @@ use parity_wasm::elements::Module as WasmModule;
 use parity_wasm::elements::External;
 use parity_wasm::elements::ResizableLimits;
 use parity_wasm::elements::ImportCountType;
+use std::ops::Range;
 
 const MODULE_ID:&str = "__wasm_memory_module";
 const MEMORY_NAME_BASE:&str = "_memory";
@@ -43,7 +44,7 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
 
         let import_memory_count = wasm_module.import_count(ImportCountType::Memory) as u32;
         if let Some(memory_section) = wasm_module.memory_section(){
-            self.build_init_function(build_context, import_memory_count, &memory_section.entries().iter().map(|m|m.limits()).collect::<Vec<_>>())?;
+            self.build_memory_functions(build_context, import_memory_count, &memory_section.entries().iter().map(|m|m.limits()).collect::<Vec<_>>())?;
         }
 
         Ok(())
@@ -94,13 +95,47 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
 
     pub fn get_init_function_name(&self) ->String{
         let bit_width = bit_width::<T>();
-        [M::MEMORY_NAME_PREFIX,"_init_",MEMORY_NAME_BASE, &bit_width.to_string()].concat()
+        [M::MEMORY_NAME_PREFIX,"_init",MEMORY_NAME_BASE, &bit_width.to_string()].concat()
     }
 
-    pub fn build_init_function(&self, build_context:&BuildContext, import_count:u32, limits:&[&ResizableLimits]) ->Result<(),Error> {
-        self.build_init_function_internal(build_context,import_count,limits,||Ok(()))
+    pub fn get_grow_function_name(&self,index:u32)->String{
+        let bit_width = bit_width::<T>();
+        [M::MEMORY_NAME_PREFIX,"_grow",MEMORY_NAME_BASE,"_",&bit_width.to_string(),"_",&index.to_string()].concat()
     }
-    pub fn build_init_function_internal<F:FnOnce()->Result<(),Error>>(&self, build_context:&BuildContext, import_count:u32, limits:&[&ResizableLimits],and_then:F) ->Result<(),Error>{
+
+    pub fn build_memory_functions(&self, build_context:&BuildContext, import_count:u32, limits:&[&ResizableLimits]) ->Result<(),Error> {
+        self.build_init_functions(build_context, import_count, limits, ||Ok(()))?;
+        self.build_grow_memory_functions(build_context,import_count ,limits)
+    }
+
+    pub fn build_grow_memory_functions(&self, build_context:&BuildContext,import_count:u32, limits:&[&ResizableLimits])->Result<(),Error>{
+        let int32_type = Type::int32(build_context.context());
+        for (index,limit) in limits.iter().enumerate(){
+            let index = index as u32 + import_count ;
+            let grow_memory_function = build_context.module().set_declare_function(&self.get_grow_function_name(index),Type::function(int32_type,&[int32_type],false));
+            build_context.builder().build_function(build_context.context(),grow_memory_function,|builder,bb|{
+                let max_memory_size_value = Value::const_int(Type::int32(build_context.context()),limit.maximum().unwrap_or(M::DEFAULT_MAXIMUM_UNIT_SIZE) as u64,false);
+                let grow_memory_size = grow_memory_function.get_first_param().ok_or(NotExistValue)?;
+                let current_memory_size = self.build_get_memory_size(build_context,index as u32);
+                let target_memory_size = build_context.builder().build_add(current_memory_size,grow_memory_size,"");
+                let grow_bb = grow_memory_function.append_basic_block(build_context.context(),"");
+                let fail_bb = grow_memory_function.append_basic_block(build_context.context(),"");
+                build_context.builder().build_cond_br(build_context.builder().build_icmp(IntPredicate::LLVMIntULE,target_memory_size,max_memory_size_value,""), grow_bb,fail_bb);
+
+                build_context.builder().position_builder_at_end(grow_bb);
+                self.build_set_memory_size(build_context,index as u32,target_memory_size);
+                build_context.builder().build_ret(current_memory_size);
+
+                build_context.builder().position_builder_at_end(fail_bb);
+                build_context.builder().build_ret(Value::const_int(Type::int32(build_context.context()),-1_i64 as u64,false));
+                Ok(())
+            })?;
+        }
+
+        Ok(())
+    }
+
+    pub fn build_init_functions<F:FnOnce()->Result<(),Error>>(&self, build_context:&BuildContext, import_count:u32, limits:&[&ResizableLimits], and_then:F) ->Result<(),Error>{
 
         let function = self.set_init_function(build_context);
         build_context.builder().build_function(build_context.context(),function,|builder,_|{
@@ -225,7 +260,7 @@ pub mod test_utils{
 
     pub fn init_test_memory(build_context:&BuildContext)->Result<String,Error>{
         let compiler = Compiler::new();
-        compiler.build_init_function(&build_context, 0, &[&ResizableLimits::new(17, Some(25))])?;
+        compiler.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(17, Some(25))])?;
         Ok(compiler.get_init_function_name())
     }
 }
@@ -269,7 +304,7 @@ mod tests{
         let context = Context::new();
         let build_context = BuildContext::new("grow_memory_works",&context);
         let compiler = Compiler::new();
-        compiler.build_init_function(&build_context, 0, &[&ResizableLimits::new(minimum, maximum)])?;
+        compiler.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(minimum, maximum)])?;
         test_module_in_engine(build_context.module(),|engine|{
             let result = run_test_function_with_name(&engine, build_context.module(), &compiler.get_init_function_name(), &[])?;
             assert_eq!(1,result.to_int(false));
@@ -307,7 +342,7 @@ mod tests{
         let build_context = BuildContext::new("build_get_real_address_works",&context);
         let compiler = Compiler::new();
         let test_function_name = "build_get_real_address_test";
-        compiler.build_init_function(&build_context, 0, &[&ResizableLimits::new(17, Some(25))])?;
+        compiler.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(17, Some(25))])?;
         build_test_function(&build_context,test_function_name,&[], |builder,bb|{
             let addr = compiler.build_get_real_address(&build_context,0,Value::const_int(Type::int_wasm_ptr::<u32>(&context),32,false),"addr_value");
             builder.build_store(Value::const_int(Type::int8(build_context.context()),55,false),addr);

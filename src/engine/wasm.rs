@@ -433,7 +433,7 @@ mod tests{
         let build_context = BuildContext::new("build_data_segment_works",&context);
 
         let compiler = WasmCompiler::<u32>::new();
-        compiler.linear_memory_compiler.build_init_function(&build_context, 0, &[&ResizableLimits::new(17, Some(25))])?;
+        compiler.linear_memory_compiler.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(17, Some(25))])?;
 
         let offset = 1024;
         let expected_values:Vec<u8> =vec![221, 22, 254];

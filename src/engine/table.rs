@@ -52,7 +52,7 @@ impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
 
     pub fn build_init_function(&self, build_context:&BuildContext,table_types:&[elements::TableType],initializers:&[TableInitializer], import_count:u32) -> Result<(),Error>{
 
-        self.table_memory_compiler.build_init_function_internal(build_context,import_count,&table_types.iter().map(|t|t.limits()).collect::<Vec<_>>(),||{
+        self.table_memory_compiler.build_init_functions(build_context, import_count, &table_types.iter().map(|t|t.limits()).collect::<Vec<_>>(), ||{
 
             let address_type = Type::int_wasm_ptr::<T>(build_context.context());
             let function_pointer_type = Type::ptr(Type::void(build_context.context()),0);

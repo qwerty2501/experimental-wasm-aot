@@ -17,7 +17,7 @@ pub fn get_target_dir()->Result<PathBuf,Error>{
 }
 
 #[cfg(test)]
-pub fn build_test_run_function<'a,T:WasmIntType, F:Fn(Stack<T>,&BasicBlock)->Result<(),Error>>(build_context:&'a BuildContext, function_name:&str,values:Vec<&'a Value>,activations:Vec<Frame<'a,T>>,on_build:F)->Result<(),Error>{
+pub fn build_test_instruction_function<'a,T:WasmIntType, F:Fn(Stack<T>,&BasicBlock)->Result<(),Error>>(build_context:&'a BuildContext, function_name:&str, values:Vec<&'a Value>, activations:Vec<Frame<'a,T>>, on_build:F) ->Result<(),Error>{
     let test_function = build_context.module().set_declare_function(function_name,Type::function(Type::int32(build_context.context()),&[],false));
     let stack = Stack::<T>::new(test_function,values,activations);
     build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {

@@ -2,7 +2,7 @@
 use super::*;
 use failure::Error;
 use error::RuntimeError::*;
-use parity_wasm::elements::{Instruction,ValueType};
+use parity_wasm::elements::{Instruction,ValueType,MemorySection,MemoryType};
 use parity_wasm::elements::Module as WasmModule;
 
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
@@ -132,24 +132,13 @@ pub fn current_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,
 
 }
 
-pub fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut stack:Stack<'a,T>,wasm_module:&'a WasmModule)->Result<Stack<'a,T>,Error>{
+pub fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        let grow_size = stack.values.pop().ok_or(NotExistValue)?;
-        let memory_limits = wasm_module.memory_section().ok_or(NotExistMemory)?.entries().first().ok_or(NotExistMemory)?.limits();
-        let max_memory_size_value = Value::const_int(Type::int32(build_context.context()),memory_limits.maximum().unwrap_or(LinearMemoryTypeContext::DEFAULT_MAXIMUM_UNIT_SIZE) as u64,false);
-        let current_memory_size = current_frame.module_instance.linear_memory_compiler.build_get_memory_size(build_context,index as u32);
-        let target_memory_size = build_context.builder().build_add(grow_size,current_memory_size,"");
-        let grow_bb = stack.current_function.append_basic_block(build_context.context(),"");
-        let fail_bb = stack.current_function.append_basic_block(build_context.context(),"");
-        stack.values.push(
-        build_context.builder().build_cond_br(build_context.builder().build_icmp(IntPredicate::LLVMIntULE,target_memory_size,max_memory_size_value,""), grow_bb,fail_bb)
-        );
-        build_context.builder().position_builder_at_end(grow_bb);
-        current_frame.module_instance.linear_memory_compiler.build_set_memory_size(build_context,index as u32,target_memory_size);
-        build_context.builder().build_ret(current_memory_size);
-        build_context.builder().position_builder_at_end(fail_bb);
-        Value::const_int(Type::int32(build_context.context()),-1_i64 as u64,false);
+        let grow_memory_function_name = current_frame.module_instance.linear_memory_compiler.get_grow_function_name(0);
+        let grow_memory_function =  build_context.module().get_named_function(&grow_memory_function_name).ok_or(NoSuchLLVMFunction {name:grow_memory_function_name})?;
+        let grow_memory_size = stack.values.pop().ok_or(NotExistValue)?;
+        stack.values.push(build_context.builder().build_call(grow_memory_function,&[grow_memory_size],""));
     }
     Ok(stack)
 }
@@ -191,7 +180,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Load32S(offset,align)=>load(build_context,offset,align,stack),
         Instruction::I64Load32U(offset,align)=>load(build_context,offset,align,stack),
         Instruction::CurrentMemory(v)=>current_memory(build_context,v,stack),
-        Instruction::GrowMemory(v)=>grow_memory(build_context,v,stack,wasm_module),
+        Instruction::GrowMemory(v)=>grow_memory(build_context,v,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
@@ -270,6 +259,7 @@ pub fn value_type_to_type<'a>(build_context:&'a BuildContext, value_type:&ValueT
 mod tests{
     use super::*;
     use parity_wasm::elements::ResizableLimits;
+    use parity_wasm::elements::Section;
 
     fn new_compilers()->(FunctionTableCompiler<u32> ,LinearMemoryCompiler<u32>){
         ( FunctionTableCompiler::<u32>::new(),LinearMemoryCompiler::<u32>::new())
@@ -320,7 +310,7 @@ mod tests{
         let expected = 22;
         let (ft,lt) = new_compilers();
         let test_function_name = "test_function";
-        build_test_run_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![],|stack:Stack<u32>,bb|{
+        build_test_instruction_function(&build_context, test_function_name, vec![Value::const_int(Type::int32(build_context.context()), expected, false)], vec![], |stack:Stack<u32>, bb|{
             let stack = set_global(&build_context,0,stack)?;
             let stack = get_global(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.last().ok_or(NotExistValue)?);
@@ -342,13 +332,13 @@ mod tests{
         let expected = 22;
         let test_function_name = "test_function";
         let (ft,lt) = new_compilers();
-        build_test_run_function(&build_context,test_function_name,vec![],vec![
+        build_test_instruction_function(&build_context, test_function_name, vec![], vec![
 
             frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), expected as u64, false))],
                                               &[], &[], vec![],
                                               &ft,
                                               &lt)
-        ],|stack,bb|{
+        ], |stack,bb|{
             let mut stack = get_local(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
             Ok(())
@@ -368,10 +358,10 @@ mod tests{
         let expected = 35;
         let test_function_name = "test_function";
         let (ft,lt) = new_compilers();
-        build_test_run_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
+        build_test_instruction_function(&build_context, test_function_name, vec![Value::const_int(Type::int32(build_context.context()), expected, false)], vec![
             frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
                                               &[], &[], vec![],
-                                              &ft,&lt)],|stack,bb|{
+                                              &ft,&lt)], |stack,bb|{
             let stack = set_local(&build_context,0,stack)?;
             let mut stack = get_local(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
@@ -392,13 +382,13 @@ mod tests{
         let expected = 35;
         let test_function_name = "test_function";
         let (ft,lt) = new_compilers();
-        build_test_run_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![
+        build_test_instruction_function(&build_context, test_function_name, vec![Value::const_int(Type::int32(build_context.context()), expected, false)], vec![
 
             frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
                                               &[], &[], vec![],
                                               &ft,
                                               &lt)
-        ],|stack,bb|{
+        ], |stack,bb|{
             let mut stack = tee_local(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
             Ok(())
@@ -419,10 +409,10 @@ mod tests{
         let expected = 3000;
         let (ft,lt) = new_compilers();
         let test_function_name = "test_function";
-        build_test_run_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),expected,false)],vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                                 &ft,
-                                                                                                 &lt)],
-        |stack,bb|{
+        build_test_instruction_function(&build_context, test_function_name, vec![Value::const_int(Type::int32(build_context.context()), expected, false)], vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                                                                                                                                  &ft,
+                                                                                                                                                                                                  &lt)],
+                                        |stack,bb|{
             let mut stack = store(&build_context,500,4,stack)?;
             let mut stack = load(&build_context,500,4,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
@@ -455,12 +445,12 @@ mod tests{
         let build_context = BuildContext::new("current_memory_works",&context);
         let (ft,lt) = new_compilers();
         let expected = 17;
-        lt.build_init_function(&build_context,0,&[&ResizableLimits::new(expected,None)])?;
+        lt.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(expected, None)])?;
         let test_function_name = "test_function";
-        build_test_run_function(&build_context,test_function_name,vec![],vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                                                &ft,
-                                                                                                                &lt)],
-        |stack,bb|{
+        build_test_instruction_function(&build_context, test_function_name, vec![], vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                                                           &ft,
+                                                                                                                           &lt)],
+                                        |stack,bb|{
             let mut stack = current_memory(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
             Ok(())
@@ -477,6 +467,42 @@ mod tests{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected as u64,ret.to_int(false));
 
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn grow_memory_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("current_memory_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 18;
+        let expected_ret = 17;
+        lt.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(expected_ret, None)])?;
+        let test_function_name = "test_function";
+        build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),1,false)],
+                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                               &ft,
+                                                                               &lt)],|stack,bb|{
+
+                let mut stack = grow_memory(&build_context,0,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+
+
+        let  init_memory_function_name = memory::test_utils::init_test_memory(&build_context)?;
+        test_module_in_engine(build_context.module(),|engine|{
+
+            let ret = run_test_function_with_name(engine,build_context.module(),&init_memory_function_name,&[])?;
+            assert_eq!(1,ret.to_int(false));
+
+
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected_ret as u64,ret.to_int(false));
+
+            let memory_size:u32 = *engine.get_global_value_ref_from_address(&lt.get_memory_size_name(0));
+            assert_eq!(expected ,memory_size);
             Ok(())
         })
     }
