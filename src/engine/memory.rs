@@ -113,7 +113,7 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
         for (index,limit) in limits.iter().enumerate(){
             let index = index as u32 + import_count ;
             let grow_memory_function = build_context.module().set_declare_function(&self.get_grow_function_name(index),Type::function(int32_type,&[int32_type],false));
-            build_context.builder().build_function(build_context.context(),grow_memory_function,|builder,bb|{
+            build_context.builder().build_function(build_context.context(),grow_memory_function,|_,_|{
                 let max_memory_size_value = Value::const_int(Type::int32(build_context.context()),limit.maximum().unwrap_or(M::DEFAULT_MAXIMUM_UNIT_SIZE) as u64,false);
                 let grow_memory_size = grow_memory_function.get_first_param().ok_or(NotExistValue)?;
                 let current_memory_size = self.build_get_memory_size(build_context,index as u32);

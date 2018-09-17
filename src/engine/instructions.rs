@@ -467,6 +467,9 @@ mod tests{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected as u64,ret.to_int(false));
 
+            let memory_size:u32 = *engine.get_global_value_ref_from_address(&lt.get_memory_size_name(0));
+            assert_eq!(memory_size as u64,ret.to_int(false));
+
             Ok(())
         })
     }
@@ -500,6 +503,42 @@ mod tests{
 
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected_ret as u64,ret.to_int(false));
+
+            let memory_size:u32 = *engine.get_global_value_ref_from_address(&lt.get_memory_size_name(0));
+            assert_eq!(expected ,memory_size);
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn grow_memory_not_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("current_memory_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 17;
+        let expected_ret = -1_i32;
+        lt.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(expected, Some(20))])?;
+        let test_function_name = "test_function";
+        build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),4,false)],
+                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                               &ft,
+                                                                               &lt)],|stack,bb|{
+
+                let mut stack = grow_memory(&build_context,0,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+
+
+        let  init_memory_function_name = memory::test_utils::init_test_memory(&build_context)?;
+        test_module_in_engine(build_context.module(),|engine|{
+
+            let ret = run_test_function_with_name(engine,build_context.module(),&init_memory_function_name,&[])?;
+            assert_eq!(1,ret.to_int(false));
+
+
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected_ret ,ret.to_int(false) as i32);
 
             let memory_size:u32 = *engine.get_global_value_ref_from_address(&lt.get_memory_size_name(0));
             assert_eq!(expected ,memory_size);
