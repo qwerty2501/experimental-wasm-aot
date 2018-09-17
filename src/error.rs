@@ -40,6 +40,11 @@ pub enum RuntimeError{
       index:u32,
     },
 
+    #[fail(display = "no such llvm  target triple:{}",triple)]
+    NoSuchLLVMTarget{
+        triple:String,
+    },
+
     #[fail(display = "not exist frame")]
     NotExistFrame,
     #[fail(display = "not exist value")]
@@ -54,6 +59,12 @@ pub enum RuntimeError{
 
     #[fail(display = "not exist global initializer instruction")]
     NotExistGlobalInitializerInstruction,
+
+    #[fail(display = "not exist object file path")]
+    NotExistObjectPath,
+
+    #[fail(display = "not exist output file path")]
+    NotExistOutputFilePath,
 
     #[fail(display = "incorrect align : {}",align)]
     InCorrectAlign{
@@ -89,6 +100,11 @@ pub enum RuntimeError{
     FailureLLVMInitializeNativeTarget,
     #[fail(display = "failure initialize native asm printer")]
     FailureLLVMInitializeNativeAsmPrinter,
+
+    #[fail(display = "failure emit llvm module:{}",message)]
+    FailureEmitLLVMModule{
+        message:String,
+    },
 
     #[fail(display = "failure remove module :{}",message)]
     FailureLLVMRemoveModule{

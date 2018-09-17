@@ -569,9 +569,59 @@ pub mod analysis{
     }
 }
 
+pub mod target_machine{
+    use super::*;
+    use llvm_sys::target_machine::*;
+    pub use llvm_sys::target_machine::{LLVMCodeGenOptLevel as CodeGenOptLevel,LLVMRelocMode as RelocMode,LLVMCodeModel as CodeModel ,LLVMCodeGenFileType as CodeGenFileType};
+
+
+
+    pub fn get_default_target_triple()->Result<String,Error>{
+        unsafe{
+           Ok(CString::from_raw(LLVMGetDefaultTargetTriple()).to_str()?.to_string())
+        }
+    }
+
+    pub enum Target{}
+    impl_type_traits!(Target,LLVMTargetRef);
+    impl Target{
+        pub fn get_target_from_name(name:&str)->Option<&Target>{
+            unsafe{
+                ptr_to_optional_ref(LLVMGetTargetFromName(compiler_c_str!(name)))
+            }
+        }
+
+    }
+
+
+
+    pub enum TargetMachine{}
+    impl_type_traits!(TargetMachine,LLVMTargetMachineRef);
+    impl TargetMachine{
+        pub fn create_target_machine(target:&Target,triple:&str,cpu:&str,features:&str,level:CodeGenOptLevel,reloc:RelocMode,code_model:CodeModel)->&'static TargetMachine{
+            unsafe{
+                LLVMCreateTargetMachine(target.into(),compiler_c_str!(triple),compiler_c_str!(cpu),compiler_c_str!(features),level,reloc,code_model).into()
+            }
+        }
+
+        pub fn emit_to_file(&self,module:&Module,file_name:&str,codegen:CodeGenFileType)->Result<(),Error>{
+            unsafe{
+                let mut out_message:*mut ::libc::c_char = mem::uninitialized();
+                if LLVMTargetMachineEmitToFile(self.into(),module.into(),compiler_c_str!(file_name) as *mut _ ,codegen,&mut out_message as *mut _) != 0{
+                    Err(FailureEmitLLVMModule {message:convert_message_to_string(out_message)?})?
+                } else{
+                    Ok(())
+                }
+            }
+        }
+    }
+
+}
+
 pub mod target{
     use super::*;
     use llvm_sys::target::*;
+
     pub fn initialize_native_target()->Result<(),Error>{
         unsafe{
             if LLVM_InitializeNativeTarget() != 0{
@@ -581,6 +631,7 @@ pub mod target{
             }
         }
     }
+
 
     pub fn initialize_native_asm_printer()->Result<(),Error>{
         unsafe{
