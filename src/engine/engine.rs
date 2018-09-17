@@ -48,7 +48,9 @@ impl<'a,T:WasmIntType>  Engine<T>{
 
         let object_file_path = option.output_file_path.parent().unwrap_or(Path::new("")).join(module_id).join(".o");
         target_machine.emit_to_file(&module, object_file_path.to_str().ok_or(NotExistObjectPath)?, CodeGenFileType::LLVMObjectFile)?;
-        Command::new("gcc").arg("-o").arg(option.output_file_path.to_str().ok_or(NotExistOutputFilePath)?).arg(object_file_path.to_str().ok_or(NotExistObjectPath)?);
+        Command::new("gcc")
+            .args(["-o",option.output_file_path.to_str().ok_or(NotExistOutputFilePath)?,object_file_path.to_str().ok_or(NotExistObjectPath)?])
+            .status()?;
         Ok(())
     }
 
