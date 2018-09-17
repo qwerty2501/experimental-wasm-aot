@@ -143,6 +143,15 @@ pub fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut
     Ok(stack)
 }
 
+pub fn add<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    {
+        let rhs = stack.values.pop().ok_or(NotExistValue)?;
+        let lhs = stack.values.pop().ok_or(NotExistValue)?;
+        stack.values.push( build_context.builder().build_add(lhs,rhs,""));
+    }
+    Ok(stack)
+}
+
 pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
@@ -181,6 +190,10 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Load32U(offset,align)=>load(build_context,offset,align,stack),
         Instruction::CurrentMemory(v)=>current_memory(build_context,v,stack),
         Instruction::GrowMemory(v)=>grow_memory(build_context,v,stack),
+        Instruction::I32Add => add(build_context,stack),
+        Instruction::I64Add => add(build_context,stack),
+        Instruction::F32Add => add(build_context,stack),
+        Instruction::F64Add => add(build_context,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
@@ -546,6 +559,62 @@ mod tests{
         })
     }
 
+
+    #[test]
+    pub fn addi32_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("addi32_works",&context);
+        let (ft,lt) = new_compilers();
+
+        let expected = 5;
+        let test_function_name = "test_function";
+
+        build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),2,false),Value::const_int(Type::int32(build_context.context()),3,false)],
+                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                               &ft,
+                                                                               &lt)],|stack,_|{
+
+                let mut stack = add(&build_context,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+
+        test_module_in_engine(build_context.module(),|engine|{
+
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false) as i32);
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn addi64_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("addi64_works",&context);
+        let (ft,lt) = new_compilers();
+
+        let expected = 5;
+        let test_function_name = "test_function";
+
+        build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int64(build_context.context()),2,false),Value::const_int(Type::int64(build_context.context()),3,false)],
+                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                               &ft,
+                                                                               &lt)],|stack,_|{
+
+                let mut stack = add(&build_context,stack)?;
+                let actual = stack.values.pop().ok_or(NotExistValue)?;
+                build_context.builder().build_ret(build_context.builder().build_int_cast(actual,Type::int32(build_context.context()),""));
+                Ok(())
+            })?;
+
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected,ret.to_int(false));
+            Ok(())
+        })
+    }
 
     #[test]
     pub fn i32_value_type_to_type_works(){
