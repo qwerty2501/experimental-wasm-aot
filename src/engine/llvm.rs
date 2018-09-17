@@ -210,6 +210,12 @@ impl Builder {
         unsafe{LLVMBuildAdd(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
     }
 
+    pub fn build_fadd(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildFAdd(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
     pub fn build_mul(&self,lhs:&Value,rhs:&Value,name:&str)-> &Value{
         unsafe{LLVMBuildMul(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
     }
@@ -670,6 +676,12 @@ pub mod execution_engine {
         pub fn to_int(&self,is_signed:bool)->::libc::c_ulonglong{
             unsafe{
                 LLVMGenericValueToInt(self.into(),if is_signed {1} else {0})
+            }
+        }
+
+        pub fn to_float(&self,ty_ref:&Type)-> ::libc::c_double{
+            unsafe{
+                LLVMGenericValueToFloat(ty_ref.into(),self.into())
             }
         }
 

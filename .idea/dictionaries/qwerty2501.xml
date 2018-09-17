@@ -5,6 +5,7 @@
       <w>commonization</w>
       <w>deref</w>
       <w>dest</w>
+      <w>fadd</w>
       <w>growable</w>
       <w>icmp</w>
       <w>initializers</w>
