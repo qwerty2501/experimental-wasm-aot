@@ -615,7 +615,6 @@ mod tests{
                 Ok(())
             })?;
 
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
 
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
@@ -643,7 +642,6 @@ mod tests{
                 Ok(())
             })?;
 
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
 
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
@@ -670,8 +668,6 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
 
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
