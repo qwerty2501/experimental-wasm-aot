@@ -45,9 +45,8 @@ fn build(args:&[String])->Result<(),Error>{
         name:"Now, the argument is given only wasm file.".to_string()
     })?;
     let wasm_file_path = Path::new(wasm_file_path);
-    let wasm_module = parity_wasm::deserialize_file(wasm_file_path)?;
     let output_file_path =  wasm_file_path.parent().unwrap_or(Path::new("")).join(wasm_file_path.file_stem().unwrap_or(OsStr::new("a.out")).to_str().unwrap_or("a.out"));
     let engine = engine::Engine::<u32>::new();
-    engine.build(&wasm_module,&engine::BuildWasmOption::new(output_file_path.as_path()))
+    engine.build(&engine::BuildWasmOptions::new(&[wasm_file_path],output_file_path.as_path()))
 
 }

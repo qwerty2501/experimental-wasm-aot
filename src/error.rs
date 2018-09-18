@@ -66,6 +66,9 @@ pub enum RuntimeError{
     #[fail(display = "not exist output file path")]
     NotExistOutputFilePath,
 
+    #[fail(display = "not exist wasm file path")]
+    NotExistWasmFilePath,
+
     #[fail(display = "incorrect align : {}",align)]
     InCorrectAlign{
         align:u32,
