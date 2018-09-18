@@ -9,6 +9,7 @@ use std::path::Path;
 use std::ffi::OsStr;
 use std::process::Command;
 use parity_wasm;
+use std::fs::File;
 
 pub struct Engine<T:  WasmIntType>{
     wasm_compiler: WasmCompiler<T>,
@@ -37,6 +38,8 @@ impl<'a,T:WasmIntType>  Engine<T>{
         }
     }
     pub fn build(&self, option:&BuildWasmOptions) ->Result<(),Error>{
+        initialize_native_target()?;
+        initialize_native_asm_printer()?;
 
         let wasm_modules = option.wasm_file_paths.iter().map(parity_wasm::deserialize_file).collect::<Result<Vec<WasmModule>,WasmError>>()?;
         let wasm_module = wasm_modules.first().ok_or(NotExistWasmFilePath)?;
@@ -45,14 +48,13 @@ impl<'a,T:WasmIntType>  Engine<T>{
         let module_id = option.output_file_path.file_stem().unwrap_or(OsStr::new(default_module_name)).to_str().unwrap_or(default_module_name);
         let module = self.wasm_compiler.compile(module_id,wasm_module,&context)?;
 
-        initialize_native_target()?;
-        initialize_native_asm_printer()?;
+
 
         let triple = get_default_target_triple()?;
-        let target = Target::get_target_from_name(&triple ).ok_or(NoSuchLLVMTarget{triple:triple.clone()})?;
+        let target = Target::get_target_from_triple(&triple )?;
         let target_machine = TargetMachine::create_target_machine(target,&triple,"generic","",CodeGenOptLevel::LLVMCodeGenLevelDefault,RelocMode::LLVMRelocDefault,CodeModel::LLVMCodeModelDefault);
 
-        let object_file_path = option.output_file_path.parent().unwrap_or(Path::new("")).join(module_id).join(".o");
+        let object_file_path = option.output_file_path.parent().unwrap_or(Path::new("")).join([module_id,".o"].concat());
         target_machine.emit_to_file(&module, object_file_path.to_str().ok_or(NotExistObjectPath)?, CodeGenFileType::LLVMObjectFile)?;
         Command::new("gcc")
             .args(["-o",option.output_file_path.to_str().ok_or(NotExistOutputFilePath)?,object_file_path.to_str().ok_or(NotExistObjectPath)?].iter())
@@ -60,7 +62,14 @@ impl<'a,T:WasmIntType>  Engine<T>{
         Ok(())
     }
 
+}
 
-
-
+#[cfg(test)]
+mod tests{
+    use super::*;
+    #[test]
+    pub fn build_add_2_3_works()->Result<(),Error>{
+        let engine = Engine::<u32>::new();
+        engine.build(&BuildWasmOptions::new(&[Path::new("target/test_cases/engine/add_2_3/add_2_3.wasm")],Path::new("target/test_cases/engine/add_2_3/add_2_3")))
+    }
 }

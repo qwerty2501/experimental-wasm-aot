@@ -41,7 +41,7 @@ fn main() {
 
 fn build(args:&[String])->Result<(),Error>{
 
-    let wasm_file_path:&str =  args.get(2).ok_or(error::RuntimeError::Application{
+    let wasm_file_path:&str =  args.get(1).ok_or(error::RuntimeError::Application{
         name:"Now, the argument is given only wasm file.".to_string()
     })?;
     let wasm_file_path = Path::new(wasm_file_path);

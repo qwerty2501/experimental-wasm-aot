@@ -585,9 +585,15 @@ pub mod target_machine{
     pub enum Target{}
     impl_type_traits!(Target,LLVMTargetRef);
     impl Target{
-        pub fn get_target_from_name(name:&str)->Option<&Target>{
+        pub fn get_target_from_triple(triple:&str)->Result<&'static Target,Error>{
             unsafe{
-                ptr_to_optional_ref(LLVMGetTargetFromName(compiler_c_str!(name)))
+                let mut out_message:*mut ::libc::c_char = mem::uninitialized();
+                let mut target_ref:LLVMTargetRef = mem::uninitialized();
+                if LLVMGetTargetFromTriple(compiler_c_str!(triple),&mut target_ref as *mut _,&mut  out_message as *mut _) != 0{
+                    Err(FailureGetLLVMTarget{triple:triple.to_string(),message:convert_message_to_string(out_message)?})?
+                } else{
+                    Ok(target_ref.into())
+                }
             }
         }
 
@@ -621,6 +627,38 @@ pub mod target_machine{
 pub mod target{
     use super::*;
     use llvm_sys::target::*;
+
+    pub fn initialize_all_asm_printers(){
+        unsafe{
+            LLVM_InitializeAllAsmPrinters()
+        }
+    }
+
+    pub fn initialize_all_asm_parsers(){
+        unsafe{
+            LLVM_InitializeAllAsmParsers()
+        }
+    }
+
+    pub fn initialize_all_target_mcs(){
+        unsafe{
+            LLVM_InitializeAllTargetMCs()
+        }
+    }
+
+    pub fn initialize_all_target_infos(){
+        unsafe{
+
+            LLVM_InitializeAllTargetInfos()
+        }
+
+    }
+    pub fn initialize_all_targets(){
+        unsafe{
+            LLVM_InitializeAllTargets()
+        }
+    }
+
 
     pub fn initialize_native_target()->Result<(),Error>{
         unsafe{

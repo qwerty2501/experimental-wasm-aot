@@ -9,6 +9,7 @@
       <w>fadd</w>
       <w>growable</w>
       <w>icmp</w>
+      <w>infos</w>
       <w>initializers</w>
       <w>libc</w>
       <w>memcpy</w>

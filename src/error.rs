@@ -40,10 +40,7 @@ pub enum RuntimeError{
       index:u32,
     },
 
-    #[fail(display = "no such llvm  target triple:{}",triple)]
-    NoSuchLLVMTarget{
-        triple:String,
-    },
+
 
     #[fail(display = "not exist frame")]
     NotExistFrame,
@@ -111,6 +108,12 @@ pub enum RuntimeError{
 
     #[fail(display = "failure remove module :{}",message)]
     FailureLLVMRemoveModule{
+        message:String,
+    },
+
+    #[fail(display = "no such llvm  target triple:{},message:{}",triple,message)]
+    FailureGetLLVMTarget{
+        triple:String,
         message:String,
     },
 }
