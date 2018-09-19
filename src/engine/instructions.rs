@@ -151,6 +151,15 @@ pub fn add_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stac
     calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_fadd(lhs,rhs,name))
 }
 
+pub fn mul_int<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_mul(lhs,rhs,name))
+}
+
+pub fn mul_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_fmul(lhs,rhs,name))
+}
+
+
 fn calc<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,on_calc:F)->Result<Stack<'a,T>,Error>{
     {
         let rhs = stack.values.pop().ok_or(NotExistValue)?;
@@ -202,7 +211,10 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Add => add_int(build_context, stack),
         Instruction::F32Add => add_float(build_context,stack),
         Instruction::F64Add => add_float(build_context,stack),
-        //Instruction::I32Mul => mul(build_context,stack),
+        Instruction::I32Mul => mul_int(build_context,stack),
+        Instruction::I64Add => mul_int(build_context,stack),
+        Instruction::F32Mul => mul_float(build_context,stack),
+        Instruction::F64Mul => mul_float(build_context,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
@@ -568,7 +580,6 @@ mod tests{
         })
     }
 
-
     #[test]
     pub fn add_i32_works()->Result<(),Error>{
         let context = Context::new();
@@ -665,6 +676,110 @@ mod tests{
                                                                                          &lt)],|stack,_|{
 
                 let mut stack = add_float(&build_context,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected,ret.to_float(Type::float64(build_context.context())));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn mul_i32_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("mul_i32_works",&context);
+        let (ft,lt) = new_compilers();
+
+        let expected = 6;
+        let test_function_name = "test_function";
+
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()),test_function_name,vec![Value::const_int(Type::int32(build_context.context()),2,false),Value::const_int(Type::int32(build_context.context()),3,false)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = mul_int(&build_context,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn mul_i64_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("mul_i64_works",&context);
+        let (ft,lt) = new_compilers();
+
+        let expected = 6;
+        let test_function_name = "test_function";
+
+        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name,vec![Value::const_int(Type::int64(build_context.context()),2,false),Value::const_int(Type::int64(build_context.context()),3,false)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = mul_int(&build_context,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn mul_f32_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("mul_f32_works",&context);
+        let (ft,lt) = new_compilers();
+
+        let expected = 7.0;
+        let test_function_name = "test_function";
+
+        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()),test_function_name,vec![Value::const_real(Type::float32(build_context.context()),2.0),Value::const_real(Type::float32(build_context.context()),3.5)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = mul_float(&build_context,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected,ret.to_float(Type::float32(build_context.context())));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn mul_f64_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("mul_f64_works",&context);
+        let (ft,lt) = new_compilers();
+
+        let expected = 7.0;
+        let test_function_name = "test_function";
+
+        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()),test_function_name,vec![Value::const_real(Type::float64(build_context.context()),2.0),Value::const_real(Type::float64(build_context.context()),3.5)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = mul_float(&build_context,stack)?;
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;

@@ -216,6 +216,12 @@ impl Builder {
         }
     }
 
+    pub fn build_fmul(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe {
+            LLVMBuildFMul(self.into(), lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
     pub fn build_mul(&self,lhs:&Value,rhs:&Value,name:&str)-> &Value{
         unsafe{LLVMBuildMul(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
     }
