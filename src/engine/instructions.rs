@@ -144,19 +144,18 @@ pub fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut
 }
 
 pub fn add_int<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>) ->Result<Stack<'a,T>,Error>{
-    {
-        let rhs = stack.values.pop().ok_or(NotExistValue)?;
-        let lhs = stack.values.pop().ok_or(NotExistValue)?;
-        stack.values.push( build_context.builder().build_add(lhs,rhs,""));
-    }
-    Ok(stack)
+    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_add(lhs,rhs,name))
 }
 
 pub fn add_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_fadd(lhs,rhs,name))
+}
+
+fn calc<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,on_calc:F)->Result<Stack<'a,T>,Error>{
     {
         let rhs = stack.values.pop().ok_or(NotExistValue)?;
         let lhs = stack.values.pop().ok_or(NotExistValue)?;
-        stack.values.push( build_context.builder().build_fadd(lhs,rhs,""));
+        stack.values.push( on_calc(lhs,rhs,""));
     }
     Ok(stack)
 }
@@ -203,6 +202,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Add => add_int(build_context, stack),
         Instruction::F32Add => add_float(build_context,stack),
         Instruction::F64Add => add_float(build_context,stack),
+        //Instruction::I32Mul => mul(build_context,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
