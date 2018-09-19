@@ -143,7 +143,7 @@ pub fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut
     Ok(stack)
 }
 
-pub fn add<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+pub fn add_int<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>) ->Result<Stack<'a,T>,Error>{
     {
         let rhs = stack.values.pop().ok_or(NotExistValue)?;
         let lhs = stack.values.pop().ok_or(NotExistValue)?;
@@ -199,10 +199,10 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Load32U(offset,align)=>load(build_context,offset,align,stack),
         Instruction::CurrentMemory(v)=>current_memory(build_context,v,stack),
         Instruction::GrowMemory(v)=>grow_memory(build_context,v,stack),
-        Instruction::I32Add => add(build_context,stack),
-        Instruction::I64Add => add(build_context,stack),
-        Instruction::F32Add => add(build_context,stack),
-        Instruction::F64Add => add(build_context,stack),
+        Instruction::I32Add => add_int(build_context, stack),
+        Instruction::I64Add => add_int(build_context, stack),
+        Instruction::F32Add => add_float(build_context,stack),
+        Instruction::F64Add => add_float(build_context,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
@@ -583,7 +583,7 @@ mod tests{
                                                                                &ft,
                                                                                &lt)],|stack,_|{
 
-                let mut stack = add(&build_context,stack)?;
+                let mut stack = add_int(&build_context, stack)?;
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
@@ -610,7 +610,7 @@ mod tests{
                                                                                &ft,
                                                                                &lt)],|stack,_|{
 
-                let mut stack = add(&build_context,stack)?;
+                let mut stack = add_int(&build_context, stack)?;
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
