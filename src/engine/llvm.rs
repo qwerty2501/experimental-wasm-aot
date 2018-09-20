@@ -226,6 +226,36 @@ impl Builder {
         unsafe{LLVMBuildMul(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
     }
 
+    pub fn build_sub(&self,lhs:&Value,rhs:&Value,name:&str)-> &Value{
+        unsafe{
+            LLVMBuildSub(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_fsub(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildFSub(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_udiv(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildUDiv(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_sdiv(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildSDiv(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_fdiv(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildFDiv(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
     pub fn build_load(&self,pointer_value:&Value,name:&str)->&Value{
         unsafe{LLVMBuildLoad(self.into(),pointer_value.into(),compiler_c_str!(name)).into()}
     }

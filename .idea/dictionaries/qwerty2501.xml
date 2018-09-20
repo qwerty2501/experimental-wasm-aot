@@ -7,7 +7,9 @@
       <w>deref</w>
       <w>dest</w>
       <w>fadd</w>
+      <w>fdiv</w>
       <w>fmul</w>
+      <w>fsub</w>
       <w>growable</w>
       <w>icmp</w>
       <w>infos</w>
@@ -20,7 +22,11 @@
       <w>opcode</w>
       <w>prot</w>
       <w>reloc</w>
+      <w>sdiv</w>
+      <w>sint</w>
       <w>splitted</w>
+      <w>udiv</w>
+      <w>uint</w>
       <w>wasm</w>
     </words>
   </dictionary>
