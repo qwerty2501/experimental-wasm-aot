@@ -180,11 +180,11 @@ pub fn div_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stac
 }
 
 
-fn binop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_calc:F) ->Result<Stack<'a,T>,Error>{
+fn binop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_binop:F) ->Result<Stack<'a,T>,Error>{
     {
         let rhs = stack.values.pop().ok_or(NotExistValue)?;
         let lhs = stack.values.pop().ok_or(NotExistValue)?;
-        stack.values.push( on_calc(lhs,rhs,""));
+        stack.values.push( on_binop(lhs,rhs,""));
     }
     Ok(stack)
 }
@@ -200,6 +200,23 @@ pub fn eqz64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a
 fn eqz<'a,T:WasmIntType>(build_context:&'a BuildContext,type_ref:&'a Type,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     let i = stack.values.pop().ok_or(NotExistValue)?;
     stack.values.push(build_context.builder().build_icmp(IntPredicate::LLVMIntEQ,i,Value::const_int(type_ref,0,false),""));
+    Ok(stack)
+}
+
+pub fn eq_int<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_icmp(IntPredicate::LLVMIntEQ,lhs,rhs,name))
+}
+
+pub fn eq_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_fcmp(RealPredicate::LLVMRealOEQ,lhs,rhs,name))
+}
+
+fn relop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_relop:F) ->Result<Stack<'a,T>,Error>{
+    {
+        let rhs = stack.values.pop().ok_or(NotExistValue)?;
+        let lhs = stack.values.pop().ok_or(NotExistValue)?;
+        stack.values.push(on_relop(lhs,rhs,""));
+    }
     Ok(stack)
 }
 
@@ -261,6 +278,10 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::F64Div => div_float(build_context,stack),
         Instruction::I32Eqz => eqz32(build_context,stack),
         Instruction::I64Eqz => eqz64(build_context,stack),
+        Instruction::I32Eq => eq_int(build_context,stack),
+        Instruction::I64Eq => eq_int(build_context,stack),
+        Instruction::F32Eq => eq_float(build_context,stack),
+        Instruction::F64Eq => eq_float(build_context,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }

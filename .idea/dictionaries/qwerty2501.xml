@@ -8,6 +8,7 @@
       <w>deref</w>
       <w>dest</w>
       <w>fadd</w>
+      <w>fcmp</w>
       <w>fdiv</w>
       <w>fmul</w>
       <w>fsub</w>
@@ -23,6 +24,7 @@
       <w>opcode</w>
       <w>prot</w>
       <w>reloc</w>
+      <w>relop</w>
       <w>sdiv</w>
       <w>sint</w>
       <w>splitted</w>

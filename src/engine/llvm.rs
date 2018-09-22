@@ -3,7 +3,7 @@ use llvm_sys::core::*;
 use std::ffi::CString;
 use std::ops::{Deref};
 use super::constants;
-pub use llvm_sys::{LLVMIntPredicate as IntPredicate,LLVMLinkage as Linkage , LLVMOpcode as Opcode};
+pub use llvm_sys::{LLVMIntPredicate as IntPredicate,LLVMRealPredicate as RealPredicate,LLVMLinkage as Linkage , LLVMOpcode as Opcode};
 use failure::Error;
 use error::RuntimeError::*;
 use std::mem;
@@ -194,6 +194,12 @@ impl Builder {
     }
     pub fn build_icmp(&self,int_predicate:IntPredicate,lhs:&Value,rhs:&Value,name:&str)->&Value{
         unsafe{LLVMBuildICmp(self.into(),int_predicate,lhs.into(),rhs.into(),compiler_c_str!(name)).into()}
+    }
+
+    pub fn build_fcmp(&self,real_predicate:RealPredicate,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildFCmp(self.into(),real_predicate,lhs.into(),rhs.into(),name).into()
+        }
     }
 
     pub fn build_cond_br(&self,if_value:&Value,then_block:&BasicBlock,else_block:&BasicBlock)->&Value{
