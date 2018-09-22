@@ -189,6 +189,20 @@ fn binop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_co
     Ok(stack)
 }
 
+
+pub fn  eqz32<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error> {
+    eqz(build_context,Type::int32(build_context.context()),stack)
+}
+
+pub fn eqz64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    eqz(build_context,Type::int64(build_context.context()),stack)
+}
+fn eqz<'a,T:WasmIntType>(build_context:&'a BuildContext,type_ref:&'a Type,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    let i = stack.values.pop().ok_or(NotExistValue)?;
+    stack.values.push(build_context.builder().build_icmp(IntPredicate::LLVMIntEQ,i,Value::const_int(type_ref,0,false),""));
+    Ok(stack)
+}
+
 pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
@@ -245,6 +259,8 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64DivU => div_uint(build_context,stack),
         Instruction::F32Div => div_float(build_context,stack),
         Instruction::F64Div => div_float(build_context,stack),
+        Instruction::I32Eqz => eqz32(build_context,stack),
+        Instruction::I64Eqz => eqz64(build_context,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
@@ -1081,6 +1097,91 @@ mod tests{
         })
     }
 
+    #[test]
+    pub fn eqz32_false_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("eqz32_false_works",&context);
+        let (ft,lt ) = new_compilers();
+        let expected =0;
+        let test_function_name = "test_function";
+        build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![Value::const_int(Type::int32(build_context.context()),22,false)],
+            vec![],|stack:Stack<u32>,_|{
+                let mut stack = eqz32(&build_context,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+
+            assert_eq!(expected,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn eqz32_true_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("eqz32_true_works",&context);
+        let (ft,lt ) = new_compilers();
+        let expected =1;
+        let test_function_name = "test_function";
+        build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![Value::const_int(Type::int32(build_context.context()),0,false)],
+                                                  vec![],|stack:Stack<u32>,_|{
+                let mut stack = eqz32(&build_context,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+
+            assert_eq!(expected,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn eqz64_false_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("eqz64_false_works",&context);
+        let (ft,lt ) = new_compilers();
+        let expected =0;
+        let test_function_name = "test_function";
+        build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![Value::const_int(Type::int64(build_context.context()),22,false)],
+                                                  vec![],|stack:Stack<u32>,_|{
+                let mut stack = eqz64(&build_context,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+
+            assert_eq!(expected,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn eqz64_true_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("eqz64_true_works",&context);
+        let (ft,lt ) = new_compilers();
+        let expected =1;
+        let test_function_name = "test_function";
+        build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![Value::const_int(Type::int64(build_context.context()),0,false)],
+                                                  vec![],|stack:Stack<u32>,_|{
+                let mut stack = eqz64(&build_context,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+
+            assert_eq!(expected,ret.to_int(false));
+            Ok(())
+        })
+    }
 
     #[test]
     pub fn i32_value_type_to_type_works(){
