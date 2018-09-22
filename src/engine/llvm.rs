@@ -198,7 +198,7 @@ impl Builder {
 
     pub fn build_fcmp(&self,real_predicate:RealPredicate,lhs:&Value,rhs:&Value,name:&str)->&Value{
         unsafe{
-            LLVMBuildFCmp(self.into(),real_predicate,lhs.into(),rhs.into(),name).into()
+            LLVMBuildFCmp(self.into(),real_predicate,lhs.into(),rhs.into(),compiler_c_str!(name)).into()
         }
     }
 

@@ -5,6 +5,7 @@
       <w>binop</w>
       <w>codegen</w>
       <w>commonization</w>
+      <w>commonized</w>
       <w>deref</w>
       <w>dest</w>
       <w>fadd</w>

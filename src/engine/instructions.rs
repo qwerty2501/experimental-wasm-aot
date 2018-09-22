@@ -362,6 +362,9 @@ mod tests{
     use parity_wasm::elements::ResizableLimits;
     use parity_wasm::elements::Section;
 
+
+
+
     fn new_compilers()->(FunctionTableCompiler<u32> ,LinearMemoryCompiler<u32>){
         ( FunctionTableCompiler::<u32>::new(),LinearMemoryCompiler::<u32>::new())
     }
@@ -647,475 +650,268 @@ mod tests{
         })
     }
 
+    macro_rules! calc_u32_works{
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("calc_u32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$lhs as u64,false),Value::const_int(Type::int32(build_context.context()),$rhs as u64,false)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = $instruction(&build_context, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(false) as u32);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+    macro_rules! calc_u64_works{
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("calc_u64_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name,vec![Value::const_int(Type::int64(build_context.context()),$lhs as u64,false),Value::const_int(Type::int64(build_context.context()),$rhs as u64,false)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = $instruction(&build_context, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(false));
+                    Ok(())
+                })
+            }
+        )
+    }
+
+
+
+    macro_rules! calc_s32_works{
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("calc_s32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$lhs as u64,true),Value::const_int(Type::int32(build_context.context()),$rhs as u64,true)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = $instruction(&build_context, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(true) as i32);
+                    Ok(())
+                })
+            }
+
+        )
+    }
+
+
+
+    macro_rules! calc_s64_works{
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("calc_s64_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name,vec![Value::const_int(Type::int64(build_context.context()),$lhs as u64,true),Value::const_int(Type::int64(build_context.context()),$rhs as u64,true)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = $instruction(&build_context, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(true) as i64);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+
+    macro_rules! calc_f32_works{
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("calc_f32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()),test_function_name,vec![Value::const_real(Type::float32(build_context.context()),$lhs as f64),Value::const_real(Type::float32(build_context.context()),$rhs as f64)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = $instruction(&build_context, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_float(Type::float32(build_context.context())) as f32);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+    macro_rules! calc_f64_works{
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("calc_f32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()),test_function_name,vec![Value::const_real(Type::float64(build_context.context()),$lhs as f64),Value::const_real(Type::float64(build_context.context()),$rhs as f64)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = $instruction(&build_context, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_float(Type::float64(build_context.context())));
+                    Ok(())
+                })
+            }
+        )
+    }
+
     #[test]
     pub fn add_i32_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("addi32_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 5;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),2,false),Value::const_int(Type::int32(build_context.context()),3,false)],
-                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                               &ft,
-                                                                               &lt)],|stack,_|{
-
-                let mut stack = add_int(&build_context, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected ,ret.to_int(false) as i32);
-            Ok(())
-        })
+        calc_u32_works!(5,2,3,add_int)
     }
 
     #[test]
     pub fn add_i64_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("addi64_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 5;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name, vec![Value::const_int(Type::int64(build_context.context()),2,false),Value::const_int(Type::int64(build_context.context()),3,false)],
-                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                               &ft,
-                                                                               &lt)],|stack,_|{
-
-                let mut stack = add_int(&build_context, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected,ret.to_int(false));
-            Ok(())
-        })
+        calc_u64_works!(5,2,3,add_int)
     }
 
     #[test]
     pub fn add_f32_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("add_f32_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 5.5;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()),test_function_name,vec![Value::const_real(Type::float32(build_context.context()),2.25),Value::const_real(Type::float32(build_context.context()),3.25)],
-                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                               &ft,
-                                                                               &lt)],|stack,_|{
-
-                let mut stack = add_float(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected,ret.to_float(Type::float32(build_context.context())));
-            Ok(())
-        })
+        calc_f32_works!(5.5,2.25,3.25,add_float)
     }
 
     #[test]
     pub fn add_f64_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("add_f64_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 5.5;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()),test_function_name,vec![Value::const_real(Type::float64(build_context.context()),2.25),Value::const_real(Type::float64(build_context.context()),3.25)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = add_float(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected,ret.to_float(Type::float64(build_context.context())));
-            Ok(())
-        })
+        calc_f64_works!(5.5,2.25,3.25,add_float)
     }
 
     #[test]
     pub fn mul_i32_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("mul_i32_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 6;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()),test_function_name,vec![Value::const_int(Type::int32(build_context.context()),2,false),Value::const_int(Type::int32(build_context.context()),3,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = mul_int(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected,ret.to_int(false));
-            Ok(())
-        })
+        calc_u32_works!(6,2,3,mul_int)
     }
 
     #[test]
     pub fn mul_i64_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("mul_i64_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 6;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name,vec![Value::const_int(Type::int64(build_context.context()),2,false),Value::const_int(Type::int64(build_context.context()),3,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = mul_int(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected,ret.to_int(false));
-            Ok(())
-        })
+        calc_u64_works!(6,2,3,mul_int)
     }
 
     #[test]
     pub fn mul_f32_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("mul_f32_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 7.0;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()),test_function_name,vec![Value::const_real(Type::float32(build_context.context()),2.0),Value::const_real(Type::float32(build_context.context()),3.5)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = mul_float(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected,ret.to_float(Type::float32(build_context.context())));
-            Ok(())
-        })
+        calc_f32_works!(7.0,2.0,3.5,mul_float)
     }
 
     #[test]
     pub fn mul_f64_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("mul_f64_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 7.0;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()),test_function_name,vec![Value::const_real(Type::float64(build_context.context()),2.0),Value::const_real(Type::float64(build_context.context()),3.5)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = mul_float(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected,ret.to_float(Type::float64(build_context.context())));
-            Ok(())
-        })
+        calc_f64_works!(7.0,2.0,3.5,mul_float)
     }
 
     #[test]
     pub fn sub_i32_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("sub_i32_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = -1_i32;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()),test_function_name,vec![Value::const_int(Type::int32(build_context.context()),2,false),Value::const_int(Type::int32(build_context.context()),3,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = sub_int(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected ,ret.to_int(false) as i32);
-            Ok(())
-        })
+        calc_s32_works!(-1_i32,2,3,sub_int)
     }
 
     #[test]
     pub fn sub_i64_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("sub_i64_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = -1_i64;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name,vec![Value::const_int(Type::int64(build_context.context()),2,false),Value::const_int(Type::int64(build_context.context()),3,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = sub_int(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected ,ret.to_int(false) as i64);
-            Ok(())
-        })
+        calc_s64_works!(-1_i64,2,3,sub_int)
     }
 
     #[test]
     pub fn sub_f32_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("mul_f32_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = -1.5_f32;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()),test_function_name,vec![Value::const_real(Type::float32(build_context.context()),2.0),Value::const_real(Type::float32(build_context.context()),3.5)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = sub_float(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected,ret.to_float(Type::float32(build_context.context())) as f32);
-            Ok(())
-        })
+        calc_f32_works!(-1.5_f32,2.0,3.5,sub_float)
     }
 
     #[test]
     pub fn sub_f64_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("sub_f64_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = -1.5_f64;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()),test_function_name,vec![Value::const_real(Type::float64(build_context.context()),2.0),Value::const_real(Type::float64(build_context.context()),3.5)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = sub_float(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected,ret.to_float(Type::float64(build_context.context())));
-            Ok(())
-        })
+        calc_f64_works!(-1.5_f64,2.0,3.5,sub_float)
     }
 
     #[test]
     pub fn div_u32_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("div_u32_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 2;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()),test_function_name,vec![Value::const_int(Type::int32(build_context.context()),4,false),Value::const_int(Type::int32(build_context.context()),2,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = div_uint(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected ,ret.to_int(false) as i32);
-            Ok(())
-        })
+        calc_u32_works!(2,6,3,div_uint)
     }
 
     #[test]
     pub fn div_u64_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("div_u64_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 2;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name,vec![Value::const_int(Type::int64(build_context.context()),4,false),Value::const_int(Type::int64(build_context.context()),2,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = div_uint(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected ,ret.to_int(false) as i64);
-            Ok(())
-        })
+        calc_u64_works!(2,4,2,div_uint)
     }
 
     #[test]
     pub fn div_s32_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("div_s32_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = -2_i32;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()),test_function_name,vec![Value::const_int(Type::int32(build_context.context()),-4_i32 as u64,false),Value::const_int(Type::int32(build_context.context()),2,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = div_sint(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected ,ret.to_int(false) as i32);
-            Ok(())
-        })
+        calc_s32_works!(-2_i32,-4_i32,2,div_sint)
     }
 
     #[test]
     pub fn div_s64_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("div_s64_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = -2_i64;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name,vec![Value::const_int(Type::int64(build_context.context()),-4_i64 as u64,false),Value::const_int(Type::int64(build_context.context()),2,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = div_sint(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected ,ret.to_int(false) as i64);
-            Ok(())
-        })
+        calc_s64_works!(-2_i64,-4_i64,2,div_sint)
     }
 
     #[test]
     pub fn div_f32_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("div_f32_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 2.0;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()),test_function_name,vec![Value::const_real(Type::float32(build_context.context()),7.0),Value::const_real(Type::float32(build_context.context()),3.5)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = div_float(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected,ret.to_float(Type::float32(build_context.context())) as f32);
-            Ok(())
-        })
+        calc_f32_works!(2.0,7.0,3.5,div_float)
     }
 
     #[test]
     pub fn div_f64_works()->Result<(),Error>{
-        let context = Context::new();
-        let build_context = BuildContext::new("div_f64_works",&context);
-        let (ft,lt) = new_compilers();
-
-        let expected = 2.0;
-        let test_function_name = "test_function";
-
-        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()),test_function_name,vec![Value::const_real(Type::float64(build_context.context()),7.0),Value::const_real(Type::float64(build_context.context()),3.5)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
-                                                                                         &ft,
-                                                                                         &lt)],|stack,_|{
-
-                let mut stack = div_float(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
-                Ok(())
-            })?;
-        test_module_in_engine(build_context.module(),|engine|{
-
-            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected,ret.to_float(Type::float64(build_context.context())));
-            Ok(())
-        })
+        calc_f64_works!(2.0,7.0,3.5,div_float)
     }
 
     #[test]
@@ -1240,6 +1036,10 @@ mod tests{
         assert_eq!(  expected_ptr,actual_ptr.into());
 
     }
+
+
+
+
 
 
 
