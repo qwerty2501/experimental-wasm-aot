@@ -144,43 +144,43 @@ pub fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut
 }
 
 pub fn add_int<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>) ->Result<Stack<'a,T>,Error>{
-    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_add(lhs,rhs,name))
+    binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_add(lhs, rhs, name))
 }
 
 pub fn add_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_fadd(lhs,rhs,name))
+    binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_fadd(lhs, rhs, name))
 }
 
 pub fn mul_int<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_mul(lhs,rhs,name))
+    binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_mul(lhs, rhs, name))
 }
 
 pub fn mul_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_fmul(lhs,rhs,name))
+    binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_fmul(lhs, rhs, name))
 }
 
 pub fn sub_int<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_sub(lhs,rhs,name))
+    binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_sub(lhs, rhs, name))
 }
 
 pub fn sub_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_fsub(lhs,rhs,name))
+    binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_fsub(lhs, rhs, name))
 }
 
 pub fn div_uint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_udiv(lhs,rhs,name))
+    binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_udiv(lhs, rhs, name))
 }
 
 pub fn div_sint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_sdiv(lhs,rhs,name))
+    binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_sdiv(lhs, rhs, name))
 }
 
 pub fn div_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    calc(build_context,stack,|lhs,rhs,name|build_context.builder().build_fdiv(lhs,rhs,name))
+    binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_fdiv(lhs, rhs, name))
 }
 
 
-fn calc<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,on_calc:F)->Result<Stack<'a,T>,Error>{
+fn binop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_calc:F) ->Result<Stack<'a,T>,Error>{
     {
         let rhs = stack.values.pop().ok_or(NotExistValue)?;
         let lhs = stack.values.pop().ok_or(NotExistValue)?;
