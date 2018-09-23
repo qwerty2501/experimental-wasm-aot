@@ -7,7 +7,7 @@ use parity_wasm::elements::Module as WasmModule;
 
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
 
-pub fn i64_const<'c,T:WasmIntType>(build_context:&'c BuildContext,v:i64,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
+ fn i64_const<'c,T:WasmIntType>(build_context:&'c BuildContext,v:i64,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
     stack.values.push(i64_const_internal(build_context,v));
     Ok(stack)
 }
@@ -16,7 +16,7 @@ pub fn i64_const_internal<'c>(build_context:&'c BuildContext, v:i64) ->&'c Value
     Value::const_int(Type::int64(build_context.context()),v as u64,true)
 }
 
-pub fn i32_const<'c,T:WasmIntType>(build_context:&'c BuildContext,v:i32,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
+ fn i32_const<'c,T:WasmIntType>(build_context:&'c BuildContext,v:i32,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
     stack.values.push(i32_const_internal(build_context,v));
     Ok(stack)
 }
@@ -25,7 +25,7 @@ pub fn i32_const_internal<'c>(build_context:&'c BuildContext, v:i32) ->&'c Value
     Value::const_int(Type::int32(build_context.context()),v as u64,true)
 }
 
-pub fn f64_const<'c,T:WasmIntType>(build_context:&'c BuildContext,v:f64,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
+ fn f64_const<'c,T:WasmIntType>(build_context:&'c BuildContext,v:f64,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
     stack.values.push(f64_const_internal(build_context,v));
     Ok(stack)
 }
@@ -34,7 +34,7 @@ pub fn f64_const_internal<'c>(build_context:&'c BuildContext, v:f64) ->&'c Value
     Value::const_real(Type::float64(build_context.context()),v)
 }
 
-pub fn f32_const<'c,T:WasmIntType>(build_context:&'c BuildContext,v:f32,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
+ fn f32_const<'c,T:WasmIntType>(build_context:&'c BuildContext,v:f32,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
     stack.values.push(f32_const_internal(build_context,v));
     Ok(stack)
 }
@@ -48,19 +48,19 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
     Ok(build_context.module().get_named_global(name.as_ref()).ok_or_else(|| NoSuchLLVMGlobalValue {name})?)
 }
 
-pub fn get_global<'c,T:WasmIntType>(build_context:&'c BuildContext,index:u32,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
+ fn get_global<'c,T:WasmIntType>(build_context:&'c BuildContext,index:u32,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
     let global_value = get_global_internal(build_context,index)?;
     stack.values.push(build_context.builder().build_load(global_value,""));
     Ok(stack)
 }
 
-pub fn set_global<'c,T:WasmIntType>(build_context:&'c BuildContext,index:u32,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
+ fn set_global<'c,T:WasmIntType>(build_context:&'c BuildContext,index:u32,mut stack:Stack<'c,T>)->Result<Stack<'c,T>,Error>{
     let global_value = get_global_internal(build_context,index)?;
     build_context.builder().build_store( stack.values.pop().ok_or(NotExistValue)?,global_value);
     Ok(stack)
 }
 
-pub fn get_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn get_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current()?;
         stack.values.push( current_frame.locals.get(index as usize).ok_or(NoSuchLocalValue{index})?.value.ok_or(NoSuchLocalValue {index})?);
@@ -68,7 +68,7 @@ pub fn get_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut 
     Ok(stack)
 }
 
-pub fn set_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn set_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
         let  mut v = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
@@ -77,7 +77,7 @@ pub fn set_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut 
     Ok(stack)
 }
 
-pub fn tee_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn tee_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
         let  mut v = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
@@ -87,7 +87,7 @@ pub fn tee_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut 
     Ok(stack)
 }
 
-pub fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
 
         let current_frame = stack.activations.current_mut()?;
@@ -103,7 +103,7 @@ pub fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u
 
 }
 
-pub fn load<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn load<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
         build_check_memory_size_const(build_context,0,offset,stack.current_function,current_frame.module_instance.linear_memory_compiler);
@@ -118,11 +118,11 @@ pub fn load<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u3
     Ok(stack)
 }
 
-pub fn end<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn end<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     Ok(stack)
 }
 
-pub fn current_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn current_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
 
@@ -132,7 +132,7 @@ pub fn current_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,
 
 }
 
-pub fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
         let grow_memory_function_name = current_frame.module_instance.linear_memory_compiler.get_grow_function_name(0);
@@ -143,39 +143,39 @@ pub fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut
     Ok(stack)
 }
 
-pub fn add_int<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>) ->Result<Stack<'a,T>,Error>{
+ fn add_int<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>) ->Result<Stack<'a,T>,Error>{
     binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_add(lhs, rhs, name))
 }
 
-pub fn add_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn add_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_fadd(lhs, rhs, name))
 }
 
-pub fn mul_int<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn mul_int<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_mul(lhs, rhs, name))
 }
 
-pub fn mul_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn mul_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_fmul(lhs, rhs, name))
 }
 
-pub fn sub_int<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn sub_int<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_sub(lhs, rhs, name))
 }
 
-pub fn sub_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn sub_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_fsub(lhs, rhs, name))
 }
 
-pub fn div_uint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn div_uint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_udiv(lhs, rhs, name))
 }
 
-pub fn div_sint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn div_sint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_sdiv(lhs, rhs, name))
 }
 
-pub fn div_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn div_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_fdiv(lhs, rhs, name))
 }
 
@@ -190,11 +190,11 @@ fn binop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_co
 }
 
 
-pub fn  eqz32<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error> {
+ fn  eqz32<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error> {
     eqz(build_context,Type::int32(build_context.context()),stack)
 }
 
-pub fn eqz64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn eqz64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     eqz(build_context,Type::int64(build_context.context()),stack)
 }
 fn eqz<'a,T:WasmIntType>(build_context:&'a BuildContext,type_ref:&'a Type,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
@@ -203,13 +203,23 @@ fn eqz<'a,T:WasmIntType>(build_context:&'a BuildContext,type_ref:&'a Type,mut st
     Ok(stack)
 }
 
-pub fn eq_int<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn eq_int<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_icmp(IntPredicate::LLVMIntEQ,lhs,rhs,name))
 }
 
-pub fn eq_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn eq_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_fcmp(RealPredicate::LLVMRealOEQ,lhs,rhs,name))
 }
+
+ fn ne_int<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_icmp(IntPredicate::LLVMIntNE,lhs,rhs,name))
+}
+
+fn ne_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_fcmp(RealPredicate::LLVMRealONE,lhs,rhs,name))
+}
+
+
 
 fn relop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_relop:F) ->Result<Stack<'a,T>,Error>{
     {
@@ -286,6 +296,12 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Eq => eq_int(build_context,stack),
         Instruction::F32Eq => eq_float(build_context,stack),
         Instruction::F64Eq => eq_float(build_context,stack),
+
+        Instruction::I32Ne => ne_int(build_context,stack),
+        Instruction::I64Ne => ne_int(build_context,stack),
+        Instruction::F32Ne => ne_float(build_context,stack),
+        Instruction::F64Ne => ne_float(build_context,stack),
+
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
@@ -1158,6 +1174,47 @@ mod tests{
     #[test]
     pub fn eq_f64_false_works() -> Result<(),Error>{
         relop_f64_works!(0,3.0,2.0,Instruction::F64Eq)
+    }
+
+
+    #[test]
+    pub fn ne_i32_true_works() -> Result<(),Error>{
+        relop_u32_works!(1,3,2,Instruction::I32Ne)
+    }
+
+    #[test]
+    pub fn ne_i32_false_works() -> Result<(),Error>{
+        relop_u32_works!(0,2,2,Instruction::I32Ne)
+    }
+
+    #[test]
+    pub fn ne_i64_true_works() -> Result<(),Error>{
+        relop_u64_works!(1,3,2,Instruction::I64Ne)
+    }
+
+    #[test]
+    pub fn ne_i64_false_works() -> Result<(),Error>{
+        relop_u64_works!(0,2,2,Instruction::I64Ne)
+    }
+
+    #[test]
+    pub fn ne_f32_true_works() -> Result<(),Error>{
+        relop_f32_works!(1,3.0,2.0,Instruction::F32Ne)
+    }
+
+    #[test]
+    pub fn ne_f32_false_works() -> Result<(),Error>{
+        relop_f32_works!(0,2.0,2.0,Instruction::F32Ne)
+    }
+
+    #[test]
+    pub fn ne_f64_true_works() -> Result<(),Error>{
+        relop_f64_works!(1,3.0,2.0,Instruction::F64Ne)
+    }
+
+    #[test]
+    pub fn ne_f64_false_works() -> Result<(),Error>{
+        relop_f64_works!(0,2.0,2.0,Instruction::F64Ne)
     }
 
     #[test]
