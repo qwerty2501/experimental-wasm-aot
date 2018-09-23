@@ -224,7 +224,7 @@ pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
 
-pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>,wasm_module:&'a WasmModule)->Result<Stack<'a,T>,Error>{
+pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     match instruction{
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
         Instruction::I64Const(v)=> i64_const(build_context, v,stack),
@@ -262,20 +262,24 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Add => add_int(build_context, stack),
         Instruction::F32Add => add_float(build_context,stack),
         Instruction::F64Add => add_float(build_context,stack),
+
         Instruction::I32Mul => mul_int(build_context,stack),
-        Instruction::I64Add => mul_int(build_context,stack),
+        Instruction::I64Mul => mul_int(build_context,stack),
         Instruction::F32Mul => mul_float(build_context,stack),
         Instruction::F64Mul => mul_float(build_context,stack),
+
         Instruction::I32Sub => sub_int(build_context,stack),
         Instruction::I64Sub => sub_int(build_context,stack),
         Instruction::F32Sub => sub_float(build_context,stack),
         Instruction::F64Sub => sub_float(build_context,stack),
+
         Instruction::I32DivS => div_sint(build_context,stack),
         Instruction::I32DivU => div_uint(build_context,stack),
         Instruction::I64DivS => div_sint(build_context,stack),
         Instruction::I64DivU => div_uint(build_context,stack),
         Instruction::F32Div => div_float(build_context,stack),
         Instruction::F64Div => div_float(build_context,stack),
+
         Instruction::I32Eqz => eqz32(build_context,stack),
         Instruction::I64Eqz => eqz64(build_context,stack),
         Instruction::I32Eq => eq_int(build_context,stack),
@@ -650,11 +654,13 @@ mod tests{
         })
     }
 
-    macro_rules! calc_u32_works{
-        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+    
+
+    macro_rules! binop_u32_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
             {
                 let context = Context::new();
-                let build_context = BuildContext::new("calc_u32_works",&context);
+                let build_context = BuildContext::new("binop_u32_works",&context);
                 let (ft,lt) = new_compilers();
                 let test_function_name = "test_function";
 
@@ -663,7 +669,7 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = $instruction(&build_context, stack)?;
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
                         build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                         Ok(())
                     })?;
@@ -678,11 +684,11 @@ mod tests{
         )
     }
 
-    macro_rules! calc_u64_works{
-        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+    macro_rules! binop_u64_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
             {
                 let context = Context::new();
-                let build_context = BuildContext::new("calc_u64_works",&context);
+                let build_context = BuildContext::new("binop_u64_works",&context);
                 let (ft,lt) = new_compilers();
                 let test_function_name = "test_function";
 
@@ -691,7 +697,7 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = $instruction(&build_context, stack)?;
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
                         build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                         Ok(())
                     })?;
@@ -708,11 +714,11 @@ mod tests{
 
 
 
-    macro_rules! calc_s32_works{
-        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+    macro_rules! binop_s32_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
             {
                 let context = Context::new();
-                let build_context = BuildContext::new("calc_s32_works",&context);
+                let build_context = BuildContext::new("binop_s32_works",&context);
                 let (ft,lt) = new_compilers();
                 let test_function_name = "test_function";
 
@@ -721,7 +727,7 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = $instruction(&build_context, stack)?;
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
                         build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                         Ok(())
                     })?;
@@ -739,11 +745,11 @@ mod tests{
 
 
 
-    macro_rules! calc_s64_works{
-        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+    macro_rules! binop_s64_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
             {
                 let context = Context::new();
-                let build_context = BuildContext::new("calc_s64_works",&context);
+                let build_context = BuildContext::new("binop_s64_works",&context);
                 let (ft,lt) = new_compilers();
                 let test_function_name = "test_function";
 
@@ -752,7 +758,7 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = $instruction(&build_context, stack)?;
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
                         build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                         Ok(())
                     })?;
@@ -768,11 +774,11 @@ mod tests{
     }
 
 
-    macro_rules! calc_f32_works{
-        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+    macro_rules! binop_f32_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
             {
                 let context = Context::new();
-                let build_context = BuildContext::new("calc_f32_works",&context);
+                let build_context = BuildContext::new("binop_f32_works",&context);
                 let (ft,lt) = new_compilers();
                 let test_function_name = "test_function";
 
@@ -781,7 +787,7 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = $instruction(&build_context, stack)?;
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
                         build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                         Ok(())
                     })?;
@@ -796,11 +802,11 @@ mod tests{
         )
     }
 
-    macro_rules! calc_f64_works{
-        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:ident) => (
+    macro_rules! binop_f64_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
             {
                 let context = Context::new();
-                let build_context = BuildContext::new("calc_f32_works",&context);
+                let build_context = BuildContext::new("binop_f32_works",&context);
                 let (ft,lt) = new_compilers();
                 let test_function_name = "test_function";
 
@@ -809,7 +815,7 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = $instruction(&build_context, stack)?;
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
                         build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                         Ok(())
                     })?;
@@ -826,92 +832,92 @@ mod tests{
 
     #[test]
     pub fn add_i32_works()->Result<(),Error>{
-        calc_u32_works!(5,2,3,add_int)
+        binop_u32_works!(5,2,3,Instruction::I32Add)
     }
 
     #[test]
     pub fn add_i64_works()->Result<(),Error>{
-        calc_u64_works!(5,2,3,add_int)
+        binop_u64_works!(5,2,3,Instruction::I64Add)
     }
 
     #[test]
     pub fn add_f32_works()->Result<(),Error>{
-        calc_f32_works!(5.5,2.25,3.25,add_float)
+        binop_f32_works!(5.5,2.25,3.25,Instruction::F32Add)
     }
 
     #[test]
     pub fn add_f64_works()->Result<(),Error>{
-        calc_f64_works!(5.5,2.25,3.25,add_float)
+        binop_f64_works!(5.5,2.25,3.25,Instruction::F64Add)
     }
 
     #[test]
     pub fn mul_i32_works()->Result<(),Error>{
-        calc_u32_works!(6,2,3,mul_int)
+        binop_u32_works!(6,2,3,Instruction::I32Mul)
     }
 
     #[test]
     pub fn mul_i64_works()->Result<(),Error>{
-        calc_u64_works!(6,2,3,mul_int)
+        binop_u64_works!(6,2,3,Instruction::I64Mul)
     }
 
     #[test]
     pub fn mul_f32_works()->Result<(),Error>{
-        calc_f32_works!(7.0,2.0,3.5,mul_float)
+        binop_f32_works!(7.0,2.0,3.5,Instruction::F32Mul)
     }
 
     #[test]
     pub fn mul_f64_works()->Result<(),Error>{
-        calc_f64_works!(7.0,2.0,3.5,mul_float)
+        binop_f64_works!(7.0,2.0,3.5,Instruction::F64Mul)
     }
 
     #[test]
     pub fn sub_i32_works()->Result<(),Error>{
-        calc_s32_works!(-1_i32,2,3,sub_int)
+        binop_s32_works!(-1_i32,2,3,Instruction::I32Sub)
     }
 
     #[test]
     pub fn sub_i64_works()->Result<(),Error>{
-        calc_s64_works!(-1_i64,2,3,sub_int)
+        binop_s64_works!(-1_i64,2,3,Instruction::I64Sub)
     }
 
     #[test]
     pub fn sub_f32_works()->Result<(),Error>{
-        calc_f32_works!(-1.5_f32,2.0,3.5,sub_float)
+        binop_f32_works!(-1.5_f32,2.0,3.5,Instruction::F32Sub)
     }
 
     #[test]
     pub fn sub_f64_works()->Result<(),Error>{
-        calc_f64_works!(-1.5_f64,2.0,3.5,sub_float)
+        binop_f64_works!(-1.5_f64,2.0,3.5,Instruction::F64Sub)
     }
 
     #[test]
     pub fn div_u32_works()->Result<(),Error>{
-        calc_u32_works!(2,6,3,div_uint)
+        binop_u32_works!(2,6,3,Instruction::I32DivU)
     }
 
     #[test]
     pub fn div_u64_works()->Result<(),Error>{
-        calc_u64_works!(2,4,2,div_uint)
+        binop_u64_works!(2,4,2,Instruction::I64DivU)
     }
 
     #[test]
     pub fn div_s32_works()->Result<(),Error>{
-        calc_s32_works!(-2_i32,-4_i32,2,div_sint)
+        binop_s32_works!(-2_i32,-4_i32,2,Instruction::I32DivS)
     }
 
     #[test]
     pub fn div_s64_works()->Result<(),Error>{
-        calc_s64_works!(-2_i64,-4_i64,2,div_sint)
+        binop_s64_works!(-2_i64,-4_i64,2,Instruction::I64DivS)
     }
 
     #[test]
     pub fn div_f32_works()->Result<(),Error>{
-        calc_f32_works!(2.0,7.0,3.5,div_float)
+        binop_f32_works!(2.0,7.0,3.5,Instruction::F32Div)
     }
 
     #[test]
     pub fn div_f64_works()->Result<(),Error>{
-        calc_f64_works!(2.0,7.0,3.5,div_float)
+        binop_f64_works!(2.0,7.0,3.5,Instruction::F64Div)
     }
 
     #[test]

@@ -168,7 +168,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
                     ]);
 
                     let  stack = function_body.code().elements().iter().try_fold(stack,|stack,instruction|{
-                        instructions::progress_instruction(build_context,instruction.clone(),stack,wasm_module)
+                        instructions::progress_instruction(build_context,instruction.clone(),stack)
                     })?;
 
                     if let Some(result) = stack.values.last(){
