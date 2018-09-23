@@ -556,8 +556,8 @@ pub fn build_call_and_set_fminf<'m>(module:&'m Module,builder:&'m Builder,x:&Val
 pub fn build_call_and_set_fmin<'m>(module:&'m Module, builder:&'m Builder, x:&Value, y:&Value, name:&str) ->&'m Value{
     let context = module.context();
     let float64_type = Type::float64(context);
-    let fminl_type = Type::function(float64_type,&[float64_type,float64_type],false);
-    let fmin = module.set_declare_function("fmin",fminl_type);
+    let fmin_type = Type::function(float64_type,&[float64_type,float64_type],false);
+    let fmin = module.set_declare_function("fmin",fmin_type);
     builder.build_call(fmin,&[x,y],name)
 }
 
@@ -572,11 +572,27 @@ pub fn build_call_and_set_fmaxf<'m>(module:&'m Module,builder:&'m Builder,x:&Val
 pub fn build_call_and_set_fmax<'m>(module:&'m Module, builder:&'m Builder, x:&Value, y:&Value, name:&str) ->&'m Value{
     let context = module.context();
     let float64_type = Type::float64(context);
-    let fmaxl_type = Type::function(float64_type,&[float64_type,float64_type],false);
-    let fmax = module.set_declare_function("fmax",fmaxl_type);
+    let fmax_type = Type::function(float64_type,&[float64_type,float64_type],false);
+    let fmax = module.set_declare_function("fmax",fmax_type);
     builder.build_call(fmax,&[x,y],name)
 }
 
+
+pub fn build_call_and_set_copysignf<'m>(module:&'m Module,builder:&'m Builder,x:&Value,y:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float32_type = Type::float32(context);
+    let copysignf_type = Type::function(float32_type,&[float32_type,float32_type],false);
+    let copysignf = module.set_declare_function("copysignf",copysignf_type);
+    builder.build_call(copysignf,&[x,y],name)
+}
+
+pub fn build_call_and_set_copysign<'m>(module:&'m Module, builder:&'m Builder, x:&Value, y:&Value, name:&str) ->&'m Value{
+    let context = module.context();
+    let float64_type = Type::float64(context);
+    let copysign_type = Type::function(float64_type,&[float64_type,float64_type],false);
+    let copysign = module.set_declare_function("copysign",copysign_type);
+    builder.build_call(copysign,&[x,y],name)
+}
 
 
 

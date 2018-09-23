@@ -195,6 +195,15 @@ fn max_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<
     binop(build_context,stack,|lhs,rhs,name| build_call_and_set_fmax(build_context.module(), build_context.builder(), lhs, rhs, name))
 }
 
+fn copysign_float32<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name| build_call_and_set_copysignf(build_context.module(),build_context.builder(),lhs,rhs,name))
+}
+
+fn copysign_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name| build_call_and_set_copysign(build_context.module(), build_context.builder(), lhs, rhs, name))
+}
+
+
 
 
 fn binop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_binop:F) ->Result<Stack<'a,T>,Error>{
@@ -362,6 +371,9 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::F64Min => min_float64(build_context,stack),
         Instruction::F32Max => max_float32(build_context,stack),
         Instruction::F64Max => max_float64(build_context,stack),
+
+        Instruction::F32Copysign => copysign_float32(build_context,stack),
+        Instruction::F64Copysign => copysign_float64(build_context,stack),
 
         Instruction::I32Eqz => eqz32(build_context,stack),
         Instruction::I64Eqz => eqz64(build_context,stack),
@@ -1280,6 +1292,27 @@ mod tests{
     #[test]
     pub fn max_float64_left_works()->Result<(),Error>{
         binop_f64_works!(3.0,3.0,2.0,Instruction::F64Max)
+    }
+
+
+    #[test]
+    pub fn copysign_float32_copy_works()->Result<(),Error>{
+        binop_f32_works!(-2.0_f32,2.0,-1.0_f32,Instruction::F32Copysign)
+    }
+
+    #[test]
+    pub fn copysign_float32_not_copy_works()->Result<(),Error>{
+        binop_f32_works!(2.0,2.0,1.0,Instruction::F32Copysign)
+    }
+
+    #[test]
+    pub fn copysign_float64_copy_works()->Result<(),Error>{
+        binop_f64_works!(-2.0_f64,2.0,-1.0_f64,Instruction::F64Copysign)
+    }
+
+    #[test]
+    pub fn copysign_float64_not_copy_works()->Result<(),Error>{
+        binop_f64_works!(2.0,2.0,1.0,Instruction::F64Copysign)
     }
 
 

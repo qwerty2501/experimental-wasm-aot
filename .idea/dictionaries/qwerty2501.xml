@@ -6,6 +6,8 @@
       <w>codegen</w>
       <w>commonization</w>
       <w>commonized</w>
+      <w>copysign</w>
+      <w>copysignf</w>
       <w>deref</w>
       <w>dest</w>
       <w>fadd</w>
