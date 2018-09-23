@@ -232,6 +232,20 @@ fn lt_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,
 }
 
 
+fn le_sint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_icmp(IntPredicate::LLVMIntSLE,lhs,rhs,name))
+}
+
+fn le_uint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_icmp(IntPredicate::LLVMIntULE,lhs,rhs,name))
+}
+
+fn le_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_fcmp(RealPredicate::LLVMRealOLE,lhs,rhs,name))
+}
+
+
+
 fn relop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_relop:F) ->Result<Stack<'a,T>,Error>{
     {
         let rhs = stack.values.pop().ok_or(NotExistValue)?;
@@ -320,6 +334,15 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64LtU => lt_uint(build_context,stack),
         Instruction::F32Lt => lt_float(build_context,stack),
         Instruction::F64Lt => lt_float(build_context,stack),
+
+
+        Instruction::I32LeS => le_sint(build_context,stack),
+        Instruction::I32LeU => le_uint(build_context,stack),
+        Instruction::I64LeS => le_sint(build_context,stack),
+        Instruction::I64LeU => le_uint(build_context,stack),
+        Instruction::F32Le => le_float(build_context,stack),
+        Instruction::F64Le => le_float(build_context,stack),
+
 
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
@@ -1328,6 +1351,99 @@ mod tests{
     pub fn lt_f64_gt_works() -> Result<(),Error>{
         relop_f64_works!(0,3.0,2.0,Instruction::F64Lt)
     }
+
+
+    #[test]
+    pub fn le_s32_true_works() -> Result<(),Error>{
+        relop_s32_works!(1,-1_i32,2,Instruction::I32LeS)
+    }
+
+    #[test]
+    pub fn le_s32_eq_works() -> Result<(),Error>{
+        relop_s32_works!(1,2,2,Instruction::I32LeS)
+    }
+
+    #[test]
+    pub fn le_s32_gt_works() -> Result<(),Error>{
+        relop_s32_works!(0,3,2,Instruction::I32LeS)
+    }
+
+    #[test]
+    pub fn le_u32_true_works() -> Result<(),Error>{
+        relop_u32_works!(1,1,2,Instruction::I32LeU)
+    }
+
+    #[test]
+    pub fn le_u32_eq_works() -> Result<(),Error>{
+        relop_u32_works!(1,2,2,Instruction::I32LeU)
+    }
+
+    #[test]
+    pub fn le_u32_gt_works() -> Result<(),Error>{
+        relop_u32_works!(0,-1_i32 as u32,2,Instruction::I32LeU)
+    }
+
+    #[test]
+    pub fn le_s64_true_works() -> Result<(),Error>{
+        relop_s64_works!(1,-1_i64,2,Instruction::I64LeS)
+    }
+
+    #[test]
+    pub fn le_s64_eq_works() -> Result<(),Error>{
+        relop_s64_works!(1,2,2,Instruction::I64LeS)
+    }
+
+    #[test]
+    pub fn le_s64_gt_works() -> Result<(),Error>{
+        relop_s64_works!(0,3,2,Instruction::I64LeS)
+    }
+
+    #[test]
+    pub fn le_u64_true_works() -> Result<(),Error>{
+        relop_u64_works!(1,1,2,Instruction::I64LeU)
+    }
+
+    #[test]
+    pub fn le_u64_eq_works() -> Result<(),Error>{
+        relop_u64_works!(1,2,2,Instruction::I64LeU)
+    }
+
+    #[test]
+    pub fn le_u64_gt_works() -> Result<(),Error>{
+        relop_u64_works!(0,-1_i64 as u64,2,Instruction::I64LeU)
+    }
+    
+
+    #[test]
+    pub fn le_f32_true_works() -> Result<(),Error>{
+        relop_f32_works!(1,1.0,2.0,Instruction::F32Le)
+    }
+
+    #[test]
+    pub fn le_f32_eq_works() -> Result<(),Error>{
+        relop_f32_works!(1,2.0,2.0,Instruction::F32Le)
+    }
+
+    #[test]
+    pub fn le_f32_gt_works() -> Result<(),Error>{
+        relop_f32_works!(0,3.0,2.0,Instruction::F32Le)
+    }
+
+    #[test]
+    pub fn le_f64_true_works() -> Result<(),Error>{
+        relop_f64_works!(1,1.0,2.0,Instruction::F64Le)
+    }
+
+    #[test]
+    pub fn le_f64_eq_works() -> Result<(),Error>{
+        relop_f64_works!(1,2.0,2.0,Instruction::F64Le)
+    }
+
+    #[test]
+    pub fn le_f64_gt_works() -> Result<(),Error>{
+        relop_f64_works!(0,3.0,2.0,Instruction::F64Le)
+    }
+
 
 
     #[test]
