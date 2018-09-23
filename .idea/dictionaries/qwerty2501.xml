@@ -32,6 +32,7 @@
       <w>udiv</w>
       <w>uint</w>
       <w>wasm</w>
+      <w>zext</w>
     </words>
   </dictionary>
 </component>

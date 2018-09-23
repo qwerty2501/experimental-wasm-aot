@@ -175,6 +175,12 @@ impl Builder {
         }
     }
 
+    pub fn build_zext_or_bit_cast(&self,val:&Value,dest_ty:&Type,name:&str)->&Value{
+        unsafe{
+            LLVMBuildZExtOrBitCast(self.into(),val.into(),dest_ty.into(),compiler_c_str!(name)).into()
+        }
+    }
+
     pub fn build_bit_cast(&self,value:&Value,dest_ty:&Type,name:&str)->&Value{
         unsafe{LLVMBuildBitCast(self.into(),value.into(),dest_ty.into(),compiler_c_str!(name)).into()}
     }

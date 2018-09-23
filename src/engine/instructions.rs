@@ -215,7 +215,7 @@ fn relop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_co
     {
         let rhs = stack.values.pop().ok_or(NotExistValue)?;
         let lhs = stack.values.pop().ok_or(NotExistValue)?;
-        stack.values.push(on_relop(lhs,rhs,""));
+        stack.values.push(build_context.builder().build_zext_or_bit_cast(on_relop(lhs,rhs,""),Type::int32(build_context.context()),""));
     }
     Ok(stack)
 }
@@ -830,6 +830,206 @@ mod tests{
         )
     }
 
+
+    macro_rules! binop_s32_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("binop_s32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$lhs as u64,true),Value::const_int(Type::int32(build_context.context()),$rhs as u64,true)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(true) as i32);
+                    Ok(())
+                })
+            }
+
+        )
+    }
+
+    macro_rules! relop_u32_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("relop_u32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$lhs as u64,false),Value::const_int(Type::int32(build_context.context()),$rhs as u64,false)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(false) as u32);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+    macro_rules! relop_s32_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("relop_s32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$lhs as u64,true),Value::const_int(Type::int32(build_context.context()),$rhs as u64,true)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(false) as u32);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+    macro_rules! relop_u64_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("relop_u64_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int64(build_context.context()),$lhs as u64,false),Value::const_int(Type::int64(build_context.context()),$rhs as u64,false)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(false) as u32);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+    macro_rules! relop_s64_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("relop_s64_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int64(build_context.context()),$lhs as u64,true),Value::const_int(Type::int64(build_context.context()),$rhs as u64,true)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(false) as u32);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+
+    macro_rules! relop_f32_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("relop_f32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function(&build_context,test_function_name,vec![Value::const_real(Type::float32(build_context.context()),$lhs as f64),Value::const_real(Type::float32(build_context.context()),$rhs as f64)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(false) as u32);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+    macro_rules! relop_f64_works {
+        ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("relop_f32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function(&build_context,test_function_name,vec![Value::const_real(Type::float64(build_context.context()),$lhs ),Value::const_real(Type::float64(build_context.context()),$rhs )],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(false) as u32);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+
+
     #[test]
     pub fn add_i32_works()->Result<(),Error>{
         binop_u32_works!(5,2,3,Instruction::I32Add)
@@ -918,6 +1118,46 @@ mod tests{
     #[test]
     pub fn div_f64_works()->Result<(),Error>{
         binop_f64_works!(2.0,7.0,3.5,Instruction::F64Div)
+    }
+
+    #[test]
+    pub fn eq_i32_true_works() -> Result<(),Error>{
+        relop_u32_works!(1,2,2,Instruction::I32Eq)
+    }
+
+    #[test]
+    pub fn eq_i32_false_works() -> Result<(),Error>{
+        relop_u32_works!(0,3,2,Instruction::I32Eq)
+    }
+
+    #[test]
+    pub fn eq_i64_true_works() -> Result<(),Error>{
+        relop_u64_works!(1,2,2,Instruction::I64Eq)
+    }
+
+    #[test]
+    pub fn eq_i64_false_works() -> Result<(),Error>{
+        relop_u64_works!(0,3,2,Instruction::I64Eq)
+    }
+
+    #[test]
+    pub fn eq_f32_true_works() -> Result<(),Error>{
+        relop_f32_works!(1,2.0,2.0,Instruction::F32Eq)
+    }
+
+    #[test]
+    pub fn eq_f32_false_works() -> Result<(),Error>{
+        relop_f32_works!(0,3.0,2.0,Instruction::F32Eq)
+    }
+
+    #[test]
+    pub fn eq_f64_true_works() -> Result<(),Error>{
+        relop_f64_works!(1,2.0,2.0,Instruction::F64Eq)
+    }
+
+    #[test]
+    pub fn eq_f64_false_works() -> Result<(),Error>{
+        relop_f64_works!(0,3.0,2.0,Instruction::F64Eq)
     }
 
     #[test]
