@@ -417,6 +417,12 @@ impl  Value{
             LLVMSetLinkage(self.into(),linkage)
         }
     }
+
+    pub fn dump(&self){
+        unsafe{
+            LLVMDumpValue(self.into())
+        }
+    }
 }
 
 pub enum Type{}
@@ -539,7 +545,37 @@ pub fn build_call_and_set_munmap<'m>(module:&'m Module,builder:&'m Builder,addr:
     builder.build_call(munmap,&args,name)
 }
 
+pub fn build_call_and_set_fminf<'m>(module:&'m Module,builder:&'m Builder,x:&Value,y:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float32_type = Type::float32(context);
+    let fminf_type = Type::function(float32_type,&[float32_type,float32_type],false);
+    let fminf = module.set_declare_function("fminf",fminf_type);
+    builder.build_call(fminf,&[x,y],name)
+}
 
+pub fn build_call_and_set_fmin<'m>(module:&'m Module, builder:&'m Builder, x:&Value, y:&Value, name:&str) ->&'m Value{
+    let context = module.context();
+    let float64_type = Type::float64(context);
+    let fminl_type = Type::function(float64_type,&[float64_type,float64_type],false);
+    let fmin = module.set_declare_function("fmin",fminl_type);
+    builder.build_call(fmin,&[x,y],name)
+}
+
+pub fn build_call_and_set_fmaxf<'m>(module:&'m Module,builder:&'m Builder,x:&Value,y:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float32_type = Type::float32(context);
+    let fmaxf_type = Type::function(float32_type,&[float32_type,float32_type],false);
+    let fminf = module.set_declare_function("fmaxf",fmaxf_type);
+    builder.build_call(fminf,&[x,y],name)
+}
+
+pub fn build_call_and_set_fmax<'m>(module:&'m Module, builder:&'m Builder, x:&Value, y:&Value, name:&str) ->&'m Value{
+    let context = module.context();
+    let float64_type = Type::float64(context);
+    let fmaxl_type = Type::function(float64_type,&[float64_type,float64_type],false);
+    let fmax = module.set_declare_function("fmax",fmaxl_type);
+    builder.build_call(fmax,&[x,y],name)
+}
 
 
 

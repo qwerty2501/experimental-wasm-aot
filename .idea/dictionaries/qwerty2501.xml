@@ -11,6 +11,12 @@
       <w>fadd</w>
       <w>fcmp</w>
       <w>fdiv</w>
+      <w>fmax</w>
+      <w>fmaxf</w>
+      <w>fmaxl</w>
+      <w>fmin</w>
+      <w>fminf</w>
+      <w>fminl</w>
       <w>fmul</w>
       <w>fsub</w>
       <w>growable</w>

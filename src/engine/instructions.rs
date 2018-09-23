@@ -179,6 +179,23 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
     binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_fdiv(lhs, rhs, name))
 }
 
+fn min_float32<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name| build_call_and_set_fminf(build_context.module(),build_context.builder(),lhs,rhs,name))
+}
+
+fn min_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name| build_call_and_set_fmin(build_context.module(), build_context.builder(), lhs, rhs, name))
+}
+
+fn max_float32<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name| build_call_and_set_fmaxf(build_context.module(),build_context.builder(),lhs,rhs,name))
+}
+
+fn max_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name| build_call_and_set_fmax(build_context.module(), build_context.builder(), lhs, rhs, name))
+}
+
+
 
 fn binop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_binop:F) ->Result<Stack<'a,T>,Error>{
     {
@@ -340,6 +357,11 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64DivU => div_uint(build_context,stack),
         Instruction::F32Div => div_float(build_context,stack),
         Instruction::F64Div => div_float(build_context,stack),
+
+        Instruction::F32Min => min_float32(build_context,stack),
+        Instruction::F64Min => min_float64(build_context,stack),
+        Instruction::F32Max => max_float32(build_context,stack),
+        Instruction::F64Max => max_float64(build_context,stack),
 
         Instruction::I32Eqz => eqz32(build_context,stack),
         Instruction::I64Eqz => eqz64(build_context,stack),
@@ -1217,6 +1239,58 @@ mod tests{
     pub fn div_f64_works()->Result<(),Error>{
         binop_f64_works!(2.0,7.0,3.5,Instruction::F64Div)
     }
+
+
+    #[test]
+    pub fn min_float32_right_works()->Result<(),Error>{
+        binop_f32_works!(2.0,3.0,2.0,Instruction::F32Min)
+    }
+
+    #[test]
+    pub fn min_float32_left_works()->Result<(),Error>{
+        binop_f32_works!(2.0,2.0,3.0,Instruction::F32Min)
+    }
+
+    #[test]
+    pub fn min_float64_right_works()->Result<(),Error>{
+        binop_f64_works!(2.0,3.0,2.0,Instruction::F64Min)
+    }
+
+    #[test]
+    pub fn min_float64_left_works()->Result<(),Error>{
+        binop_f64_works!(2.0,2.0,3.0,Instruction::F64Min)
+    }
+
+
+    #[test]
+    pub fn max_float32_right_works()->Result<(),Error>{
+        binop_f32_works!(3.0,2.0,3.0,Instruction::F32Max)
+    }
+
+    #[test]
+    pub fn max_float32_left_works()->Result<(),Error>{
+        binop_f32_works!(3.0,3.0,2.0,Instruction::F32Max)
+    }
+
+    #[test]
+    pub fn max_float64_right_works()->Result<(),Error>{
+        binop_f64_works!(3.0,2.0,3.0,Instruction::F64Max)
+    }
+
+    #[test]
+    pub fn max_float64_left_works()->Result<(),Error>{
+        binop_f64_works!(3.0,3.0,2.0,Instruction::F64Max)
+    }
+
+
+
+
+
+
+
+
+
+
 
     #[test]
     pub fn eq_i32_true_works() -> Result<(),Error>{
