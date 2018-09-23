@@ -245,6 +245,32 @@ fn le_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,
 }
 
 
+fn gt_sint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_icmp(IntPredicate::LLVMIntSGT,lhs,rhs,name))
+}
+
+fn gt_uint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_icmp(IntPredicate::LLVMIntUGT,lhs,rhs,name))
+}
+
+fn gt_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_fcmp(RealPredicate::LLVMRealOGT,lhs,rhs,name))
+}
+
+
+fn ge_sint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_icmp(IntPredicate::LLVMIntSGE,lhs,rhs,name))
+}
+
+fn ge_uint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_icmp(IntPredicate::LLVMIntUGE,lhs,rhs,name))
+}
+
+fn ge_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    relop(build_context,stack,|lhs,rhs,name|build_context.builder().build_fcmp(RealPredicate::LLVMRealOGE,lhs,rhs,name))
+}
+
+
 
 fn relop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_relop:F) ->Result<Stack<'a,T>,Error>{
     {
@@ -336,12 +362,26 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::F64Lt => lt_float(build_context,stack),
 
 
+        Instruction::I32GtS => gt_sint(build_context,stack),
+        Instruction::I32GtU => gt_uint(build_context,stack),
+        Instruction::I64GtS => gt_sint(build_context,stack),
+        Instruction::I64GtU => gt_uint(build_context,stack),
+        Instruction::F32Gt => gt_float(build_context,stack),
+        Instruction::F64Gt => gt_float(build_context,stack),
+        
         Instruction::I32LeS => le_sint(build_context,stack),
         Instruction::I32LeU => le_uint(build_context,stack),
         Instruction::I64LeS => le_sint(build_context,stack),
         Instruction::I64LeU => le_uint(build_context,stack),
         Instruction::F32Le => le_float(build_context,stack),
         Instruction::F64Le => le_float(build_context,stack),
+
+        Instruction::I32GeS => ge_sint(build_context,stack),
+        Instruction::I32GeU => ge_uint(build_context,stack),
+        Instruction::I64GeS => ge_sint(build_context,stack),
+        Instruction::I64GeU => ge_uint(build_context,stack),
+        Instruction::F32Ge => ge_float(build_context,stack),
+        Instruction::F64Ge => ge_float(build_context,stack),
 
 
         Instruction::End=>end(build_context,stack),
@@ -1442,6 +1482,191 @@ mod tests{
     #[test]
     pub fn le_f64_gt_works() -> Result<(),Error>{
         relop_f64_works!(0,3.0,2.0,Instruction::F64Le)
+    }
+
+
+    #[test]
+    pub fn gt_s32_true_works() -> Result<(),Error>{
+        relop_s32_works!(1,3,-1_i32,Instruction::I32GtS)
+    }
+
+    #[test]
+    pub fn gt_s32_eq_works() -> Result<(),Error>{
+        relop_s32_works!(0,2,2,Instruction::I32GtS)
+    }
+
+    #[test]
+    pub fn gt_s32_lt_works() -> Result<(),Error>{
+        relop_s32_works!(0,-1_i32,2,Instruction::I32GtS)
+    }
+
+    #[test]
+    pub fn gt_u32_true_works() -> Result<(),Error>{
+        relop_u32_works!(1,3,2,Instruction::I32GtU)
+    }
+
+    #[test]
+    pub fn gt_u32_eq_works() -> Result<(),Error>{
+        relop_u32_works!(0,2,2,Instruction::I32GtU)
+    }
+
+    #[test]
+    pub fn gt_u32_lt_works() -> Result<(),Error>{
+        relop_u32_works!(0,2,-1_i32 as u32,Instruction::I32GtU)
+    }
+
+    #[test]
+    pub fn gt_s64_true_works() -> Result<(),Error>{
+        relop_s64_works!(1,2,-1_i64, Instruction::I64GtS)
+    }
+
+    #[test]
+    pub fn gt_s64_eq_works() -> Result<(),Error>{
+        relop_s64_works!(0,2,2,Instruction::I64GtS)
+    }
+
+    #[test]
+    pub fn gt_s64_lt_works() -> Result<(),Error>{
+        relop_s64_works!(0,-1_i64,2,Instruction::I64GtS)
+    }
+
+    #[test]
+    pub fn gt_u64_true_works() -> Result<(),Error>{
+        relop_u64_works!(1,-1_i64 as u64,1,Instruction::I64GtU)
+    }
+
+    #[test]
+    pub fn gt_u64_eq_works() -> Result<(),Error>{
+        relop_u64_works!(0,2,2,Instruction::I64GtU)
+    }
+
+    #[test]
+    pub fn gt_u64_lt_works() -> Result<(),Error>{
+        relop_u64_works!(0,2,-1_i64 as u64,Instruction::I64GtU)
+    }
+
+
+
+    #[test]
+    pub fn gt_f32_true_works() -> Result<(),Error>{
+        relop_f32_works!(1,3.0,2.0,Instruction::F32Gt)
+    }
+
+    #[test]
+    pub fn gt_f32_eq_works() -> Result<(),Error>{
+        relop_f32_works!(0,2.0,2.0,Instruction::F32Gt)
+    }
+
+    #[test]
+    pub fn gt_f32_lt_works() -> Result<(),Error>{
+        relop_f32_works!(0,1.0,2.0,Instruction::F32Gt)
+    }
+
+    #[test]
+    pub fn gt_f64_true_works() -> Result<(),Error>{
+        relop_f64_works!(1,3.0,2.0,Instruction::F64Gt)
+    }
+
+    #[test]
+    pub fn gt_f64_eq_works() -> Result<(),Error>{
+        relop_f64_works!(0,2.0,2.0,Instruction::F64Gt)
+    }
+
+    #[test]
+    pub fn gt_f64_lt_works() -> Result<(),Error>{
+        relop_f64_works!(0,1.0,2.0,Instruction::F64Gt)
+    }
+
+
+    #[test]
+    pub fn ge_s32_true_works() -> Result<(),Error>{
+        relop_s32_works!(1,2,-1_i32,Instruction::I32GeS)
+    }
+
+    #[test]
+    pub fn ge_s32_eq_works() -> Result<(),Error>{
+        relop_s32_works!(1,2,2,Instruction::I32GeS)
+    }
+
+    #[test]
+    pub fn ge_s32_lt_works() -> Result<(),Error>{
+        relop_s32_works!(0,2,3,Instruction::I32GeS)
+    }
+
+    #[test]
+    pub fn ge_u32_true_works() -> Result<(),Error>{
+        relop_u32_works!(1,2,1,Instruction::I32GeU)
+    }
+
+    #[test]
+    pub fn ge_u32_eq_works() -> Result<(),Error>{
+        relop_u32_works!(1,2,2,Instruction::I32GeU)
+    }
+
+    #[test]
+    pub fn ge_u32_lt_works() -> Result<(),Error>{
+        relop_u32_works!(0,2,-1_i32 as u32,Instruction::I32GeU)
+    }
+
+    #[test]
+    pub fn ge_s64_true_works() -> Result<(),Error>{
+        relop_s64_works!(1,2,-1_i64,Instruction::I64GeS)
+    }
+
+    #[test]
+    pub fn ge_s64_eq_works() -> Result<(),Error>{
+        relop_s64_works!(1,2,2,Instruction::I64GeS)
+    }
+
+    #[test]
+    pub fn ge_s64_lt_works() -> Result<(),Error>{
+        relop_s64_works!(0,2,3,Instruction::I64GeS)
+    }
+
+    #[test]
+    pub fn ge_u64_true_works() -> Result<(),Error>{
+        relop_u64_works!(1,2,1,Instruction::I64GeU)
+    }
+
+    #[test]
+    pub fn ge_u64_eq_works() -> Result<(),Error>{
+        relop_u64_works!(1,2,2,Instruction::I64GeU)
+    }
+
+    #[test]
+    pub fn ge_u64_lt_works() -> Result<(),Error>{
+        relop_u64_works!(0,2,-1_i64 as u64,Instruction::I64GeU)
+    }
+
+
+    #[test]
+    pub fn ge_f32_true_works() -> Result<(),Error>{
+        relop_f32_works!(1,3.0,2.0,Instruction::F32Ge)
+    }
+
+    #[test]
+    pub fn ge_f32_eq_works() -> Result<(),Error>{
+        relop_f32_works!(1,2.0,2.0,Instruction::F32Ge)
+    }
+
+    #[test]
+    pub fn ge_f32_lt_works() -> Result<(),Error>{
+        relop_f32_works!(0,1.0,2.0,Instruction::F32Ge)
+    }
+
+    #[test]
+    pub fn ge_f64_true_works() -> Result<(),Error>{
+        relop_f64_works!(1,3.0,2.0,Instruction::F64Ge)
+    }
+
+    #[test]
+    pub fn ge_f64_eq_works() -> Result<(),Error>{
+        relop_f64_works!(1,2.0,2.0,Instruction::F64Ge)
+    }
+
+    #[test]
+    pub fn ge_f64_lt_works() -> Result<(),Error>{
+        relop_f64_works!(0,1.0,2.0,Instruction::F64Ge)
     }
 
 
