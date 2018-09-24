@@ -275,6 +275,18 @@ impl Builder {
     pub fn build_store(&self,value:&Value,ptr:&Value)->&Value{
         unsafe{LLVMBuildStore(self.into(),value.into(),ptr.into()).into()}
     }
+
+    pub fn build_srem(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildSRem(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_urem(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildURem(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
 }
 impl Disposable for Builder{
     fn dispose(&mut self) {

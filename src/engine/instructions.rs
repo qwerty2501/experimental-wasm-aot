@@ -203,7 +203,13 @@ fn copysign_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:S
     binop(build_context,stack,|lhs,rhs,name| build_call_and_set_copysign(build_context.module(), build_context.builder(), lhs, rhs, name))
 }
 
+fn rem_sint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name|build_context.builder().build_srem(lhs,rhs,name))
+}
 
+fn rem_uint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name|build_context.builder().build_urem(lhs,rhs,name))
+}
 
 
 fn binop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_binop:F) ->Result<Stack<'a,T>,Error>{
@@ -366,6 +372,11 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64DivU => div_uint(build_context,stack),
         Instruction::F32Div => div_float(build_context,stack),
         Instruction::F64Div => div_float(build_context,stack),
+
+        Instruction::I32RemS => rem_sint(build_context,stack),
+        Instruction::I32RemU => rem_uint(build_context,stack),
+        Instruction::I64RemS => rem_sint(build_context,stack),
+        Instruction::I64RemU => rem_uint(build_context,stack),
 
         Instruction::F32Min => min_float32(build_context,stack),
         Instruction::F64Min => min_float64(build_context,stack),
@@ -1314,6 +1325,43 @@ mod tests{
     pub fn copysign_float64_not_copy_works()->Result<(),Error>{
         binop_f64_works!(2.0,2.0,1.0,Instruction::F64Copysign)
     }
+
+
+
+    #[test]
+    pub fn rem_sint32_1_works()->Result<(),Error>{
+        binop_s32_works!(0,9,3,Instruction::I32RemS)
+    }
+
+    #[test]
+    pub fn rem_sint32_2_works()->Result<(),Error>{
+        binop_s32_works!(1,4,3,Instruction::I32RemS)
+    }
+
+
+    #[test]
+    pub fn rem_sint32_3_works()->Result<(),Error>{
+        binop_s32_works!(-1_i32,-1_i32,3,Instruction::I32RemS)
+    }
+
+
+    #[test]
+    pub fn rem_uint32_1_works()->Result<(),Error>{
+        binop_u32_works!(0,9,3,Instruction::I32RemU)
+    }
+
+    #[test]
+    pub fn rem_uint32_2_works()->Result<(),Error>{
+        binop_u32_works!(1,4,3,Instruction::I32RemU)
+    }
+
+
+    #[test]
+    pub fn rem_uint32_3_works()->Result<(),Error>{
+        binop_u32_works!(0,-1_i32 as u32,3,Instruction::I32RemU)
+    }
+
+
 
 
 

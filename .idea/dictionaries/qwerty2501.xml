@@ -37,8 +37,10 @@
       <w>sdiv</w>
       <w>sint</w>
       <w>splitted</w>
+      <w>srem</w>
       <w>udiv</w>
       <w>uint</w>
+      <w>urem</w>
       <w>wasm</w>
       <w>zext</w>
     </words>
