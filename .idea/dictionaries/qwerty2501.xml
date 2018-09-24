@@ -36,6 +36,8 @@
       <w>prot</w>
       <w>reloc</w>
       <w>relop</w>
+      <w>rotl</w>
+      <w>rotr</w>
       <w>sdiv</w>
       <w>sint</w>
       <w>splitted</w>

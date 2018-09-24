@@ -235,6 +235,43 @@ fn shr_uint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,
     binop(build_context,stack,|lhs,rhs,name|build_context.builder().build_lshr(lhs,rhs,name))
 }
 
+fn rotl<'a,T:WasmIntType,W:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name|{
+        let bw = bit_width::<W>();
+        let size_type = Type::int(build_context.context(),bw as u32);
+        let mask = Value::const_int(size_type,(bw-1)  as u64,false);
+
+        build_context.builder().build_or(
+            build_context.builder().build_shl(lhs,rhs,""),
+            build_context.builder().build_lshr(lhs,
+                                               build_context.builder().build_and(
+                                                   build_context.builder().build_sub(
+                                                       Value::const_int(size_type,0,false),
+                                                       rhs,""),
+                                                   mask,"")
+                                               ,"" ),
+            name)
+    })
+}
+
+fn rotr<'a,T:WasmIntType,W:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name|{
+        let bw = bit_width::<W>();
+        let size_type = Type::int(build_context.context(),bw as u32);
+        let mask = Value::const_int(size_type,(bw-1)  as u64,false);
+        build_context.builder().build_or(
+            build_context.builder().build_lshr(lhs,rhs,""),
+            build_context.builder().build_shl(lhs,
+                                               build_context.builder().build_and(
+                                                   build_context.builder().build_sub(
+                                                       Value::const_int(size_type,0,false),
+                                                       rhs,""),
+                                                   mask,""),
+                                              "" ),
+        name)
+    })
+}
+
 fn binop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_binop:F) ->Result<Stack<'a,T>,Error>{
     {
         let rhs = stack.values.pop().ok_or(NotExistValue)?;
@@ -418,6 +455,11 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64ShrS => shr_sint(build_context,stack),
         Instruction::I64ShrU => shr_uint(build_context,stack),
 
+        Instruction::I32Rotl => rotl::<T,u32>(build_context,stack),
+        Instruction::I32Rotr => rotr::<T,u32>(build_context,stack),
+        Instruction::I64Rotl => rotl::<T,u64>(build_context,stack),
+        Instruction::I64Rotr => rotr::<T,u64>(build_context,stack),
+
         Instruction::F32Min => min_float32(build_context,stack),
         Instruction::F64Min => min_float64(build_context,stack),
         Instruction::F32Max => max_float32(build_context,stack),
@@ -453,7 +495,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64GtU => gt_uint(build_context,stack),
         Instruction::F32Gt => gt_float(build_context,stack),
         Instruction::F64Gt => gt_float(build_context,stack),
-        
+
         Instruction::I32LeS => le_sint(build_context,stack),
         Instruction::I32LeU => le_uint(build_context,stack),
         Instruction::I64LeS => le_sint(build_context,stack),
@@ -1533,12 +1575,48 @@ mod tests{
     }
 
 
+    #[test]
+    pub fn rotl_u32_works()->Result<(),Error>{
+        binop_u32_works!(4294967295,4294967295,5,Instruction::I32Rotl)
+    }
+
+    #[test]
+    pub fn rotl_u32_max_works()->Result<(),Error>{
+        binop_u32_works!(1,0x80_00_00_00,1,Instruction::I32Rotl)
+    }
+
+    #[test]
+    pub fn rotr_u32_works()->Result<(),Error>{
+        binop_u32_works!(4294967295,4294967295,5,Instruction::I32Rotr)
+    }
+
+    #[test]
+    pub fn rotr_u32_max_works()->Result<(),Error>{
+        binop_u32_works!(0x80_00_00_00,1,1,Instruction::I32Rotr)
+    }
 
 
 
 
+    #[test]
+    pub fn rotl_u64_works()->Result<(),Error>{
+        binop_u64_works!(0xFFFFFFFF_FFFFFFFF,0xFFFFFFFF_FFFFFFFF,5,Instruction::I64Rotl)
+    }
 
+    #[test]
+    pub fn rotl_u64_max_works()->Result<(),Error>{
+        binop_u64_works!(1,0x80000000_00000000,1,Instruction::I64Rotl)
+    }
 
+    #[test]
+    pub fn rotr_u64_works()->Result<(),Error>{
+        binop_u64_works!(0xFFFFFFFF_FFFFFFFF,0xFFFFFFFF_FFFFFFFF,5,Instruction::I64Rotr)
+    }
+
+    #[test]
+    pub fn rotr_u64_max_works()->Result<(),Error>{
+        binop_u64_works!(0x80000000_00000000,1,1,Instruction::I64Rotr)
+    }
 
 
 

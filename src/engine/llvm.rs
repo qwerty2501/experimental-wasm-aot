@@ -324,6 +324,12 @@ impl Builder {
         }
     }
 
+    pub fn build_not(&self,v:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildNot(self.into(),v.into(),compiler_c_str!(name)).into()
+        }
+    }
+
 }
 impl Disposable for Builder{
     fn dispose(&mut self) {
