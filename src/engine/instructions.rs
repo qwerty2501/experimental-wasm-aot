@@ -1363,6 +1363,39 @@ mod tests{
 
 
 
+    #[test]
+    pub fn rem_sint64_1_works()->Result<(),Error>{
+        binop_s64_works!(0,9,3,Instruction::I64RemS)
+    }
+
+    #[test]
+    pub fn rem_sint64_2_works()->Result<(),Error>{
+        binop_s64_works!(1,4,3,Instruction::I64RemS)
+    }
+
+
+    #[test]
+    pub fn rem_sint64_3_works()->Result<(),Error>{
+        binop_s64_works!(-1_i64,-1_i64,3,Instruction::I64RemS)
+    }
+
+
+    #[test]
+    pub fn rem_uint64_1_works()->Result<(),Error>{
+        binop_u64_works!(0,9,3,Instruction::I64RemU)
+    }
+
+    #[test]
+    pub fn rem_uint64_2_works()->Result<(),Error>{
+        binop_u64_works!(1,4,3,Instruction::I64RemU)
+    }
+
+
+    #[test]
+    pub fn rem_uint64_3_works()->Result<(),Error>{
+        binop_u64_works!(0,-1_i64 as u64,3,Instruction::I64RemU)
+    }
+
 
 
 
