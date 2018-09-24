@@ -211,6 +211,29 @@ fn rem_uint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,
     binop(build_context,stack,|lhs,rhs,name|build_context.builder().build_urem(lhs,rhs,name))
 }
 
+fn and<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name|build_context.builder().build_and(lhs,rhs,name))
+}
+
+fn or<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name|build_context.builder().build_or(lhs,rhs,name))
+}
+
+fn xor<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name|build_context.builder().build_xor(lhs,rhs,name))
+}
+
+fn shl<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name|build_context.builder().build_shl(lhs,rhs,name))
+}
+
+fn shr_sint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name|build_context.builder().build_ashr(lhs,rhs,name))
+}
+
+fn shr_uint<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    binop(build_context,stack,|lhs,rhs,name|build_context.builder().build_lshr(lhs,rhs,name))
+}
 
 fn binop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_binop:F) ->Result<Stack<'a,T>,Error>{
     {
@@ -377,6 +400,23 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I32RemU => rem_uint(build_context,stack),
         Instruction::I64RemS => rem_sint(build_context,stack),
         Instruction::I64RemU => rem_uint(build_context,stack),
+
+        Instruction::I32And => and(build_context,stack),
+        Instruction::I64And => and(build_context,stack),
+
+        Instruction::I32Or => and(build_context,stack),
+        Instruction::I64Or => and(build_context,stack),
+
+        Instruction::I32Xor => xor(build_context,stack),
+        Instruction::I64Xor => xor(build_context,stack),
+
+        Instruction::I32Shl => shl(build_context,stack),
+        Instruction::I64Shl => shl(build_context,stack),
+
+        Instruction::I32ShrS => shr_sint(build_context,stack),
+        Instruction::I32ShrU => shr_uint(build_context,stack),
+        Instruction::I64ShrS => shr_sint(build_context,stack),
+        Instruction::I64ShrU => shr_uint(build_context,stack),
 
         Instruction::F32Min => min_float32(build_context,stack),
         Instruction::F64Min => min_float64(build_context,stack),
@@ -1395,6 +1435,103 @@ mod tests{
     pub fn rem_uint64_3_works()->Result<(),Error>{
         binop_u64_works!(0,-1_i64 as u64,3,Instruction::I64RemU)
     }
+
+
+    #[test]
+    pub fn and32_works()->Result<(),Error>{
+        binop_u32_works!(3,-1_i32 as u32,3,Instruction::I32And)
+    }
+
+
+    #[test]
+    pub fn and64_works()->Result<(),Error>{
+        binop_u64_works!(3,-1_i64 as u64,3,Instruction::I64And)
+    }
+
+
+    #[test]
+    pub fn or32_works()->Result<(),Error>{
+        binop_u32_works!(3,-1_i32 as u32,3,Instruction::I32Or)
+    }
+
+
+    #[test]
+    pub fn or64_works()->Result<(),Error>{
+        binop_u64_works!(3,-1_i64 as u64,3,Instruction::I64Or)
+    }
+
+
+    #[test]
+    pub fn xor32_works()->Result<(),Error>{
+        binop_u32_works!(-4_i32 as u32,-1_i32 as u32,3,Instruction::I32Xor)
+    }
+
+
+    #[test]
+    pub fn xor64_works()->Result<(),Error>{
+        binop_u64_works!(-4_i64 as u64,-1_i64 as u64,3,Instruction::I64Xor)
+    }
+
+
+    #[test]
+    pub fn shl32_works()->Result<(),Error>{
+        binop_u32_works!(24,3,3,Instruction::I32Shl)
+    }
+
+
+    #[test]
+    pub fn shl64_works()->Result<(),Error>{
+        binop_u64_works!(24,3,3,Instruction::I64Shl)
+    }
+
+    #[test]
+    pub fn shr_s32_works()->Result<(),Error>{
+        binop_s32_works!(6,24,2,Instruction::I32ShrS)
+    }
+
+    #[test]
+    pub fn shr_s32_sign_works()->Result<(),Error>{
+        binop_s32_works!(-6_i32,-24_i32,2,Instruction::I32ShrS)
+    }
+
+
+
+    #[test]
+    pub fn shr_s64_works()->Result<(),Error>{
+        binop_s64_works!(6,24,2,Instruction::I64ShrS)
+    }
+
+
+    #[test]
+    pub fn shr_s64_sign_works()->Result<(),Error>{
+        binop_s64_works!(-6_i64,-24_i64,2,Instruction::I64ShrS)
+    }
+
+
+
+    #[test]
+    pub fn shr_u32_works()->Result<(),Error>{
+        binop_u32_works!(6,24,2,Instruction::I32ShrU)
+    }
+
+    #[test]
+    pub fn shr_u32_unsigned_works()->Result<(),Error>{
+        binop_u32_works!(1073741823,-1_i32 as u32,2,Instruction::I32ShrU)
+    }
+
+
+
+    #[test]
+    pub fn shr_u64_works()->Result<(),Error>{
+        binop_u64_works!(6,24,2,Instruction::I64ShrU)
+    }
+
+
+    #[test]
+    pub fn shr_u64_unsigned_works()->Result<(),Error>{
+        binop_u64_works!(4611686018427387903,-1_i64 as u64,2,Instruction::I64ShrU)
+    }
+
 
 
 

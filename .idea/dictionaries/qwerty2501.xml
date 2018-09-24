@@ -2,6 +2,7 @@
   <dictionary name="qwerty2501">
     <words>
       <w>addr</w>
+      <w>ashr</w>
       <w>binop</w>
       <w>codegen</w>
       <w>commonization</w>
@@ -26,6 +27,7 @@
       <w>infos</w>
       <w>initializers</w>
       <w>libc</w>
+      <w>lshr</w>
       <w>memcpy</w>
       <w>mmap</w>
       <w>munmap</w>

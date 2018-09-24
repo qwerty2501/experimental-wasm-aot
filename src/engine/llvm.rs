@@ -287,6 +287,43 @@ impl Builder {
             LLVMBuildURem(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
         }
     }
+
+    pub fn build_and(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildAnd(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_or(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildOr(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_xor(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildXor(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_shl(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildShl(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_ashr(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildAShr(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_lshr(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildLShr(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
+        }
+    }
+
 }
 impl Disposable for Builder{
     fn dispose(&mut self) {
