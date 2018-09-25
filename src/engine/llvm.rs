@@ -649,6 +649,15 @@ pub fn build_call_and_set_copysign<'m>(module:&'m Module, builder:&'m Builder, x
     builder.build_call(copysign,&[x,y],name)
 }
 
+pub fn build_call_and_set_ctlz_i32<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let int32_type = Type::int32(context);
+    let int1_type = Type::int1(context);
+    let ctlz_i32_type = Type::function(int32_type,&[int32_type,int1_type],false);
+    let ctlz_i32 = module.set_declare_function("llvm.ctlz.i32",ctlz_i32_type);
+    builder.build_call(ctlz_i32,&[x,Value::const_int(Type::int1(context),0,false)],name)
+}
+
 
 
 

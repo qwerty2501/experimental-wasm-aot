@@ -9,6 +9,7 @@
       <w>commonized</w>
       <w>copysign</w>
       <w>copysignf</w>
+      <w>ctlz</w>
       <w>deref</w>
       <w>dest</w>
       <w>fadd</w>
@@ -44,6 +45,7 @@
       <w>srem</w>
       <w>udiv</w>
       <w>uint</w>
+      <w>unop</w>
       <w>urem</w>
       <w>wasm</w>
       <w>zext</w>

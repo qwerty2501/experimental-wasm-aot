@@ -143,6 +143,19 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
     Ok(stack)
 }
 
+fn clz_int32<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    let module = build_context.module();
+    unop(build_context,stack, |x| build_call_and_set_ctlz_i32(module,build_context.builder(),x,""))
+}
+
+fn unop<'a,T:WasmIntType,F:Fn(&'a Value)->&'a Value>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,on_unop:F)->Result<Stack<'a,T>,Error>{
+    {
+        let x = stack.values.pop().ok_or(NotExistValue)?;
+        stack.values.push(on_unop(x))
+    }
+    Ok(stack)
+}
+
  fn add_int<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>) ->Result<Stack<'a,T>,Error>{
     binop(build_context, stack, |lhs, rhs, name|build_context.builder().build_add(lhs, rhs, name))
 }
@@ -411,6 +424,9 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Load32U(offset,align)=>load(build_context,offset,align,stack),
         Instruction::CurrentMemory(v)=>current_memory(build_context,v,stack),
         Instruction::GrowMemory(v)=>grow_memory(build_context,v,stack),
+
+        Instruction::I32Clz => clz_int32(build_context,stack),
+
         Instruction::I32Add => add_int(build_context, stack),
         Instruction::I64Add => add_int(build_context, stack),
         Instruction::F32Add => add_float(build_context,stack),
@@ -879,6 +895,33 @@ mod tests{
         })
     }
 
+
+    macro_rules! unop_u32_works {
+        ($expected:expr,$x:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("binop_u32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$x as u64,false)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(false) as u32);
+                    Ok(())
+                })
+            }
+        )
+    }
     
 
     macro_rules! binop_u32_works {
@@ -1251,6 +1294,11 @@ mod tests{
                 })
             }
         )
+    }
+
+    #[test]
+    pub fn clz_i32_works()->Result<(),Error>{
+        unop_u32_works!(30,2,Instruction::I32Clz)
     }
 
 
