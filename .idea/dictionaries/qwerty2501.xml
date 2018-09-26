@@ -10,6 +10,7 @@
       <w>copysign</w>
       <w>copysignf</w>
       <w>ctlz</w>
+      <w>cttz</w>
       <w>deref</w>
       <w>dest</w>
       <w>fadd</w>

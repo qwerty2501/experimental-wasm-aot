@@ -144,8 +144,19 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
 }
 
 fn clz_int32<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    let module = build_context.module();
-    unop(build_context,stack, |x| build_call_and_set_ctlz_i32(module,build_context.builder(),x,""))
+    unop(build_context,stack, |x| build_call_and_set_ctlz_i32(build_context.module(),build_context.builder(),x,""))
+}
+
+fn ctz_int32<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_cttz_i32(build_context.module(),build_context.builder(),x,""))
+}
+
+fn clz_int64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_ctlz_i64(build_context.module(),build_context.builder(),x,""))
+}
+
+fn ctz_int64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_cttz_i64(build_context.module(),build_context.builder(),x,""))
 }
 
 fn unop<'a,T:WasmIntType,F:Fn(&'a Value)->&'a Value>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,on_unop:F)->Result<Stack<'a,T>,Error>{
@@ -426,6 +437,9 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::GrowMemory(v)=>grow_memory(build_context,v,stack),
 
         Instruction::I32Clz => clz_int32(build_context,stack),
+        Instruction::I32Ctz => ctz_int32(build_context,stack),
+        Instruction::I64Clz => clz_int64(build_context,stack),
+        Instruction::I64Ctz => ctz_int64(build_context,stack),
 
         Instruction::I32Add => add_int(build_context, stack),
         Instruction::I64Add => add_int(build_context, stack),
@@ -900,11 +914,11 @@ mod tests{
         ($expected:expr,$x:expr,$instruction:expr) => (
             {
                 let context = Context::new();
-                let build_context = BuildContext::new("binop_u32_works",&context);
+                let build_context = BuildContext::new("unop_u32_works",&context);
                 let (ft,lt) = new_compilers();
                 let test_function_name = "test_function";
 
-                build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$x as u64,false)],
+                build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$x as u64,false)],
                                                 vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
@@ -922,7 +936,88 @@ mod tests{
             }
         )
     }
-    
+
+    macro_rules! unop_s32_works {
+        ($expected:expr,$x:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("unop_s32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$x as u64,true)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(true) as i32);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+    macro_rules! unop_u64_works {
+        ($expected:expr,$x:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("unop_u64_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()),$x as u64,false)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(false) as u64);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+
+    macro_rules! unop_s64_works {
+        ($expected:expr,$x:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("unop_s64_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()),$x as u64,true)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_int(true) as u64);
+                    Ok(())
+                })
+            }
+        )
+    }
 
     macro_rules! binop_u32_works {
         ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
@@ -1301,6 +1396,20 @@ mod tests{
         unop_u32_works!(30,2,Instruction::I32Clz)
     }
 
+    #[test]
+    pub fn ctz_i32_works()->Result<(),Error>{
+        unop_u32_works!(1,2,Instruction::I32Ctz)
+    }
+
+    #[test]
+    pub fn clz_i64_works()->Result<(),Error>{
+        unop_u64_works!(62,2,Instruction::I64Clz)
+    }
+
+    #[test]
+    pub fn ctz_i64_works()->Result<(),Error>{
+        unop_u64_works!(1,2,Instruction::I64Ctz)
+    }
 
 
     #[test]
