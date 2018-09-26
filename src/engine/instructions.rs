@@ -159,6 +159,14 @@ fn ctz_int64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)
     unop(build_context,stack,|x| build_call_and_set_cttz_i64(build_context.module(),build_context.builder(),x,""))
 }
 
+fn popcnt_int32<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_ctpop_i32(build_context.module(),build_context.builder(),x,""))
+}
+
+fn popcnt_int64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_ctpop_i64(build_context.module(),build_context.builder(),x,""))
+}
+
 fn unop<'a,T:WasmIntType,F:Fn(&'a Value)->&'a Value>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,on_unop:F)->Result<Stack<'a,T>,Error>{
     {
         let x = stack.values.pop().ok_or(NotExistValue)?;
@@ -440,6 +448,9 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I32Ctz => ctz_int32(build_context,stack),
         Instruction::I64Clz => clz_int64(build_context,stack),
         Instruction::I64Ctz => ctz_int64(build_context,stack),
+
+        Instruction::I32Popcnt => popcnt_int32(build_context,stack),
+        Instruction::I64Popcnt => popcnt_int64(build_context,stack),
 
         Instruction::I32Add => add_int(build_context, stack),
         Instruction::I64Add => add_int(build_context, stack),
@@ -1409,6 +1420,16 @@ mod tests{
     #[test]
     pub fn ctz_i64_works()->Result<(),Error>{
         unop_u64_works!(1,2,Instruction::I64Ctz)
+    }
+
+    #[test]
+    pub fn popcnt_i32_works()->Result<(),Error>{
+        unop_u32_works!(16,0xFF_00_FF_00,Instruction::I32Popcnt)
+    }
+
+    #[test]
+    pub fn popcnt_i64_works()->Result<(),Error>{
+        unop_u64_works!(32,0xFF_00_FF_00_FF_00_FF_00,Instruction::I64Popcnt)
     }
 
 

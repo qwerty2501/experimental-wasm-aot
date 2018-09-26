@@ -10,6 +10,7 @@
       <w>copysign</w>
       <w>copysignf</w>
       <w>ctlz</w>
+      <w>ctpop</w>
       <w>cttz</w>
       <w>deref</w>
       <w>dest</w>
@@ -35,6 +36,7 @@
       <w>munmap</w>
       <w>nameof</w>
       <w>opcode</w>
+      <w>popcnt</w>
       <w>prot</w>
       <w>reloc</w>
       <w>relop</w>

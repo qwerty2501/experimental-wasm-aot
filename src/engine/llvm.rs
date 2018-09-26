@@ -685,6 +685,23 @@ pub fn build_call_and_set_cttz_i64<'m>(module:&'m Module,builder:&'m Builder,x:&
     builder.build_call(cttz_i64,&[x,Value::const_int(int1_type,0,false)],name)
 }
 
+pub fn build_call_and_set_ctpop_i32<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let int32_type = Type::int32(context);
+    let ctpop_i32_type = Type::function(int32_type,&[int32_type],false);
+    let ctpop_i32 = module.set_declare_function("llvm.ctpop.i32",ctpop_i32_type);
+    builder.build_call(ctpop_i32,&[x],name)
+}
+
+pub fn build_call_and_set_ctpop_i64<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let int64_type = Type::int64(context);
+    let ctpop_i64_type = Type::function(int64_type,&[int64_type],false);
+    let ctpop_i64 = module.set_declare_function("llvm.ctpop.i64",ctpop_i64_type);
+    builder.build_call(ctpop_i64,&[x],name)
+}
+
+
 pub trait Disposable{
     fn dispose(&mut self);
 }
