@@ -14,6 +14,7 @@
       <w>cttz</w>
       <w>deref</w>
       <w>dest</w>
+      <w>fabs</w>
       <w>fadd</w>
       <w>fcmp</w>
       <w>fdiv</w>
@@ -24,6 +25,7 @@
       <w>fminf</w>
       <w>fminl</w>
       <w>fmul</w>
+      <w>fneg</w>
       <w>fsub</w>
       <w>growable</w>
       <w>icmp</w>
@@ -35,6 +37,7 @@
       <w>mmap</w>
       <w>munmap</w>
       <w>nameof</w>
+      <w>nearbyint</w>
       <w>opcode</w>
       <w>popcnt</w>
       <w>prot</w>
@@ -45,7 +48,9 @@
       <w>sdiv</w>
       <w>sint</w>
       <w>splitted</w>
+      <w>sqrt</w>
       <w>srem</w>
+      <w>trunc</w>
       <w>udiv</w>
       <w>uint</w>
       <w>unop</w>

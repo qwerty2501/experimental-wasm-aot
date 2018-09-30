@@ -141,6 +141,17 @@ impl Builder {
         BuilderGuard::new(unsafe{LLVMCreateBuilderInContext(context.into()).into()})
     }
 
+    pub fn build_fneg(&self,v:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildFNeg(self.into(),v.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_neg(&self,v:&Value,name:&str)->&Value{
+        unsafe{
+            LLVMBuildNeg(self.into(),v.into(),compiler_c_str!(name)).into()
+        }
+    }
     pub fn position_builder_at_end(&self,bb:&BasicBlock){
         unsafe{LLVMPositionBuilderAtEnd(self.into(),bb.into())}
     }
@@ -700,6 +711,108 @@ pub fn build_call_and_set_ctpop_i64<'m>(module:&'m Module,builder:&'m Builder,x:
     let ctpop_i64 = module.set_declare_function("llvm.ctpop.i64",ctpop_i64_type);
     builder.build_call(ctpop_i64,&[x],name)
 }
+
+pub fn build_call_and_set_fabs_f32<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float32_type = Type::float32(context);
+    let fabs_f32_type = Type::function(float32_type,&[float32_type],false);
+    let fabs_f32 = module.set_declare_function("llvm.fabs.f32",fabs_f32_type);
+    builder.build_call(fabs_f32,&[x],name)
+}
+
+pub fn build_call_and_set_fabs_f64<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float64_type = Type::float64(context);
+    let fabs_f64_type = Type::function(float64_type,&[float64_type],false);
+    let fabs_f64 = module.set_declare_function("llvm.fabs.f64",fabs_f64_type);
+    builder.build_call(fabs_f64,&[x],name)
+}
+
+pub fn build_call_and_set_sqrt_f32<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float32_type = Type::float32(context);
+    let sqrt_f32_type = Type::function(float32_type,&[float32_type],false);
+    let sqrt_f32 = module.set_declare_function("llvm.sqrt.f32",sqrt_f32_type);
+    builder.build_call(sqrt_f32,&[x],name)
+}
+
+
+pub fn build_call_and_set_sqrt_f64<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float64_type = Type::float64(context);
+    let sqrt_f64_type = Type::function(float64_type,&[float64_type],false);
+    let sqrt_f64 = module.set_declare_function("llvm.sqrt.f64",sqrt_f64_type);
+    builder.build_call(sqrt_f64,&[x],name)
+}
+
+pub fn build_call_and_set_ceil_f32<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float32_type = Type::float32(context);
+    let ceil_f32_type = Type::function(float32_type,&[float32_type],false);
+    let ceil_f32 = module.set_declare_function("llvm.ceil.f32",ceil_f32_type);
+    builder.build_call(ceil_f32,&[x],name)
+}
+
+
+pub fn build_call_and_set_ceil_f64<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float64_type = Type::float64(context);
+    let ceil_f64_type = Type::function(float64_type,&[float64_type],false);
+    let ceil_f64 = module.set_declare_function("llvm.ceil.f64",ceil_f64_type);
+    builder.build_call(ceil_f64,&[x],name)
+}
+
+pub fn build_call_and_set_floor_f32<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float32_type = Type::float32(context);
+    let floor_f32_type = Type::function(float32_type,&[float32_type],false);
+    let floor_f32 = module.set_declare_function("llvm.floor.f32",floor_f32_type);
+    builder.build_call(floor_f32,&[x],name)
+}
+
+
+pub fn build_call_and_set_floor_f64<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float64_type = Type::float64(context);
+    let floor_f64_type = Type::function(float64_type,&[float64_type],false);
+    let floor_f64 = module.set_declare_function("llvm.floor.f64",floor_f64_type);
+    builder.build_call(floor_f64,&[x],name)
+}
+
+pub fn build_call_and_set_trunc_f32<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float32_type = Type::float32(context);
+    let trunc_f32_type = Type::function(float32_type,&[float32_type],false);
+    let trunc_f32 = module.set_declare_function("llvm.trunc.f32",trunc_f32_type);
+    builder.build_call(trunc_f32,&[x],name)
+}
+
+
+pub fn build_call_and_set_trunc_f64<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float64_type = Type::float64(context);
+    let trunc_f64_type = Type::function(float64_type,&[float64_type],false);
+    let trunc_f64 = module.set_declare_function("llvm.trunc.f64",trunc_f64_type);
+    builder.build_call(trunc_f64,&[x],name)
+}
+
+pub fn build_call_and_set_nearbyint_f32<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float32_type = Type::float32(context);
+    let nearbyint_f32_type = Type::function(float32_type,&[float32_type],false);
+    let nearbyint_f32 = module.set_declare_function("llvm.nearbyint.f32",nearbyint_f32_type);
+    builder.build_call(nearbyint_f32,&[x],name)
+}
+
+
+pub fn build_call_and_set_nearbyint_f64<'m>(module:&'m Module,builder:&'m Builder,x:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let float64_type = Type::float64(context);
+    let nearbyint_f64_type = Type::function(float64_type,&[float64_type],false);
+    let nearbyint_f64 = module.set_declare_function("llvm.nearbyint.f64",nearbyint_f64_type);
+    builder.build_call(nearbyint_f64,&[x],name)
+}
+
 
 
 pub trait Disposable{

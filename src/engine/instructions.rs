@@ -167,6 +167,65 @@ fn popcnt_int64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,
     unop(build_context,stack,|x| build_call_and_set_ctpop_i64(build_context.module(),build_context.builder(),x,""))
 }
 
+fn abs_float32<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_fabs_f32(build_context.module(),build_context.builder(),x,""))
+}
+
+fn abs_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_fabs_f64(build_context.module(),build_context.builder(),x,""))
+}
+
+fn neg_float32<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_context.builder().build_fneg(x,""))
+}
+
+fn neg_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_context.builder().build_fneg(x,""))
+}
+
+
+fn sqrt_float32<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_sqrt_f32(build_context.module(),build_context.builder(),x,""))
+}
+
+fn sqrt_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_sqrt_f64(build_context.module(),build_context.builder(),x,""))
+}
+
+fn ceil_float32<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_ceil_f32(build_context.module(),build_context.builder(),x,""))
+}
+
+fn ceil_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_ceil_f64(build_context.module(),build_context.builder(),x,""))
+}
+
+
+fn floor_float32<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_floor_f32(build_context.module(),build_context.builder(),x,""))
+}
+
+fn floor_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_floor_f64(build_context.module(),build_context.builder(),x,""))
+}
+
+fn trunc_float32<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_trunc_f32(build_context.module(),build_context.builder(),x,""))
+}
+
+fn trunc_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_trunc_f64(build_context.module(),build_context.builder(),x,""))
+}
+
+fn nearest_float32<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_nearbyint_f32(build_context.module(),build_context.builder(),x,""))
+}
+
+fn nearest_float64<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    unop(build_context,stack,|x| build_call_and_set_nearbyint_f64(build_context.module(),build_context.builder(),x,""))
+}
+
+
 fn unop<'a,T:WasmIntType,F:Fn(&'a Value)->&'a Value>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,on_unop:F)->Result<Stack<'a,T>,Error>{
     {
         let x = stack.values.pop().ok_or(NotExistValue)?;
@@ -451,6 +510,27 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
 
         Instruction::I32Popcnt => popcnt_int32(build_context,stack),
         Instruction::I64Popcnt => popcnt_int64(build_context,stack),
+
+        Instruction::F32Abs => abs_float32(build_context,stack),
+        Instruction::F64Abs => abs_float64(build_context,stack),
+
+        Instruction::F32Neg => neg_float32(build_context,stack),
+        Instruction::F64Neg => neg_float64(build_context,stack),
+
+        Instruction::F32Sqrt => sqrt_float32(build_context,stack),
+        Instruction::F64Sqrt => sqrt_float64(build_context,stack),
+
+        Instruction::F32Ceil => ceil_float32(build_context,stack),
+        Instruction::F64Ceil => ceil_float64(build_context,stack),
+
+        Instruction::F32Floor => floor_float32(build_context,stack),
+        Instruction::F64Floor => floor_float64(build_context,stack),
+
+        Instruction::F32Trunc => trunc_float32(build_context,stack),
+        Instruction::F64Trunc => trunc_float64(build_context,stack),
+
+        Instruction::F32Nearest => nearest_float32(build_context,stack),
+        Instruction::F64Nearest => nearest_float64(build_context,stack),
 
         Instruction::I32Add => add_int(build_context, stack),
         Instruction::I64Add => add_int(build_context, stack),
@@ -1030,6 +1110,62 @@ mod tests{
         )
     }
 
+    macro_rules! unop_f32_works {
+        ($expected:expr,$x:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("unop_f32_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),$x as f64)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_float(Type::float32(build_context.context())) as f32);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+    macro_rules! unop_f64_works {
+        ($expected:expr,$x:expr,$instruction:expr) => (
+            {
+                let context = Context::new();
+                let build_context = BuildContext::new("unop_f64_works",&context);
+                let (ft,lt) = new_compilers();
+                let test_function_name = "test_function";
+
+                build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),$x as f64)],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                       &ft,
+                                                                                       &lt)],|stack,_|{
+
+                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
+                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                        Ok(())
+                    })?;
+                test_module_in_engine(build_context.module(),|engine|{
+
+                    let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+                    assert_eq!($expected ,ret.to_float(Type::float64(build_context.context())) as f64);
+                    Ok(())
+                })
+            }
+        )
+    }
+
+
     macro_rules! binop_u32_works {
         ($expected:expr,$lhs:expr,$rhs:expr,$instruction:expr) => (
             {
@@ -1431,6 +1567,126 @@ mod tests{
     pub fn popcnt_i64_works()->Result<(),Error>{
         unop_u64_works!(32,0xFF_00_FF_00_FF_00_FF_00,Instruction::I64Popcnt)
     }
+
+
+    #[test]
+    pub fn abs_f32_negative_works()->Result<(),Error>{
+        unop_f32_works!(3.5,-3.5_f32,Instruction::F32Abs)
+    }
+
+    #[test]
+    pub fn abs_f32_positive_works()->Result<(),Error>{
+        unop_f32_works!(3.5,3.5_f32,Instruction::F32Abs)
+    }
+
+    #[test]
+    pub fn abs_f64_negative_works()->Result<(),Error>{
+        unop_f64_works!(4.402823e+38,-4.402823e+38_f64,Instruction::F64Abs)
+    }
+
+    #[test]
+    pub fn abs_f64_positive_works()->Result<(),Error>{
+        unop_f64_works!(4.402823e+38,4.402823e+38,Instruction::F64Abs)
+    }
+
+    #[test]
+    pub fn neg_f32_works()->Result<(),Error>{
+        unop_f32_works!(-3.5_f32,3.5,Instruction::F32Neg)
+    }
+
+    #[test]
+    pub fn neg_f64_works()->Result<(),Error>{
+        unop_f64_works!(-4.402823e+38_f64,4.402823e+38,Instruction::F64Neg)
+    }
+
+    #[test]
+    pub fn sqrt_f32_works()->Result<(),Error>{
+        unop_f32_works!(1.4142135,2.0,Instruction::F32Sqrt)
+    }
+
+    #[test]
+    pub fn sqrt_f64_works()->Result<(),Error>{
+        unop_f64_works!(1.4142135623730951,2.0,Instruction::F64Sqrt)
+    }
+
+
+    #[test]
+    pub fn ceil_f32_works()->Result<(),Error>{
+        unop_f32_works!(3.0,2.1,Instruction::F32Ceil)
+    }
+
+    #[test]
+    pub fn ceil_f64_works()->Result<(),Error>{
+        unop_f64_works!(3.0,2.1,Instruction::F64Ceil)
+    }
+
+
+    #[test]
+    pub fn floor_f32_works()->Result<(),Error>{
+        unop_f32_works!(2.0,2.9,Instruction::F32Floor)
+    }
+
+    #[test]
+    pub fn floor_f64_works()->Result<(),Error>{
+        unop_f64_works!(2.0,2.9,Instruction::F64Floor)
+    }
+
+    #[test]
+    pub fn floor_f32_negative_works()->Result<(),Error>{
+        unop_f32_works!(-1.0_f32,-0.9_f32,Instruction::F32Floor)
+    }
+
+    #[test]
+    pub fn floor_f64_negative_works()->Result<(),Error>{
+        unop_f64_works!(-1.0_f64,-0.9_f64,Instruction::F64Floor)
+    }
+
+    #[test]
+    pub fn trunc_f32_works()->Result<(),Error>{
+        unop_f32_works!(2.0,2.9,Instruction::F32Trunc)
+    }
+
+    #[test]
+    pub fn trunc_f64_works()->Result<(),Error>{
+        unop_f64_works!(2.0,2.9,Instruction::F64Trunc)
+    }
+
+    #[test]
+    pub fn trunc_f32_negative_works()->Result<(),Error>{
+        unop_f32_works!(-2.0_f32,-2.9_f32,Instruction::F32Trunc)
+    }
+
+    #[test]
+    pub fn trunc_f64_negative_works()->Result<(),Error>{
+        unop_f64_works!(-2.0_f64,-2.9_f64,Instruction::F64Trunc)
+    }
+
+    #[test]
+    pub fn nearest_f32_works()->Result<(),Error>{
+        unop_f32_works!(2.0_f32,2.5_f32,Instruction::F32Nearest)
+    }
+
+    #[test]
+    pub fn nearest_f64_works()->Result<(),Error>{
+        unop_f64_works!(2.0_f64,2.5_f64,Instruction::F64Nearest)
+    }
+
+    #[test]
+    pub fn nearest_f32_odd_works()->Result<(),Error>{
+        unop_f32_works!(4.0_f32,3.5_f32,Instruction::F32Nearest)
+    }
+
+    #[test]
+    pub fn nearest_f64_odd_works()->Result<(),Error>{
+        unop_f64_works!(4.0_f64,3.5_f64,Instruction::F64Nearest)
+    }
+
+
+
+
+
+
+
 
 
     #[test]
