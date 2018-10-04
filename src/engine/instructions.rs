@@ -464,6 +464,27 @@ fn relop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_co
     Ok(stack)
 }
 
+fn wrap_i64_to_i32<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>) -> Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name|{
+        build_context.builder().build_cast(
+            Opcode::LLVMZExt,
+            build_context.builder().build_cast(Opcode::LLVMTrunc,
+                                               x,
+                                               Type::int32(build_context.context()),
+                                               ""),
+                Type::int32(build_context.context()),
+            name)
+    } )
+}
+
+fn cutop<'a,T:WasmIntType,F:Fn(&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_cutop:F) ->Result<Stack<'a,T>,Error>{
+    {
+        let x = stack.values.pop().ok_or(NotExistValue)?;
+        stack.values.push(on_cutop(x,""))
+    }
+    Ok(stack)
+}
+
 pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
@@ -502,7 +523,6 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Load32U(offset,align)=>load(build_context,offset,align,stack),
         Instruction::CurrentMemory(v)=>current_memory(build_context,v,stack),
         Instruction::GrowMemory(v)=>grow_memory(build_context,v,stack),
-
         Instruction::I32Clz => clz_int32(build_context,stack),
         Instruction::I32Ctz => ctz_int32(build_context,stack),
         Instruction::I64Clz => clz_int64(build_context,stack),
@@ -631,6 +651,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::F32Ge => ge_float(build_context,stack),
         Instruction::F64Ge => ge_float(build_context,stack),
 
+        Instruction::I32WrapI64 => wrap_i64_to_i32(build_context,stack),
 
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
@@ -2620,6 +2641,32 @@ mod tests{
         let context = Context::new();
         let build_context = BuildContext::new("f64_value_type_to_type",&context);
         test_value_type_to_type(&build_context,&ValueType::F64,Type::float64(build_context.context()));
+    }
+
+    #[test]
+    pub fn wrap_i64_to_i32_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("wrap_i64_to_i32_works",&context);
+        let expected = 0x0F_FF_FF_FF;
+        let (ft,lt) = new_compilers();
+        let test_function_name = "test_function";
+
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()),0x0F_FF_FF_FF_0F_FF_FF_FF as u64,true)],
+        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                               &ft,
+                                               &lt)],|stack,_|{
+
+            let mut stack = progress_instruction(&build_context,Instruction::I32WrapI64, stack)?;
+            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+            Ok(())
+        })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(true) );
+            Ok(())
+        })
+
     }
 
     fn test_value_type_to_type(build_context:&BuildContext, value_type:&ValueType,expected:&Type){
