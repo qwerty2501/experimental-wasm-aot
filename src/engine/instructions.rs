@@ -477,6 +477,14 @@ fn wrap_i64_to_i32<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:S
     } )
 }
 
+fn extend_u32_to_i64<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>) -> Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_zext(x,Type::int64(build_context.context()),name))
+}
+
+fn extend_s32_to_i64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>) -> Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_sext(x,Type::int64(build_context.context()),name))
+}
+
 fn cutop<'a,T:WasmIntType,F:Fn(&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_cutop:F) ->Result<Stack<'a,T>,Error>{
     {
         let x = stack.values.pop().ok_or(NotExistValue)?;
@@ -650,6 +658,8 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64GeU => ge_uint(build_context,stack),
         Instruction::F32Ge => ge_float(build_context,stack),
         Instruction::F64Ge => ge_float(build_context,stack),
+        Instruction::I64ExtendSI32 => extend_s32_to_i64(build_context,stack),
+        Instruction::I64ExtendUI32 => extend_u32_to_i64(build_context,stack),
 
         Instruction::I32WrapI64 => wrap_i64_to_i32(build_context,stack),
 

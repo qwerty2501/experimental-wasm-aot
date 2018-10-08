@@ -287,6 +287,19 @@ impl Builder {
         unsafe{LLVMBuildStore(self.into(),value.into(),ptr.into()).into()}
     }
 
+    pub fn build_sext(&self,value:&Value,dest_ty:&Type, name:&str)->&Value{
+        unsafe{
+            LLVMBuildSExt(self.into(),value.into(),dest_ty.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_zext(&self,value:&Value,dest_ty:&Type,name:&str)->&Value{
+        unsafe{
+            LLVMBuildZExt(self.into(),value.into(),dest_ty.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+
     pub fn build_srem(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
         unsafe{
             LLVMBuildSRem(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()

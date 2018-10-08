@@ -47,6 +47,7 @@
       <w>rotl</w>
       <w>rotr</w>
       <w>sdiv</w>
+      <w>sext</w>
       <w>sint</w>
       <w>splitted</w>
       <w>sqrt</w>
