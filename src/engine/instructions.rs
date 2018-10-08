@@ -2676,8 +2676,59 @@ mod tests{
             assert_eq!(expected ,ret.to_int(true) );
             Ok(())
         })
-
     }
+
+    #[test]
+    pub fn extend_s32_to_i64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("extend_s32_to_i64_works",&context);
+        let expected = 0xFF_FF_FF_FF_FF_FF_FF_FF;
+        let (ft,lt) = new_compilers();
+        let test_function_name = "extend_u32_to_i64_works";
+
+        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),0xFF_FF_FF_FF as u64,true)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::I64ExtendSI32, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(true) );
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn extend_u32_to_i64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("extend_u32_to_i64_works",&context);
+        let expected = 0xFF_FF_FF_FF;
+        let (ft,lt) = new_compilers();
+        let test_function_name = "extend_u32_to_i64_works";
+
+        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),0xFF_FF_FF_FF as u64,true)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::I64ExtendUI32, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(true) );
+            Ok(())
+        })
+    }
+
 
     fn test_value_type_to_type(build_context:&BuildContext, value_type:&ValueType,expected:&Type){
         let actual = value_type_to_type(build_context,value_type);
@@ -2687,11 +2738,4 @@ mod tests{
         assert_eq!(  expected_ptr,actual_ptr.into());
 
     }
-
-
-
-
-
-
-
 }
