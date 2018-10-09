@@ -465,16 +465,7 @@ fn relop<'a,T:WasmIntType,F:Fn(&'a Value,&'a Value,&'a str)->&'a Value>(build_co
 }
 
 fn wrap_i64_to_i32<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>) -> Result<Stack<'a,T>,Error>{
-    cutop(build_context,stack,|x,name|{
-        build_context.builder().build_cast(
-            Opcode::LLVMZExt,
-            build_context.builder().build_cast(Opcode::LLVMTrunc,
-                                               x,
-                                               Type::int32(build_context.context()),
-                                               ""),
-                Type::int32(build_context.context()),
-            name)
-    } )
+    cutop(build_context,stack,|x,name|build_context.builder().build_trunc(x,Type::int32(build_context.context()),name))
 }
 
 fn extend_u32_to_i64<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>) -> Result<Stack<'a,T>,Error>{
@@ -483,6 +474,23 @@ fn extend_u32_to_i64<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack
 
 fn extend_s32_to_i64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>) -> Result<Stack<'a,T>,Error>{
     cutop(build_context,stack,|x,name| build_context.builder().build_sext(x,Type::int64(build_context.context()),name))
+}
+
+fn trunc_float_to_s32<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)-> Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_fp_to_si(x,Type::int32(build_context.context()),name))
+}
+
+fn trunc_float_to_u32<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_fp_to_ui(x,Type::int32(build_context.context()),name))
+}
+
+fn trunc_float_to_s64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_fp_to_si(x,Type::int64(build_context.context()),name))
+}
+
+
+fn trunc_float_to_u64<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_fp_to_ui(x,Type::int64(build_context.context()),name))
 }
 
 fn cutop<'a,T:WasmIntType,F:Fn(&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_cutop:F) ->Result<Stack<'a,T>,Error>{
@@ -662,6 +670,15 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64ExtendUI32 => extend_u32_to_i64(build_context,stack),
 
         Instruction::I32WrapI64 => wrap_i64_to_i32(build_context,stack),
+
+        Instruction::I32TruncSF32 => trunc_float_to_s32(build_context,stack),
+        Instruction::I32TruncSF64 => trunc_float_to_s32(build_context,stack),
+        Instruction::I32TruncUF32 => trunc_float_to_u32(build_context,stack),
+        Instruction::I32TruncUF64 => trunc_float_to_u32(build_context,stack),
+        Instruction::I64TruncSF32 => trunc_float_to_s64(build_context,stack),
+        Instruction::I64TruncSF64 => trunc_float_to_s64(build_context,stack),
+        Instruction::I64TruncUF32 => trunc_float_to_u64(build_context,stack),
+        Instruction::I64TruncUF64 => trunc_float_to_u64(build_context,stack),
 
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
