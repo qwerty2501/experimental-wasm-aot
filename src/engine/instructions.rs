@@ -2746,6 +2746,203 @@ mod tests{
         })
     }
 
+    #[test]
+    pub fn trunc_f32_to_s32_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("trunc_f32_to_s32_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = -3_i32;
+        let test_function_name = "trunc_f32_to_s32_works";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),-3.5_f32 as f64)],
+        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                               &ft,
+                                               &lt)],|stack,_|{
+
+            let mut stack = progress_instruction(&build_context,Instruction::I32TruncSF32, stack)?;
+            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+            Ok(())
+        })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(true) as i32 );
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn trunc_f32_to_s64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("trunc_f32_to_s64_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = -3_i64;
+        let test_function_name = "trunc_f32_to_s64_works";
+        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),-3.5_f32 as f64)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::I64TruncSF32, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(true) as i64 );
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn trunc_f32_to_u32_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("trunc_f32_to_u32_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected =3;
+        let test_function_name = "trunc_f32_to_u32_works";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),3.5 as f64)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::I32TruncUF32, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false) as u32 );
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn trunc_f32_to_u64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("trunc_f32_to_u64_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "trunc_f32_to_u64_works";
+        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),3.5 as f64)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::I64TruncUF32, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+
+
+    #[test]
+    pub fn trunc_f64_to_s32_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("trunc_f64_to_s32_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = -3_i32;
+        let test_function_name = "trunc_f64_to_s32_works";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),-3.5_f64)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::I32TruncSF64, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(true) as i32  );
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn trunc_f64_to_s64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("trunc_f64_to_s64_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = -3_i64;
+        let test_function_name = "trunc_f64_to_s64_works";
+        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),-3.5_f64)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::I64TruncSF64, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(true) as i64 );
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn trunc_f64_to_u32_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("trunc_f64_to_u32_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected =3;
+        let test_function_name = "trunc_f64_to_u32_works";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),3.5 as f64)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::I32TruncUF64, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false) as u32 );
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn trunc_f64_to_u64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("trunc_f64_to_u64_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "trunc_f64_to_u64_works";
+        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),3.5)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::I64TruncUF64, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+
 
     fn test_value_type_to_type(build_context:&BuildContext, value_type:&ValueType,expected:&Type){
         let actual = value_type_to_type(build_context,value_type);
