@@ -168,6 +168,18 @@ impl Builder {
         }
     }
 
+    pub fn build_fp_ext(&self,value:&Value,dest_ty:&Type,name:&str)->&Value{
+        unsafe{
+            LLVMBuildFPExt(self.into(),value.into(),dest_ty.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_fp_trunc(&self,value:&Value, dest_ty:&Type,name:&str)->&Value{
+        unsafe{
+            LLVMBuildFPTrunc(self.into(),value.into(),dest_ty.into(),compiler_c_str!(name)).into()
+        }
+    }
+
     pub fn build_call(&self,func:&Value,args:&[&Value],name:&str)-> &Value{
         unsafe{
             LLVMBuildCall(self.into(),func.into(),args.as_ptr()  as *mut _,args.len() as u32,compiler_c_str!(name)).into( )

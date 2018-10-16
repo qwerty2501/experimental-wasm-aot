@@ -493,6 +493,15 @@ fn trunc_float_to_u64<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stac
     cutop(build_context,stack,|x,name| build_context.builder().build_fp_to_ui(x,Type::int64(build_context.context()),name))
 }
 
+fn demote_float<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_fp_trunc(x,Type::float32(build_context.context()),name))
+}
+
+fn promote_float<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_fp_ext(x,Type::float64(build_context.context()),name))
+}
+
+
 fn cutop<'a,T:WasmIntType,F:Fn(&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_cutop:F) ->Result<Stack<'a,T>,Error>{
     {
         let x = stack.values.pop().ok_or(NotExistValue)?;
@@ -679,6 +688,9 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64TruncSF64 => trunc_float_to_s64(build_context,stack),
         Instruction::I64TruncUF32 => trunc_float_to_u64(build_context,stack),
         Instruction::I64TruncUF64 => trunc_float_to_u64(build_context,stack),
+
+        Instruction::F32DemoteF64 => demote_float(build_context,stack),
+        Instruction::F64PromoteF32 => promote_float(build_context,stack),
 
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
@@ -2934,13 +2946,61 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
             Ok(())
         })
     }
+
+
+    #[test]
+    pub fn demote_float_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("demote_float_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 5.5;
+        let test_function_name = "demote_float_works";
+        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),5.5)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::F32DemoteF64, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float32(build_context.context())) );
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn promote_float_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("demote_float_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 5.5;
+        let test_function_name = "demote_float_works";
+        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),5.5)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::F64PromoteF32, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())) );
+            Ok(())
+        })
+    }
+
+
 
 
 
