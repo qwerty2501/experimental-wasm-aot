@@ -502,6 +502,23 @@ fn promote_float<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Sta
 }
 
 
+fn convert_sint_to_f32<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_si_to_fp(x,Type::float32(build_context.context()),name))
+}
+
+fn convert_sint_to_f64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_si_to_fp(x,Type::float64(build_context.context()),name))
+}
+
+fn convert_uint_to_f32<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_ui_to_fp(x,Type::float32(build_context.context()),name))
+}
+
+fn convert_uint_to_f64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_ui_to_fp(x,Type::float64(build_context.context()),name))
+}
+
+
 fn cutop<'a,T:WasmIntType,F:Fn(&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_cutop:F) ->Result<Stack<'a,T>,Error>{
     {
         let x = stack.values.pop().ok_or(NotExistValue)?;
@@ -691,6 +708,16 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
 
         Instruction::F32DemoteF64 => demote_float(build_context,stack),
         Instruction::F64PromoteF32 => promote_float(build_context,stack),
+
+        Instruction::F32ConvertSI32 => convert_sint_to_f32(build_context,stack),
+        Instruction::F32ConvertSI64 => convert_sint_to_f32(build_context,stack),
+        Instruction::F32ConvertUI32 => convert_uint_to_f32(build_context,stack),
+        Instruction::F32ConvertUI64 => convert_uint_to_f32(build_context,stack),
+
+        Instruction::F64ConvertSI32 => convert_sint_to_f64(build_context,stack),
+        Instruction::F64ConvertSI64 => convert_sint_to_f64(build_context,stack),
+        Instruction::F64ConvertUI32 => convert_uint_to_f64(build_context,stack),
+        Instruction::F64ConvertUI64 => convert_uint_to_f64(build_context,stack),
 
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
@@ -3001,7 +3028,205 @@ mod tests{
     }
 
 
+    #[test]
+    pub fn convert_s32_to_f32_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_s32_to_f32_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected:f32 = -5.0;
+        let test_function_name = "convert_s32_to_f32_works";
+        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),-5_i32 as u64,true)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
 
+                let mut stack = progress_instruction(&build_context,Instruction::F32ConvertSI32, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float32(build_context.context())) as f32 );
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn convert_s64_to_f32_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_s64_to_f32_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected:f32 = -5.0;
+        let test_function_name = "convert_s64_to_f32_works";
+        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()),-5_i64 as u64,true)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::F32ConvertSI64, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float32(build_context.context())) as f32 );
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn convert_u32_to_f32_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_u32_to_f32_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected:f32 = 5.0;
+        let test_function_name = "convert_u32_to_f32_works";
+        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),5 as u64,false)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::F32ConvertUI32, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float32(build_context.context())) as f32 );
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn convert_u64_to_f32_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_u64_to_f32_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected:f32 = 5.0;
+        let test_function_name = "convert_u64_to_f32_works";
+        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()), 5,false)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::F32ConvertUI64, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float32(build_context.context())) as f32 );
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn convert_s32_to_f64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_s32_to_f64_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected:f64 = -5.0;
+        let test_function_name = "convert_s32_to_f64_works";
+        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),-5_i32 as u64,true)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::F64ConvertSI32, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())) as f64 );
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn convert_s64_to_f64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_s64_to_f64_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected:f64 = -5.0;
+        let test_function_name = "convert_s64_to_f64_works";
+        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()),-5_i64 as u64,true)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::F64ConvertSI64, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())) as f64 );
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn convert_u32_to_f64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_u32_to_f64_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected:f64 = 5.0;
+        let test_function_name = "convert_u32_to_f64_works";
+        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),5 as u64,false)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::F64ConvertUI32, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())) as f64 );
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn convert_u64_to_f64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_u64_to_f64_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected:f64 = 5.0;
+        let test_function_name = "convert_u64_to_f64_works";
+        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()), 5,false)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::F64ConvertUI64, stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())) as f64 );
+            Ok(())
+        })
+    }
+
+
+    
 
 
     fn test_value_type_to_type(build_context:&BuildContext, value_type:&ValueType,expected:&Type){

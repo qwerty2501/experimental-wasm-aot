@@ -168,6 +168,18 @@ impl Builder {
         }
     }
 
+    pub fn build_si_to_fp(&self,value:&Value,dest_ty:&Type,name:&str)->&Value{
+        unsafe{
+            LLVMBuildSIToFP(self.into(),value.into(),dest_ty.into(),compiler_c_str!(name)).into()
+        }
+    }
+
+    pub fn build_ui_to_fp(&self,value:&Value,dest_ty:&Type,name:&str)->&Value{
+        unsafe{
+            LLVMBuildUIToFP(self.into(),value.into(),dest_ty.into(),compiler_c_str!(name)).into()
+        }
+    }
+
     pub fn build_fp_ext(&self,value:&Value,dest_ty:&Type,name:&str)->&Value{
         unsafe{
             LLVMBuildFPExt(self.into(),value.into(),dest_ty.into(),compiler_c_str!(name)).into()
