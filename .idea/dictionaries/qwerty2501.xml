@@ -2,6 +2,7 @@
   <dictionary name="qwerty2501">
     <words>
       <w>addr</w>
+      <w>alloca</w>
       <w>ashr</w>
       <w>binop</w>
       <w>codegen</w>
@@ -41,7 +42,9 @@
       <w>nearbyint</w>
       <w>opcode</w>
       <w>popcnt</w>
+      <w>pret</w>
       <w>prot</w>
+      <w>reinter</w>
       <w>reloc</w>
       <w>relop</w>
       <w>rotl</w>

@@ -518,6 +518,25 @@ fn convert_uint_to_f64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stac
     cutop(build_context,stack,|x,name| build_context.builder().build_ui_to_fp(x,Type::float64(build_context.context()),name))
 }
 
+fn reinter_pret_int_to_f32<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_bit_cast(x,Type::float32(build_context.context()),name))
+}
+
+fn reinter_pret_int_to_f64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name| build_context.builder().build_bit_cast(x,Type::float64(build_context.context()),name))
+}
+
+fn reinter_pret_float_to_i32<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>) -> Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name|build_context.builder().build_bit_cast(x,Type::int32(build_context.context()),name) )
+}
+
+
+fn reinter_pret_float_to_i64<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>) -> Result<Stack<'a,T>,Error>{
+    cutop(build_context,stack,|x,name|build_context.builder().build_bit_cast(x,Type::int64(build_context.context()),name) )
+}
+
+
+
 
 fn cutop<'a,T:WasmIntType,F:Fn(&'a Value,&'a str)->&'a Value>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, on_cutop:F) ->Result<Stack<'a,T>,Error>{
     {
@@ -718,7 +737,10 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::F64ConvertSI64 => convert_sint_to_f64(build_context,stack),
         Instruction::F64ConvertUI32 => convert_uint_to_f64(build_context,stack),
         Instruction::F64ConvertUI64 => convert_uint_to_f64(build_context,stack),
-
+        Instruction::F32ReinterpretI32 =>reinter_pret_int_to_f32(build_context,stack),
+        Instruction::F64ReinterpretI64 => reinter_pret_int_to_f64(build_context,stack),
+        Instruction::I32ReinterpretF32 => reinter_pret_float_to_i32(build_context,stack),
+        Instruction::I64ReinterpretF64 => reinter_pret_float_to_i64(build_context,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }
@@ -3226,7 +3248,108 @@ mod tests{
     }
 
 
-    
+    #[test]
+    pub fn convert_i32_to_f32_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_i32_to_f32_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 65535;
+        let test_function_name = "convert_i32_to_f32_works";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()), expected,false)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::F32ReinterpretI32, stack)?;
+                let ret = stack.values.pop().ok_or(NotExistValue)?;
+                let ret = build_context.builder().build_bit_cast(ret,Type::int32(build_context.context()),"");
+                build_context.builder().build_ret(ret);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn convert_i64_to_f64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_i64_to_f64_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 65535;
+        let test_function_name = "convert_i64_to_f64_works";
+        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()), expected,false)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::F64ReinterpretI64, stack)?;
+                let ret = stack.values.pop().ok_or(NotExistValue)?;
+                let ret = build_context.builder().build_bit_cast(ret,Type::int64(build_context.context()),"");
+                build_context.builder().build_ret(ret);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn convert_f32_to_i32_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_f32_to_i32_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 5.0;
+        let test_function_name = "convert_f32_to_i32_works";
+        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),expected )],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::I32ReinterpretF32, stack)?;
+                let ret = stack.values.pop().ok_or(NotExistValue)?;
+                let ret = build_context.builder().build_bit_cast(ret,Type::float32(build_context.context()),"");
+                build_context.builder().build_ret(ret);
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float32(build_context.context())));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn convert_f64_to_i64_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("convert_f64_to_i64_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 5.0;
+        let test_function_name = "convert_f64_to_i64_works";
+        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()), expected)],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let mut stack = progress_instruction(&build_context,Instruction::I64ReinterpretF64, stack)?;
+                let ret = stack.values.pop().ok_or(NotExistValue)?;
+                let ret = build_context.builder().build_bit_cast(ret,Type::float64(build_context.context()),"");
+                build_context.builder().build_ret(ret);
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())));
+            Ok(())
+        })
+    }
+
 
 
     fn test_value_type_to_type(build_context:&BuildContext, value_type:&ValueType,expected:&Type){
