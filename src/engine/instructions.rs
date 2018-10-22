@@ -87,7 +87,7 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
     Ok(stack)
 }
 
- fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,align:u32,offset:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
 
         let current_frame = stack.activations.current_mut()?;
@@ -103,7 +103,7 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
 
 }
 
- fn load<'a,T:WasmIntType>(build_context:&'a BuildContext,offset:u32,align:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn load<'a,T:WasmIntType>(build_context:&'a BuildContext,align:u32,offset:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
         build_check_memory_size_const(build_context,0,offset,stack.current_function,current_frame.module_instance.linear_memory_compiler);
@@ -561,27 +561,27 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::GetLocal(index)=>get_local(build_context, index,stack),
         Instruction::SetLocal(index)=>set_local(build_context,index,stack),
         Instruction::TeeLocal(index)=>tee_local(build_context,index,stack),
-        Instruction::F32Store(offset,align)=>store(build_context,offset,align,stack),
-        Instruction::F64Store(offset,align)=>store(build_context,offset,align,stack),
-        Instruction::I32Store(offset,align)=>store(build_context,offset,align,stack),
-        Instruction::I64Store(offset,align)=>store(build_context,offset,align,stack),
-        Instruction::I32Store8(offset,align)=>store(build_context,offset,align,stack),
-        Instruction::I32Store16(offset,align)=>store(build_context,offset,align,stack),
-        Instruction::I64Store8(offset,align)=>store(build_context,offset,align,stack),
-        Instruction::I64Store16(offset,align)=>store(build_context,offset,align,stack),
-        Instruction::I64Store32(offset,align)=>store(build_context,offset,align,stack),
-        Instruction::I32Load8S(offset,align)=>load(build_context,offset,align,stack),
-        Instruction::I32Load8U(offset,align)=>load(build_context,offset,align,stack),
-        Instruction::I32Load16S(offset,align)=>load(build_context,offset,align,stack),
-        Instruction::I32Load16U(offset,align)=>load(build_context,offset,align,stack),
-        Instruction::I32Load(offset,align)=>load(build_context,offset,align,stack),
-        Instruction::I64Load(offset,align)=>load(build_context,offset,align,stack),
-        Instruction::I64Load8S(offset,align)=>load(build_context,offset,align,stack),
-        Instruction::I64Load8U(offset,align)=>load(build_context,offset,align,stack),
-        Instruction::I64Load16S(offset,align)=>load(build_context,offset,align,stack),
-        Instruction::I64Load16U(offset,align)=>load(build_context,offset,align,stack),
-        Instruction::I64Load32S(offset,align)=>load(build_context,offset,align,stack),
-        Instruction::I64Load32U(offset,align)=>load(build_context,offset,align,stack),
+        Instruction::F32Store(align,offset)=>store(build_context,align,offset,stack),
+        Instruction::F64Store(align,offset)=>store(build_context,align,offset,stack),
+        Instruction::I32Store(align,offset)=>store(build_context,align,offset,stack),
+        Instruction::I64Store(align,offset)=>store(build_context,align,offset,stack),
+        Instruction::I32Store8(align,offset)=>store(build_context,align,offset,stack),
+        Instruction::I32Store16(align,offset)=>store(build_context,align,offset,stack),
+        Instruction::I64Store8(align,offset)=>store(build_context,align,offset,stack),
+        Instruction::I64Store16(align,offset)=>store(build_context,align,offset,stack),
+        Instruction::I64Store32(align,offset)=>store(build_context,align,offset,stack),
+        Instruction::I32Load8S(align,offset)=>load(build_context,align,offset,stack),
+        Instruction::I32Load8U(align,offset)=>load(build_context,align,offset,stack),
+        Instruction::I32Load16S(align,offset)=>load(build_context,align,offset,stack),
+        Instruction::I32Load16U(align,offset)=>load(build_context,align,offset,stack),
+        Instruction::I32Load(align,offset)=>load(build_context,align,offset,stack),
+        Instruction::I64Load(align,offset)=>load(build_context,align,offset,stack),
+        Instruction::I64Load8S(align,offset)=>load(build_context,align,offset,stack),
+        Instruction::I64Load8U(align,offset)=>load(build_context,align,offset,stack),
+        Instruction::I64Load16S(align,offset)=>load(build_context,align,offset,stack),
+        Instruction::I64Load16U(align,offset)=>load(build_context,align,offset,stack),
+        Instruction::I64Load32S(align,offset)=>load(build_context,align,offset,stack),
+        Instruction::I64Load32U(align,offset)=>load(build_context,align,offset,stack),
         Instruction::CurrentMemory(v)=>current_memory(build_context,v,stack),
         Instruction::GrowMemory(v)=>grow_memory(build_context,v,stack),
         Instruction::I32Clz => clz_int32(build_context,stack),
@@ -976,8 +976,8 @@ mod tests{
                                                                                                                                                                                                   &ft,
                                                                                                                                                                                                   &lt)],
                                         |stack,bb|{
-            let mut stack = store(&build_context,500,4,stack)?;
-            let mut stack = load(&build_context,500,4,stack)?;
+            let mut stack = store(&build_context,4,500,stack)?;
+            let mut stack = load(&build_context,4,500,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
             Ok(())
         })?;
