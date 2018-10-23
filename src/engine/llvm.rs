@@ -152,6 +152,7 @@ impl Builder {
             LLVMBuildNeg(self.into(),v.into(),compiler_c_str!(name)).into()
         }
     }
+
     pub fn position_builder_at_end(&self,bb:&BasicBlock){
         unsafe{LLVMPositionBuilderAtEnd(self.into(),bb.into())}
     }
@@ -473,6 +474,12 @@ impl  Value{
     pub fn set_global_const(&self,is_constant:bool){
         unsafe{
             LLVMSetGlobalConstant(self.into(),is_constant as LLVMBool)
+        }
+    }
+
+    pub fn set_alignment(&self,align:u32){
+        unsafe{
+            LLVMSetAlignment(self.into(),align)
         }
     }
 
