@@ -24,7 +24,7 @@ pub fn build_test_instruction_function<'a,T:WasmIntType, F:Fn(Stack<T>,&BasicBlo
 #[cfg(test)]
 pub fn build_test_instruction_function_with_type<'a,T:WasmIntType, F:Fn(Stack<T>,&BasicBlock)->Result<(),Error>>(build_context:&'a BuildContext, ret_type:&'a Type, function_name:&str, values:Vec<&'a Value>, activations:Vec<Frame<'a,T>>, on_build:F) ->Result<(),Error>{
     let test_function = build_context.module().set_declare_function(function_name,Type::function(ret_type,&[],false));
-    let stack = Stack::<T>::new(test_function,values,activations);
+    let stack = Stack::<T>::new(test_function,vec![],values,activations);
     build_context.builder().build_function(build_context.context(),test_function,|builder,bb| {
         on_build(stack,bb)
     })

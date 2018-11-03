@@ -885,7 +885,7 @@ mod tests{
         build_test_instruction_function(&build_context, test_function_name, vec![], vec![
 
             frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), expected as u64, false))],
-                                              &[], &[], vec![],
+                                              &[], &[],
                                               &ft,
                                               &lt)
         ], |stack,bb|{
@@ -910,7 +910,7 @@ mod tests{
         let (ft,lt) = new_compilers();
         build_test_instruction_function(&build_context, test_function_name, vec![Value::const_int(Type::int32(build_context.context()), expected, false)], vec![
             frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
-                                              &[], &[], vec![],
+                                              &[], &[],
                                               &ft,&lt)], |stack,bb|{
             let stack = set_local(&build_context,0,stack)?;
             let mut stack = get_local(&build_context,0,stack)?;
@@ -935,7 +935,7 @@ mod tests{
         build_test_instruction_function(&build_context, test_function_name, vec![Value::const_int(Type::int32(build_context.context()), expected, false)], vec![
 
             frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
-                                              &[], &[], vec![],
+                                              &[], &[],
                                               &ft,
                                               &lt)
         ], |stack,bb|{
@@ -959,7 +959,7 @@ mod tests{
         let expected = 3000;
         let (ft,lt) = new_compilers();
         let test_function_name = "test_function";
-        build_test_instruction_function(&build_context, test_function_name, vec![Value::const_int(Type::int32(build_context.context()), expected, false)], vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+        build_test_instruction_function(&build_context, test_function_name, vec![Value::const_int(Type::int32(build_context.context()), expected, false)], vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                                                                                                                                   &ft,
                                                                                                                                                                                                   &lt)],
                                         |stack,bb|{
@@ -997,7 +997,7 @@ mod tests{
         let expected = 17;
         lt.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(expected, None)])?;
         let test_function_name = "test_function";
-        build_test_instruction_function(&build_context, test_function_name, vec![], vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+        build_test_instruction_function(&build_context, test_function_name, vec![], vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                                                            &ft,
                                                                                                                            &lt)],
                                         |stack,bb|{
@@ -1034,7 +1034,7 @@ mod tests{
         lt.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(expected_ret, None)])?;
         let test_function_name = "test_function";
         build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),1,false)],
-                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                &ft,
                                                                                &lt)],|stack,bb|{
 
@@ -1070,7 +1070,7 @@ mod tests{
         lt.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(expected, Some(20))])?;
         let test_function_name = "test_function";
         build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),4,false)],
-                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                &ft,
                                                                                &lt)],|stack,bb|{
 
@@ -1106,7 +1106,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$x as u64,false)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1160,7 +1160,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()),$x as u64,false)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1215,7 +1215,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),$x as f64)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1243,7 +1243,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),$x as f64)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1271,7 +1271,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$lhs as u64,false),Value::const_int(Type::int32(build_context.context()),$rhs as u64,false)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1299,7 +1299,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name,vec![Value::const_int(Type::int64(build_context.context()),$lhs as u64,false),Value::const_int(Type::int64(build_context.context()),$rhs as u64,false)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1360,7 +1360,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name,vec![Value::const_int(Type::int64(build_context.context()),$lhs as u64,true),Value::const_int(Type::int64(build_context.context()),$rhs as u64,true)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1389,7 +1389,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()),test_function_name,vec![Value::const_real(Type::float32(build_context.context()),$lhs as f64),Value::const_real(Type::float32(build_context.context()),$rhs as f64)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1417,7 +1417,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()),test_function_name,vec![Value::const_real(Type::float64(build_context.context()),$lhs as f64),Value::const_real(Type::float64(build_context.context()),$rhs as f64)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1446,7 +1446,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$lhs as u64,true),Value::const_int(Type::int32(build_context.context()),$rhs as u64,true)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1475,7 +1475,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$lhs as u64,false),Value::const_int(Type::int32(build_context.context()),$rhs as u64,false)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1502,7 +1502,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int32(build_context.context()),$lhs as u64,true),Value::const_int(Type::int32(build_context.context()),$rhs as u64,true)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1530,7 +1530,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int64(build_context.context()),$lhs as u64,false),Value::const_int(Type::int64(build_context.context()),$rhs as u64,false)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1558,7 +1558,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![Value::const_int(Type::int64(build_context.context()),$lhs as u64,true),Value::const_int(Type::int64(build_context.context()),$rhs as u64,true)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1587,7 +1587,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![Value::const_real(Type::float32(build_context.context()),$lhs as f64),Value::const_real(Type::float32(build_context.context()),$rhs as f64)],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1615,7 +1615,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![Value::const_real(Type::float64(build_context.context()),$lhs ),Value::const_real(Type::float64(build_context.context()),$rhs )],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -2727,7 +2727,7 @@ mod tests{
         let test_function_name = "test_function";
 
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()),0x0F_FF_FF_FF_0F_FF_FF_FF as u64,true)],
-        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+        vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                &ft,
                                                &lt)],|stack,_|{
 
@@ -2735,7 +2735,7 @@ mod tests{
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
             Ok(())
         })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(true) );
@@ -2752,7 +2752,7 @@ mod tests{
         let test_function_name = "extend_u32_to_i64_works";
 
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),0xFF_FF_FF_FF as u64,true)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2760,7 +2760,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(true) );
@@ -2778,7 +2778,7 @@ mod tests{
         let test_function_name = "extend_u32_to_i64_works";
 
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),0xFF_FF_FF_FF as u64,true)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2786,7 +2786,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(true) );
@@ -2802,7 +2802,7 @@ mod tests{
         let expected = -3_i32;
         let test_function_name = "trunc_f32_to_s32_works";
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),-3.5_f32 as f64)],
-        vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+        vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                &ft,
                                                &lt)],|stack,_|{
 
@@ -2810,7 +2810,7 @@ mod tests{
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
             Ok(())
         })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(true) as i32 );
@@ -2826,7 +2826,7 @@ mod tests{
         let expected = -3_i64;
         let test_function_name = "trunc_f32_to_s64_works";
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),-3.5_f32 as f64)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2834,7 +2834,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(true) as i64 );
@@ -2851,7 +2851,7 @@ mod tests{
         let expected =3;
         let test_function_name = "trunc_f32_to_u32_works";
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),3.5 as f64)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2859,7 +2859,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false) as u32 );
@@ -2875,7 +2875,7 @@ mod tests{
         let expected = 3;
         let test_function_name = "trunc_f32_to_u64_works";
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),3.5 as f64)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2883,7 +2883,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
@@ -2901,7 +2901,7 @@ mod tests{
         let expected = -3_i32;
         let test_function_name = "trunc_f64_to_s32_works";
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),-3.5_f64)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2909,7 +2909,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(true) as i32  );
@@ -2925,7 +2925,7 @@ mod tests{
         let expected = -3_i64;
         let test_function_name = "trunc_f64_to_s64_works";
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),-3.5_f64)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2933,7 +2933,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(true) as i64 );
@@ -2950,7 +2950,7 @@ mod tests{
         let expected =3;
         let test_function_name = "trunc_f64_to_u32_works";
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),3.5 as f64)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2958,7 +2958,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false) as u32 );
@@ -2974,7 +2974,7 @@ mod tests{
         let expected = 3;
         let test_function_name = "trunc_f64_to_u64_works";
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),3.5)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2998,7 +2998,7 @@ mod tests{
         let expected = 5.5;
         let test_function_name = "demote_float_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()),5.5)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3021,7 +3021,7 @@ mod tests{
         let expected = 5.5;
         let test_function_name = "demote_float_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),5.5)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3045,7 +3045,7 @@ mod tests{
         let expected:f32 = -5.0;
         let test_function_name = "convert_s32_to_f32_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),-5_i32 as u64,true)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3053,7 +3053,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_float(Type::float32(build_context.context())) as f32 );
@@ -3070,7 +3070,7 @@ mod tests{
         let expected:f32 = -5.0;
         let test_function_name = "convert_s64_to_f32_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()),-5_i64 as u64,true)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3078,7 +3078,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_float(Type::float32(build_context.context())) as f32 );
@@ -3094,7 +3094,7 @@ mod tests{
         let expected:f32 = 5.0;
         let test_function_name = "convert_u32_to_f32_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),5 as u64,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3102,7 +3102,6 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_float(Type::float32(build_context.context())) as f32 );
@@ -3119,7 +3118,7 @@ mod tests{
         let expected:f32 = 5.0;
         let test_function_name = "convert_u64_to_f32_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()), 5,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3127,7 +3126,6 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_float(Type::float32(build_context.context())) as f32 );
@@ -3144,7 +3142,7 @@ mod tests{
         let expected:f64 = -5.0;
         let test_function_name = "convert_s32_to_f64_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),-5_i32 as u64,true)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3152,7 +3150,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())) as f64 );
@@ -3169,7 +3167,7 @@ mod tests{
         let expected:f64 = -5.0;
         let test_function_name = "convert_s64_to_f64_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()),-5_i64 as u64,true)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3177,7 +3175,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())) as f64 );
@@ -3193,7 +3191,7 @@ mod tests{
         let expected:f64 = 5.0;
         let test_function_name = "convert_u32_to_f64_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()),5 as u64,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3201,7 +3199,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())) as f64 );
@@ -3218,7 +3216,7 @@ mod tests{
         let expected:f64 = 5.0;
         let test_function_name = "convert_u64_to_f64_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()), 5,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3226,7 +3224,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())) as f64 );
@@ -3243,7 +3241,7 @@ mod tests{
         let expected = 65535;
         let test_function_name = "convert_i32_to_f32_works";
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![Value::const_int(Type::int32(build_context.context()), expected,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3268,7 +3266,7 @@ mod tests{
         let expected = 65535;
         let test_function_name = "convert_i64_to_f64_works";
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![Value::const_int(Type::int64(build_context.context()), expected,false)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3294,7 +3292,7 @@ mod tests{
         let expected = 5.0;
         let test_function_name = "convert_f32_to_i32_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![Value::const_real(Type::float32(build_context.context()),expected )],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3319,7 +3317,7 @@ mod tests{
         let expected = 5.0;
         let test_function_name = "convert_f64_to_i64_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![Value::const_real(Type::float64(build_context.context()), expected)],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3329,7 +3327,7 @@ mod tests{
                 build_context.builder().build_ret(ret);
                 Ok(())
             })?;
-        build_context.module().dump();
+
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())));
