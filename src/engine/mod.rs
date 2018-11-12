@@ -11,7 +11,12 @@ mod constants;
 mod table;
 mod stack;
 mod frame;
+mod wasm_value;
+mod block_return_value;
 
+
+use self::block_return_value::*;
+use self::wasm_value::*;
 use self::types::*;
 use self::test_utils::*;
 use self::wasm::*;

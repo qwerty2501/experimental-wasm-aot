@@ -8,6 +8,7 @@ use failure::Error;
 use error::RuntimeError::*;
 use std::mem;
 use engine::types::WasmIntType;
+use parity_wasm::elements::ValueType;
 
 macro_rules! compiler_c_str{
     ($s:expr) => (CString::new($s).unwrap().as_ptr())
@@ -139,6 +140,12 @@ impl Builder {
     pub fn new(context:& Context) -> BuilderGuard{
 
         BuilderGuard::new(unsafe{LLVMCreateBuilderInContext(context.into()).into()})
+    }
+
+    pub fn build_alloca(&self,ty:&Type,name:&str) -> &Value{
+        unsafe{
+            LLVMBuildAlloca(self.into(),ty.into(),compiler_c_str!(name)).into()
+        }
     }
 
     pub fn build_fneg(&self,v:&Value,name:&str)->&Value{
@@ -621,6 +628,16 @@ impl Type{
     pub fn type_of(value:&Value)->&Type{
         unsafe{LLVMTypeOf(value.into()).into()}
     }
+
+    pub fn from_wasm_value_type(context:&Context,value_type:ValueType)->&Type{
+        match value_type {
+            ValueType::F32 => Type::float32(context),
+            ValueType::F64 => Type::float64(context),
+            ValueType::I32 => Type::int32(context),
+            ValueType::I64 => Type::int64(context),
+        }
+    }
+
 }
 
 pub enum BasicBlock{}
@@ -931,6 +948,8 @@ fn convert_message_to_string(message: *mut ::libc::c_char)->Result<String,Error>
         Ok(ret_message)
     }
 }
+
+
 pub mod analysis{
     use super::*;
     use llvm_sys::analysis::*;
