@@ -24,3 +24,12 @@ impl<'a> WasmValue<'a>{
         }
     }
 }
+
+impl<'a> Clone for WasmValue<'a>{
+    fn clone(&self) -> Self {
+        match self {
+            WasmValue::Value {value} => WasmValue::Value {value},
+            WasmValue::BlockReturnValue {return_value} => WasmValue::BlockReturnValue {return_value:return_value.clone()}
+        }
+    }
+}

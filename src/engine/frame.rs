@@ -16,7 +16,7 @@ pub struct ModuleInstance<'a,T:WasmIntType + 'a>{
 }
 
 pub struct LocalValue<'a>{
-    pub value:Option<&'a Value>,
+    pub value:Option<WasmValue<'a>>,
     pub value_type:&'a Type,
 }
 
@@ -43,9 +43,15 @@ impl<'a,T:WasmIntType + 'a> ModuleInstance<'a,T>{
     }
 }
 
+impl<'a> Clone for LocalValue<'a>{
+    fn clone(&self) -> Self {
+       LocalValue{value:self.value.clone(),value_type: self.value_type}
+    }
+}
+
 impl<'a> LocalValue<'a>{
     pub fn from_value(value:&Value) ->LocalValue{
-        LocalValue{value:Some(value),value_type:Type::type_of(value)}
+        LocalValue{value:Some(WasmValue::new_value(value)),value_type:Type::type_of(value)}
     }
 
     pub fn from_value_type(value_type:&Type)->LocalValue{

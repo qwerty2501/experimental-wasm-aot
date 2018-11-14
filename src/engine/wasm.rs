@@ -172,7 +172,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
                     })?;
 
                     if let Some(result) = stack.values.last(){
-                        builder.build_ret(result);
+                        builder.build_ret(result.to_value(build_context));
                     } else{
                         builder.build_ret_void();
                     }

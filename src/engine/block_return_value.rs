@@ -7,7 +7,7 @@ pub struct BlockReturnValue<'a>{
 
 
 impl<'a> BlockReturnValue<'a>{
-    pub fn new_block_return_value(build_context:&'a BuildContext,value_type:ValueType)-> BlockReturnValue<'a>{
+    pub fn new(build_context:&'a BuildContext,value_type:ValueType)-> BlockReturnValue<'a>{
         BlockReturnValue {value_ptr:build_context.builder().build_alloca(Type::from_wasm_value_type(build_context.context(), value_type),"")}
     }
 
@@ -17,5 +17,11 @@ impl<'a> BlockReturnValue<'a>{
 
     pub fn to_value(&self, build_context:&'a BuildContext)->&'a Value{
         build_context.builder().build_load(self.value_ptr,"")
+    }
+}
+
+impl<'a> Clone for BlockReturnValue<'a> {
+    fn clone(&self) -> Self {
+        BlockReturnValue{value_ptr:self.value_ptr}
     }
 }
