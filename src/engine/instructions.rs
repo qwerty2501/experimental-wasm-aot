@@ -4,6 +4,7 @@ use failure::Error;
 use error::RuntimeError::*;
 use parity_wasm::elements::{Instruction,ValueType,MemorySection,MemoryType};
 use parity_wasm::elements::Module as WasmModule;
+use parity_wasm::elements::BlockType;
 
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
 
@@ -548,6 +549,32 @@ pub fn get_global_name(index:u32) -> String {
     [WASM_GLOBAL_PREFIX,index.to_string().as_ref()].concat()
 }
 
+fn block<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>,block_type: BlockType)->Result<Stack<'a,T>,Error>{
+    label(build_context,stack,block_type,Label::new_block)
+}
+
+fn loop_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,block_type:BlockType)->Result<Stack<'a,T>,Error>{
+    label(build_context,stack,block_type,Label::new_loop)
+}
+
+fn if_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,block_type:BlockType)-> Result<Stack<'a,T>,Error>{
+    label(build_context,stack,block_type,Label::new_if)
+}
+
+fn label<'a,T:WasmIntType,F:Fn(&'a BasicBlock,&'a BasicBlock,Vec<BlockReturnValue<'a>>)->Label<'a>>(build_context:&'a BuildContext, mut stack:Stack<'a,T>,block_type:BlockType, on_label:F) ->Result<Stack<'a,T>,Error> {
+    {
+        let block_return_values = if let BlockType::Value(value_type) = block_type {
+            vec![BlockReturnValue::new(build_context,value_type)]
+        } else{
+            vec![]
+        };
+        let start = stack.current_function.append_basic_block(build_context.context(),"");
+        let next = stack.current_function.append_basic_block(build_context.context(),"");
+        build_context.builder().build_br(start);
+        stack.labels.push(on_label(start,next,block_return_values))
+    }
+    Ok(stack)
+}
 pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     match instruction{
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
@@ -739,6 +766,9 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::F64ReinterpretI64 => reinter_pret_int_to_f64(build_context,stack),
         Instruction::I32ReinterpretF32 => reinter_pret_float_to_i32(build_context,stack),
         Instruction::I64ReinterpretF64 => reinter_pret_float_to_i64(build_context,stack),
+        Instruction::Block(block_type) =>block(build_context,stack,block_type),
+        Instruction::Loop(block_type) => loop_instruction(build_context,stack,block_type),
+        Instruction::If(block_type) => if_instruction(build_context,stack,block_type),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }

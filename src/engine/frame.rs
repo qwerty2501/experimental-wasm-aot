@@ -21,14 +21,14 @@ pub struct LocalValue<'a>{
 }
 
 pub struct Label<'a>{
-    pub block:Block<'a>
+    label_type:LabelType<'a>,
+    return_values:Vec<BlockReturnValue<'a>>
 }
 
-
-pub enum Block<'a>{
-    Loop{start:&'a BasicBlock},
-    If,
-    Br,
+pub enum LabelType<'a>{
+    Loop{start:&'a BasicBlock,next:&'a BasicBlock},
+    If{start:&'a BasicBlock,next:&'a BasicBlock},
+    Block{start:&'a BasicBlock,next:&'a BasicBlock},
 }
 
 impl<'a,T:WasmIntType + 'a> Frame<'a,T>{
@@ -60,8 +60,25 @@ impl<'a> LocalValue<'a>{
 }
 
 impl<'a> Label<'a>{
-    pub fn new(block:Block<'a>)->Label{
-        Label{block}
+    pub fn new_block(start:&'a BasicBlock,next:&'a BasicBlock,return_values:Vec<BlockReturnValue<'a>>)->Label<'a>{
+        Label{
+            label_type:LabelType::Block{start,next},
+            return_values,
+        }
+    }
+
+    pub fn new_loop(start:&'a BasicBlock,next:&'a BasicBlock,return_values:Vec<BlockReturnValue<'a>>)-> Label<'a>{
+        Label{
+            label_type:LabelType::Loop {start,next},
+            return_values,
+        }
+    }
+
+    pub fn new_if(start:&'a BasicBlock,next:&'a BasicBlock, return_values:Vec<BlockReturnValue<'a>>) -> Label<'a>{
+        Label{
+            label_type:LabelType::If {start,next},
+            return_values,
+        }
     }
 }
 

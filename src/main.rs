@@ -26,7 +26,7 @@ fn main() {
         Ok(_)=>0,
         Err(e)=>{
             println!("{}",e);
-            for cause in  e.causes(){
+            for cause in  e.iter_causes() {
                 debug!("causes:{cause}",cause = cause);
             }
 
