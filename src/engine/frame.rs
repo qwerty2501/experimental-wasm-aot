@@ -21,8 +21,8 @@ pub struct LocalValue<'a>{
 }
 
 pub struct Label<'a>{
-    label_type:LabelType<'a>,
-    return_values:Vec<BlockReturnValue<'a>>
+    pub label_type: LabelType<'a>,
+    pub return_value:Option<BlockReturnValue<'a>>
 }
 
 pub enum LabelType<'a>{
@@ -60,24 +60,24 @@ impl<'a> LocalValue<'a>{
 }
 
 impl<'a> Label<'a>{
-    pub fn new_block(start:&'a BasicBlock,next:&'a BasicBlock,return_values:Vec<BlockReturnValue<'a>>)->Label<'a>{
+    pub fn new_block(start:&'a BasicBlock,next:&'a BasicBlock,return_value:Option<BlockReturnValue<'a>>)->Label<'a>{
         Label{
-            label_type:LabelType::Block{start,next},
-            return_values,
+            label_type: LabelType::Block{start,next},
+            return_value,
         }
     }
 
-    pub fn new_loop(start:&'a BasicBlock,next:&'a BasicBlock,return_values:Vec<BlockReturnValue<'a>>)-> Label<'a>{
+    pub fn new_loop(start:&'a BasicBlock,next:&'a BasicBlock,return_value:Option<BlockReturnValue<'a>>)-> Label<'a>{
         Label{
-            label_type:LabelType::Loop {start,next},
-            return_values,
+            label_type: LabelType::Loop {start,next},
+            return_value,
         }
     }
 
-    pub fn new_if(start:&'a BasicBlock,next:&'a BasicBlock, return_values:Vec<BlockReturnValue<'a>>) -> Label<'a>{
+    pub fn new_if(start:&'a BasicBlock,next:&'a BasicBlock, return_value:Option<BlockReturnValue<'a>>) -> Label<'a>{
         Label{
-            label_type:LabelType::If {start,next},
-            return_values,
+            label_type: LabelType::If {start,next},
+            return_value,
         }
     }
 }

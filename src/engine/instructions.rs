@@ -561,20 +561,43 @@ fn if_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Sta
     label(build_context,stack,block_type,Label::new_if)
 }
 
-fn label<'a,T:WasmIntType,F:Fn(&'a BasicBlock,&'a BasicBlock,Vec<BlockReturnValue<'a>>)->Label<'a>>(build_context:&'a BuildContext, mut stack:Stack<'a,T>,block_type:BlockType, on_label:F) ->Result<Stack<'a,T>,Error> {
+fn label<'a,T:WasmIntType,F:Fn(&'a BasicBlock,&'a BasicBlock,Option<BlockReturnValue<'a>>)->Label<'a>>(build_context:&'a BuildContext, mut stack:Stack<'a,T>,block_type:BlockType, on_label:F) ->Result<Stack<'a,T>,Error> {
     {
-        let block_return_values = if let BlockType::Value(value_type) = block_type {
-            vec![BlockReturnValue::new(build_context,value_type)]
+        let block_return_value = if let BlockType::Value(value_type) = block_type {
+            Some(BlockReturnValue::new(build_context,value_type))
         } else{
-            vec![]
+            None
         };
         let start = stack.current_function.append_basic_block(build_context.context(),"");
         let next = stack.current_function.append_basic_block(build_context.context(),"");
         build_context.builder().build_br(start);
-        stack.labels.push(on_label(start,next,block_return_values))
+        stack.labels.push(on_label(start,next,block_return_value))
     }
     Ok(stack)
 }
+
+
+fn br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,label_index:u32)->Result<Stack<'a,T>,Error>{
+    {
+        let label = stack.labels.get(label_index as usize).ok_or(NoSuchLabel{index:label_index})?.clone();
+
+        if let Some(ref return_value) = label.return_value{
+            return_value.store(build_context,stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
+        }
+
+        let br_block = match label.label_type {
+            LabelType::Loop {start,next} => {start}
+            LabelType::Block {start,next} => {next}
+            LabelType::If {start,next} => {next}
+        };
+
+        build_context.builder().build_br(br_block);
+
+    }
+    Ok(stack)
+
+}
+
 pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     match instruction{
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
@@ -769,6 +792,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::Block(block_type) =>block(build_context,stack,block_type),
         Instruction::Loop(block_type) => loop_instruction(build_context,stack,block_type),
         Instruction::If(block_type) => if_instruction(build_context,stack,block_type),
+        Instruction::Br(label_index) => br(build_context,stack,label_index),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }

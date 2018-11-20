@@ -40,6 +40,11 @@ pub enum RuntimeError{
       index:u32,
     },
 
+    #[fail(display = "no such label index:{}",index)]
+    NoSuchLabel{
+        index:u32,
+    },
+
 
 
     #[fail(display = "not exist frame")]
