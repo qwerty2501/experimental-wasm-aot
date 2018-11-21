@@ -4,16 +4,11 @@ use parity_wasm::elements::Module as WasmModule;
 use super::*;
 use failure::Error;
 use std::str;
-use parity_wasm::elements::{DataSegment,Instruction,ImportCountType,GlobalType,ValueType,GlobalEntry,External};
+use parity_wasm::elements::{DataSegment,Instruction,ImportCountType,GlobalType,GlobalEntry,External};
 use parity_wasm::elements;
 use error::RuntimeError::*;
 use parity_wasm::elements::Internal;
-use parity_wasm::elements::ExportEntry;
-use parity_wasm::elements::Func;
 use parity_wasm::elements::InitExpr;
-use parity_wasm::elements::ElementSegment;
-use std::slice::Iter;
-use parity_wasm;
 const WASM_FUNCTION_PREFIX:&str = "__WASM_FUNCTION_";
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
 pub struct WasmCompiler<T: WasmIntType>{
@@ -53,7 +48,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
         build_context.module().set_declare_function("main",main_function_type)
     }
 
-    pub fn build_init_instance_functions<'c>(&self, module_id:&str, build_context:&BuildContext<'c>, wasm_module:&WasmModule) ->Result<(),Error> {
+    pub fn build_init_instance_functions<'c>(&self, _module_id:&str, build_context:&BuildContext<'c>, wasm_module:&WasmModule) ->Result<(),Error> {
         self.linear_memory_compiler.compile(build_context,wasm_module)?;
         self.build_init_global_sections(build_context,wasm_module)?;
         self.build_init_data_sections_function(build_context,wasm_module)?;
@@ -64,9 +59,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
     fn build_main_function<F:FnOnce()->Result<(),Error>>(&self, build_context:&BuildContext,module_id:&str, wasm_module:&WasmModule,main_function:&Value,on_build_entry:F) -> Result<(),Error>{
 
         self.build_init_instance_functions(module_id, build_context, wasm_module)?;
-        let int32_type = Type::int32(build_context.context());
-        let str_ptr_type = Type::ptr(Type::int8(build_context.context()),0);
-        build_context.builder().build_function(build_context.context(),main_function,|builder,bb|{
+        build_context.builder().build_function(build_context.context(),main_function,|builder,_bb|{
             let failed_init_block = main_function.append_basic_block(build_context.context(),"");
             let init_table_block = main_function.append_basic_block(build_context.context(),"");
             let init_memory_function_name = self.linear_memory_compiler.get_init_function_name();
@@ -162,7 +155,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
                     Ok(LocalValue::from_value_type(instructions::value_type_to_type(build_context,&local.value_type())))
                 })).collect::<Result<Vec<LocalValue>,Error>>()?;
 
-                build_context.builder().build_function(build_context.context(),current_function,|builder,bb|{
+                build_context.builder().build_function(build_context.context(),current_function,|builder,_bb|{
                     let stack = Stack::new(current_function,vec![],vec![],vec![
                         Frame::new(locals,ModuleInstance::new(types,functions,&self.table_compiler,&self.linear_memory_compiler))
                     ]);
@@ -211,7 +204,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
         }
     }
 
-    fn get_exported_function_pairs<'a>(&self, build_context:&BuildContext,wasm_module:&'a WasmModule)->Vec<(u32,&'a str)>{
+    fn get_exported_function_pairs<'a>(&self, _build_context:&BuildContext,wasm_module:&'a WasmModule)->Vec<(u32,&'a str)>{
         if let Some(export_section) = wasm_module.export_section(){
             export_section.entries().iter().filter_map(|entry|{
                 if let Internal::Function(function_index) = *entry.internal(){
@@ -232,7 +225,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
                 let table_initializers = elements_section.entries().iter().map(|element_segment|{
                     let offset = Self::segment_init_expr_to_value(build_context ,element_segment.offset())?;
                     let members = element_segment.members().iter().map(|member_index|{
-                        Ok(*functions.get((*member_index)as usize).ok_or(NoSuchFunctionIndex{index:*member_index})?)
+                        Ok(*functions.get((*member_index)as usize).ok_or(NoSuchFunctionIndex{index:*member_index + table_import_count as u32})?)
                     }).collect::<Result<Vec<_>,Error>>()?;
                     Ok(TableInitializer::new(element_segment.index() ,offset,members))
                 }).collect::<Result<Vec<_>,Error>>()?;
@@ -287,9 +280,9 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
 
     fn build_init_data_sections_function(&self,build_context:&BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
-        if let Some(data_section) = wasm_module.data_section() {
+        if let Some(_data_section) = wasm_module.data_section() {
             let function = self.set_declare_init_data_sections_function(build_context);
-            build_context.builder().build_function(build_context.context(), function, |builder, bb| {
+            build_context.builder().build_function(build_context.context(), function, |_builder, _bb| {
                 if let Some(data_section) = wasm_module.data_section() {
                     for segment in data_section.entries() {
                         self.build_data_segment(build_context, segment)?;
@@ -335,12 +328,10 @@ impl<T:WasmIntType> WasmCompiler<T>{
 mod tests{
 
     use super::*;
-    use super::llvm::analysis::*;
-    use parity_wasm::elements::GlobalSection;
-    use parity_wasm::elements::Section;
     use parity_wasm::elements::InitExpr;
     use parity_wasm::elements::ResizableLimits;
-
+    use parity_wasm::elements::ValueType;
+    use parity_wasm;
     #[test]
     pub fn build_global_entries_works()->Result<(),Error>{
         let context = Context::new();
@@ -365,7 +356,7 @@ mod tests{
     }
 
     fn get_global<'a>(build_context:&'a BuildContext,index:u32)->Result<&'a Value,Error>{
-        let global_name = instructions::get_global_name(0);
+        let global_name = instructions::get_global_name(index);
         Ok(build_context.module().get_named_global(global_name.as_ref()).ok_or(NoSuchLLVMGlobalValue {name:global_name})?)
     }
 
@@ -442,7 +433,7 @@ mod tests{
         ]),expected_values.clone());
 
         let function_name = "build_data_segment_works";
-        build_test_function(&build_context,function_name,&[],|builder,bb|{
+        build_test_function(&build_context,function_name,&[],|_builder,_bb|{
             compiler.build_data_segment(&build_context,&data_segment,)?;
             build_context.builder().build_ret_void();
             Ok(())

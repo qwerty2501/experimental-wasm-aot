@@ -1,14 +1,11 @@
 
 use failure::Error;
 use super::*;
-use std::ptr;
 use error::RuntimeError::*;
 use error::*;
 use parity_wasm::elements::Module as WasmModule;
-use parity_wasm::elements::External;
 use parity_wasm::elements::ResizableLimits;
 use parity_wasm::elements::ImportCountType;
-use std::ops::Range;
 
 const MODULE_ID:&str = "__wasm_memory_module";
 const MEMORY_NAME_BASE:&str = "_memory";
@@ -157,13 +154,9 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
                 let memory_cache = builder.build_load(memory,"memory_cache");
                 let i32_type = Type::int32(context);
 
-                let void_type = Type::void(context);
-                let void_ptr_type = Type::ptr(void_type, 0);
-
                 let mmap_closure = MMapClosure {
                     build_context,
                     int_type,
-                    void_ptr_type,
                     prot_value:Value::const_int(i32_type,(::libc::PROT_READ | ::libc::PROT_WRITE) as ::libc::c_ulonglong,true),
                     flags_value:Value::const_int(i32_type, (::libc::MAP_PRIVATE | ::libc::MAP_ANONYMOUS) as ::libc::c_ulonglong,true ),
                     fd_value:Value::const_int(i32_type,-1_isize as ::libc::c_ulonglong,true),
@@ -195,7 +188,6 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
 struct MMapClosure<'a,T:WasmIntType,M:MemoryTypeContext>{
     build_context:&'a BuildContext<'a>,
     int_type:&'a Type,
-    void_ptr_type:&'a Type,
     prot_value : &'a Value,
     flags_value:&'a Value,
     fd_value:&'a Value,
@@ -254,8 +246,6 @@ impl<'a,T:WasmIntType,M:MemoryTypeContext> MMapClosure<'a,T,M>{
 #[cfg(test)]
 pub mod test_utils{
     use super::*;
-    use super::super::llvm::execution_engine::*;
-    use super::super::test_utils::*;
     type Compiler = LinearMemoryCompiler<u32>;
 
     pub fn init_test_memory(build_context:&BuildContext)->Result<String,Error>{
@@ -269,8 +259,8 @@ pub mod test_utils{
 mod tests{
 
     use super::*;
-    use super::super::llvm::execution_engine::*;
-    use super::super::test_utils::*;
+    use std::ptr;
+
     type Compiler = LinearMemoryCompiler<u32>;
 
     #[test]
@@ -292,12 +282,12 @@ mod tests{
 
     #[test]
     pub fn init_minimum_greater_maximum_memory_works() ->Result<(),Error>{
-        error_should_be!(test_init_memory_in(26,Some(25)),SizeIsTooLarge{message})
+        error_should_be!(test_init_memory_in(26,Some(25)),SizeIsTooLarge{message:_})
     }
 
     #[test]
     pub fn init_maximum_65537_memory_not_works()->Result<(),Error>{
-        error_should_be!(test_init_memory_in(17,Some(65537)),SizeIsTooLarge {message})
+        error_should_be!(test_init_memory_in(17,Some(65537)),SizeIsTooLarge {message:_})
     }
 
     fn test_init_memory_in(minimum:u32,maximum:Option<u32>)->Result<(),Error>{
@@ -343,7 +333,7 @@ mod tests{
         let compiler = Compiler::new();
         let test_function_name = "build_get_real_address_test";
         compiler.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(17, Some(25))])?;
-        build_test_function(&build_context,test_function_name,&[], |builder,bb|{
+        build_test_function(&build_context,test_function_name,&[], |builder,_bb|{
             let addr = compiler.build_get_real_address(&build_context,0,Value::const_int(Type::int_wasm_ptr::<u32>(&context),32,false),"addr_value");
             builder.build_store(Value::const_int(Type::int8(build_context.context()),55,false),addr);
             builder.build_ret_void();

@@ -2,8 +2,7 @@
 use super::*;
 use failure::Error;
 use error::RuntimeError::*;
-use parity_wasm::elements::{Instruction,ValueType,MemorySection,MemoryType};
-use parity_wasm::elements::Module as WasmModule;
+use parity_wasm::elements::{Instruction,ValueType};
 use parity_wasm::elements::BlockType;
 
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
@@ -61,7 +60,7 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
     Ok(stack)
 }
 
- fn get_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn get_local<'a,T:WasmIntType>(_build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current()?;
         let v = current_frame.locals.get(index as usize).ok_or(NoSuchLocalValue {index})?.clone().value.ok_or(NoSuchLocalValue {index})?.clone();
@@ -70,19 +69,19 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
     Ok(stack)
 }
 
- fn set_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn set_local<'a,T:WasmIntType>(_build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        let  mut v = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
+        let  v:&mut LocalValue = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
         v.value = Some(stack.values.pop().ok_or(NotExistValue)?);
     }
     Ok(stack)
 }
 
- fn tee_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn tee_local<'a,T:WasmIntType>(_build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        let  mut v = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
+        let  v:&mut LocalValue = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
         v.value = Some(stack.values.last().ok_or(NotExistValue)?.clone());
 
     }
@@ -142,7 +141,7 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
  fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        let grow_memory_function_name = current_frame.module_instance.linear_memory_compiler.get_grow_function_name(0);
+        let grow_memory_function_name = current_frame.module_instance.linear_memory_compiler.get_grow_function_name(index as u32);
         let grow_memory_function =  build_context.module().get_named_function(&grow_memory_function_name).ok_or(NoSuchLLVMFunction {name:grow_memory_function_name})?;
         let grow_memory_size = stack.values.pop().ok_or(NotExistValue)?;
         stack.values.push( WasmValue::new_value( build_context.builder().build_call(grow_memory_function,&[grow_memory_size.to_value(&build_context)],"")));
@@ -610,7 +609,7 @@ fn if_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Sta
 fn else_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let label = stack.labels.last().ok_or(NotExistLabel)?;
-        if let LabelType::If {start,else_block,next} = label.label_type{
+        if let LabelType::If {start:_,else_block,next:_} = label.label_type{
             if let Some(ref return_value) = label.return_value{
                 return_value.store(build_context,stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
             }
@@ -631,9 +630,9 @@ fn br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,lab
         }
 
         let br_block = match label.label_type {
-            LabelType::Loop {start,next} => {start}
-            LabelType::Block {start,next} => {next}
-            LabelType::If {start,else_block,next} => { next }
+            LabelType::Loop {start,next:_} => {start}
+            LabelType::Block {start:_,next} => {next}
+            LabelType::If {start:_,else_block:_,next} => { next }
         };
 
         build_context.builder().build_br(br_block);
@@ -749,8 +748,8 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I32And => and(build_context,stack),
         Instruction::I64And => and(build_context,stack),
 
-        Instruction::I32Or => and(build_context,stack),
-        Instruction::I64Or => and(build_context,stack),
+        Instruction::I32Or => or(build_context,stack),
+        Instruction::I64Or => or(build_context,stack),
 
         Instruction::I32Xor => xor(build_context,stack),
         Instruction::I64Xor => xor(build_context,stack),
@@ -921,7 +920,6 @@ pub fn value_type_to_type<'a>(build_context:&'a BuildContext, value_type:&ValueT
 mod tests{
     use super::*;
     use parity_wasm::elements::ResizableLimits;
-    use parity_wasm::elements::Section;
 
 
 
@@ -973,9 +971,8 @@ mod tests{
         let global_value = build_context.module().set_declare_global(&global_name,Type::int32(build_context.context()));
         global_value.set_initializer(Value::const_int(Type::int32(build_context.context()),0,false));
         let expected = 22;
-        let (ft,lt) = new_compilers();
         let test_function_name = "test_function";
-        build_test_instruction_function(&build_context, test_function_name, vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()), expected, false))], vec![], |stack:Stack<u32>, bb|{
+        build_test_instruction_function(&build_context, test_function_name, vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()), expected, false))], vec![], |stack:Stack<u32>, _bb|{
             let stack = set_global(&build_context,0,stack)?;
             let stack = get_global(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.last().ok_or(NotExistValue)?.to_value(&build_context));
@@ -1003,7 +1000,7 @@ mod tests{
                                               &[], &[],
                                               &ft,
                                               &lt)
-        ], |stack,bb|{
+        ], |stack,_bb|{
             let mut stack = get_local(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
             Ok(())
@@ -1026,7 +1023,7 @@ mod tests{
         build_test_instruction_function(&build_context, test_function_name, vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()), expected, false))], vec![
             frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
                                               &[], &[],
-                                              &ft,&lt)], |stack,bb|{
+                                              &ft,&lt)], |stack,_bb|{
             let stack = set_local(&build_context,0,stack)?;
             let mut stack = get_local(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
@@ -1053,7 +1050,7 @@ mod tests{
                                               &[], &[],
                                               &ft,
                                               &lt)
-        ], |stack,bb|{
+        ], |stack,_bb|{
             let mut stack = tee_local(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
             Ok(())
@@ -1077,7 +1074,7 @@ mod tests{
         build_test_instruction_function(&build_context, test_function_name, vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()), expected, false))], vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                                                                                                                                   &ft,
                                                                                                                                                                                                   &lt)],
-                                        |stack,bb|{
+                                        |stack,_bb|{
             let  stack = store(&build_context,2,500,stack,Type::int32(build_context.context()))?;
             let  mut stack = load(&build_context,2,500,stack,Type::int32(build_context.context()))?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
@@ -1115,7 +1112,7 @@ mod tests{
         build_test_instruction_function(&build_context, test_function_name, vec![], vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                                                            &ft,
                                                                                                                            &lt)],
-                                        |stack,bb|{
+                                        |stack,_bb|{
             let mut stack = current_memory(&build_context,0,stack)?;
             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
             Ok(())
@@ -1151,7 +1148,7 @@ mod tests{
         build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),1,false))],
                                         vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                &ft,
-                                                                               &lt)],|stack,bb|{
+                                                                               &lt)],|stack,_bb|{
 
                 let mut stack = grow_memory(&build_context,0,stack)?;
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
@@ -1187,7 +1184,7 @@ mod tests{
         build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),4,false))],
                                         vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                &ft,
-                                                                               &lt)],|stack,bb|{
+                                                                               &lt)],|stack,_bb|{
 
                 let mut stack = grow_memory(&build_context,0,stack)?;
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
@@ -2138,13 +2135,13 @@ mod tests{
 
     #[test]
     pub fn or32_works()->Result<(),Error>{
-        binop_u32_works!(3,-1_i32 as u32,3,Instruction::I32Or)
+        binop_u32_works!(-1_i32 as u32,-1_i32 as u32,3,Instruction::I32Or)
     }
 
 
     #[test]
     pub fn or64_works()->Result<(),Error>{
-        binop_u64_works!(3,-1_i64 as u64,3,Instruction::I64Or)
+        binop_u64_works!(-1_i64 as u64,-1_i64 as u64,3,Instruction::I64Or)
     }
 
 
@@ -2723,7 +2720,6 @@ mod tests{
     pub fn eqz32_false_works()->Result<(),Error>{
         let context = Context::new();
         let build_context = BuildContext::new("eqz32_false_works",&context);
-        let (ft,lt ) = new_compilers();
         let expected =0;
         let test_function_name = "test_function";
         build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),22,false))],
@@ -2745,7 +2741,6 @@ mod tests{
     pub fn eqz32_true_works()->Result<(),Error>{
         let context = Context::new();
         let build_context = BuildContext::new("eqz32_true_works",&context);
-        let (ft,lt ) = new_compilers();
         let expected =1;
         let test_function_name = "test_function";
         build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),0,false))],
@@ -2766,7 +2761,6 @@ mod tests{
     pub fn eqz64_false_works()->Result<(),Error>{
         let context = Context::new();
         let build_context = BuildContext::new("eqz64_false_works",&context);
-        let (ft,lt ) = new_compilers();
         let expected =0;
         let test_function_name = "test_function";
         build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),22,false))],
@@ -2788,7 +2782,6 @@ mod tests{
     pub fn eqz64_true_works()->Result<(),Error>{
         let context = Context::new();
         let build_context = BuildContext::new("eqz64_true_works",&context);
-        let (ft,lt ) = new_compilers();
         let expected =1;
         let test_function_name = "test_function";
         build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),0,false))],
@@ -2803,34 +2796,6 @@ mod tests{
             assert_eq!(expected,ret.to_int(false));
             Ok(())
         })
-    }
-
-    #[test]
-    pub fn i32_value_type_to_type_works(){
-        let context = Context::new();
-        let build_context = BuildContext::new("i32_value_type_to_type",&context);
-        test_value_type_to_type(&build_context,&ValueType::I32,Type::int32(build_context.context()));
-    }
-
-    #[test]
-    pub fn i64_value_type_to_type_works(){
-        let context = Context::new();
-        let build_context = BuildContext::new("i64_value_type_to_type",&context);
-        test_value_type_to_type(&build_context,&ValueType::I64,Type::int64(build_context.context()));
-    }
-
-    #[test]
-    pub fn f32_value_type_to_type_works(){
-        let context = Context::new();
-        let build_context = BuildContext::new("f32_value_type_to_type",&context);
-        test_value_type_to_type(&build_context,&ValueType::F32,Type::float32(build_context.context()));
-    }
-
-    #[test]
-    pub fn f64_value_type_to_type_works(){
-        let context = Context::new();
-        let build_context = BuildContext::new("f64_value_type_to_type",&context);
-        test_value_type_to_type(&build_context,&ValueType::F64,Type::float64(build_context.context()));
     }
 
     #[test]
@@ -3448,16 +3413,5 @@ mod tests{
             assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())));
             Ok(())
         })
-    }
-
-
-
-    fn test_value_type_to_type(build_context:&BuildContext, value_type:&ValueType,expected:&Type){
-        let actual = value_type_to_type(build_context,value_type);
-        use llvm_sys::prelude::LLVMTypeRef;
-        let expected_ptr:LLVMTypeRef = expected.into();
-        let actual_ptr:LLVMTypeRef = expected.into();
-        assert_eq!(  expected_ptr,actual_ptr.into());
-
     }
 }

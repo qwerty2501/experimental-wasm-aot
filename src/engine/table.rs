@@ -1,8 +1,6 @@
 
 use super::*;
 use failure::Error;
-use parity_wasm::elements::ResizableLimits;
-use parity_wasm::elements::ElementSegment;
 use parity_wasm::elements;
 use parity_wasm::elements::ImportCountType;
 use parity_wasm::elements::Module as WasmModule;
@@ -53,8 +51,6 @@ impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
     pub fn build_init_function(&self, build_context:&BuildContext,table_types:&[elements::TableType],initializers:&[TableInitializer], import_count:u32) -> Result<(),Error>{
 
         self.table_memory_compiler.build_init_functions(build_context, import_count, &table_types.iter().map(|t|t.limits()).collect::<Vec<_>>(), ||{
-
-            let address_type = Type::int_wasm_ptr::<T>(build_context.context());
             let function_pointer_type = Type::ptr(Type::void(build_context.context()),0);
             for initializer in initializers{
                 let address = self.table_memory_compiler.build_get_real_address(build_context,initializer.index,Self::build_size_to_element_size(build_context,initializer.offset),"");

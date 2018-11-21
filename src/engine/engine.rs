@@ -9,7 +9,6 @@ use std::path::Path;
 use std::ffi::OsStr;
 use std::process::Command;
 use parity_wasm;
-use std::fs::File;
 
 pub struct Engine<T:  WasmIntType>{
     wasm_compiler: WasmCompiler<T>,

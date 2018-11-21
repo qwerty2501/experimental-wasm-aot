@@ -1,5 +1,4 @@
 use super::*;
-use parity_wasm::elements::ValueType;
 
 
 pub enum WasmValue<'a>{

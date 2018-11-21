@@ -1084,8 +1084,6 @@ pub mod target{
 pub mod execution_engine {
     use super::*;
     use llvm_sys::execution_engine::*;
-    use llvm_sys::target_machine::*;
-
     pub fn link_in_mc_jit(){
         unsafe{LLVMLinkInMCJIT()}
     }
