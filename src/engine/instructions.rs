@@ -643,6 +643,19 @@ fn br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,lab
 
 }
 
+fn br_if<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,label_index:u32)->Result<Stack<'a,T>,Error>{
+    Ok({
+        let cond = stack.values.pop().ok_or(NotExistValue)?;
+        let br_block = stack.current_function.append_basic_block(build_context.context(),"");
+        let nothing_br_block = stack.current_function.append_basic_block(build_context.context(),"");
+        build_context.builder().build_cond_br(cond.to_value(build_context),br_block,nothing_br_block);
+        build_context.builder().position_builder_at_end(br_block);
+        let stack =br(build_context,stack,label_index)?;
+        build_context.builder().position_builder_at_end(nothing_br_block);
+        stack
+    })
+}
+
 pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     match instruction{
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
@@ -838,6 +851,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::Loop(block_type) => loop_instruction(build_context,stack,block_type),
         Instruction::If(block_type) => if_instruction(build_context,stack,block_type),
         Instruction::Br(label_index) => br(build_context,stack,label_index),
+        Instruction::BrIf(label_index) => br_if(build_context,stack,label_index),
         Instruction::Else => else_instruction(build_context,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
