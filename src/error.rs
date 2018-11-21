@@ -55,6 +55,9 @@ pub enum RuntimeError{
     #[fail(display = "not exist memory")]
     NotExistMemory,
 
+    #[fail(display = "not exist label")]
+    NotExistLabel,
+
 
     #[fail(display = "not exist init expr")]
     NotExistInitExpr,
@@ -80,6 +83,9 @@ pub enum RuntimeError{
     InvalidInstruction{
         instruction:Instruction,
     },
+
+    #[fail(display = "invalid label type")]
+    InvalidLabelType,
 
     #[fail(display = "size is too large maximum:{}",message)]
     SizeIsTooLarge{

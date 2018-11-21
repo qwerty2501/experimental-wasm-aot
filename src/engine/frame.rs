@@ -27,7 +27,7 @@ pub struct Label<'a>{
 
 pub enum LabelType<'a>{
     Loop{start:&'a BasicBlock,next:&'a BasicBlock},
-    If{start:&'a BasicBlock,next:&'a BasicBlock},
+    If{start:&'a BasicBlock,else_block:&'a BasicBlock,next:&'a BasicBlock},
     Block{start:&'a BasicBlock,next:&'a BasicBlock},
 }
 
@@ -67,16 +67,16 @@ impl<'a> Label<'a>{
         }
     }
 
-    pub fn new_loop(start:&'a BasicBlock,next:&'a BasicBlock,return_value:Option<BlockReturnValue<'a>>)-> Label<'a>{
+    pub fn new_loop(start:&'a BasicBlock, next:&'a BasicBlock,return_value:Option<BlockReturnValue<'a>>)-> Label<'a>{
         Label{
             label_type: LabelType::Loop {start,next},
             return_value,
         }
     }
 
-    pub fn new_if(start:&'a BasicBlock,next:&'a BasicBlock, return_value:Option<BlockReturnValue<'a>>) -> Label<'a>{
+    pub fn new_if(start:&'a BasicBlock,else_block:&'a BasicBlock,next:&'a BasicBlock, return_value:Option<BlockReturnValue<'a>>) -> Label<'a>{
         Label{
-            label_type: LabelType::If {start,next},
+            label_type: LabelType::If {start,else_block, next},
             return_value,
         }
     }
