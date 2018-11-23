@@ -626,7 +626,7 @@ fn br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,lab
         let label = stack.labels.get(label_index as usize).ok_or(NoSuchLabel{index:label_index})?.clone();
 
         if let Some(ref return_value) = label.return_value{
-            return_value.store(build_context,stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
+            return_value.store(build_context,stack.values.last().ok_or(NotExistValue)?.to_value(build_context));
         }
 
         let br_block = match label.label_type {
