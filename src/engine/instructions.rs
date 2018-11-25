@@ -122,9 +122,10 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
 
          if let Some(label) = stack.labels.pop(){
              let need_block_return =  if let Some(before_instruction) = stack.activations.current()?.before_instruction.clone(){
-                 if let Instruction::Br(_) = before_instruction{
-                    false
-                 } else{true}
+                 match before_instruction{
+                     Instruction::Br(_) | Instruction::BrTable(_,_) => false,
+                     _ => true,
+                 }
              } else{
                  true
              };
@@ -693,6 +694,28 @@ fn br_if<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,
     })
 }
 
+fn br_table<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,label_indexes:Box<[u32]>,label_index:u32)->Result<Stack<'a,T>,Error>{
+    Ok({
+        {
+            let tl = stack.values.pop().ok_or(NotExistValue)?;
+            let label_indexes = label_indexes.as_ref();
+            for l in label_indexes.iter() {
+                let target_label = Value::const_int(Type::int32(build_context.context()), *l as u64, false);
+                let cond = build_context.builder().build_icmp(IntPredicate::LLVMIntEQ, tl.to_value(build_context), target_label, "");
+                let br_block = stack.current_function.append_basic_block(build_context.context(), "");
+                let else_block = stack.current_function.append_basic_block(build_context.context(), "");
+                build_context.builder().build_cond_br(cond, br_block, else_block);
+                build_context.builder().build_br(br_block);
+                build_context.builder().position_builder_at_end(br_block);
+                stack = br(build_context, stack, *l)?;
+                build_context.builder().position_builder_at_end(else_block);
+            }
+        }
+        let stack = br(build_context,stack,label_index)?;
+        stack
+    })
+}
+
 pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     let mut stack = match instruction.clone(){
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
@@ -889,6 +912,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::If(block_type) => if_instruction(build_context,stack,block_type),
         Instruction::Br(label_index) => br(build_context,stack,label_index),
         Instruction::BrIf(label_index) => br_if(build_context,stack,label_index),
+        Instruction::BrTable(label_indexes,label_index) => br_table(build_context,stack,label_indexes,label_index),
         Instruction::Else => else_instruction(build_context,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
