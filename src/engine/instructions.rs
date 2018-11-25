@@ -3518,6 +3518,38 @@ mod tests{
     }
 
     #[test]
+    pub fn br_block_return_triple()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("block_return_i32",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "block_return_i32";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame_source_with_block_return_value_types(vec![], vec![ValueType::I32,ValueType::F32,ValueType::I32],&[], &[],
+                                                                                                                              &ft,
+                                                                                                                              &lt)],|stack,_|{
+
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::F32)), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Br(0),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let stack = progress_instruction(&build_context,Instruction::F32Const(i32_reinterpret_f32(3.21)),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(22),stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                Ok(())
+            })?;
+        test_module_in_engine_optional_analysis(build_context.module(),|| Ok(()),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+    #[test]
     pub fn br_if_block_return_i32()-> Result<(),Error>{
         let context = Context::new();
         let build_context = BuildContext::new("block_return_i32",&context);
