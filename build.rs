@@ -6,6 +6,9 @@ use std::fs;
 use std::error::Error;
 use std::path::Path;
 use std::ffi::OsString;
+use std::io::ErrorKind;
+
+const WAT_COMPILER:&str = "wat2wasm";
 fn main(){
 
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -13,8 +16,9 @@ fn main(){
 
     let out_dir = env::var("CARGO_TARGET_DIR").map(|v|Path::new(&v).to_path_buf()).unwrap_or_else(|_| manifest_dir.join("target"));
     let dir = "test_cases";
-    build_wat(manifest_dir.join(dir).as_path(), out_dir.join(dir).as_path());
-
+    if let Ok(_) = Command::new(WAT_COMPILER).spawn(){
+        build_wat(manifest_dir.join(dir).as_path(), out_dir.join(dir).as_path());
+    }
 }
 
 
@@ -36,10 +40,9 @@ fn build_wat(dir:&Path,out_dir:&Path){
 
         if   meta_data.is_file() && ext == "wat"  &&  (!out_wasm_path.exists() || filetime::FileTime::from_last_modification_time(&meta_data) >= filetime::FileTime::from_last_modification_time(&out_wasm_path.metadata().unwrap())) {
 
-            Command::new("wat2wasm").args(&[path_in_project.to_str().unwrap(),"-o"])
+            Command::new(WAT_COMPILER).args(&[path_in_project.to_str().unwrap(),"-o"])
                 .arg(&out_wasm_path)
-                .status()
-                .unwrap();
+                .status();
         } else if meta_data.is_dir(){
             build_wat(path_in_project.as_path(),out_path.as_path());
         }
