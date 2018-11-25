@@ -1,5 +1,6 @@
 use super::*;
 use parity_wasm::elements::ValueType;
+use std::slice::Iter;
 
 pub struct BlockReturnValue<'a>{
     value_ptr:&'a Value,
@@ -8,7 +9,10 @@ pub struct BlockReturnValue<'a>{
 
 
 impl<'a> BlockReturnValue<'a>{
-    pub fn new(build_context:&'a BuildContext,value_type:ValueType)-> BlockReturnValue<'a>{
+    pub fn from_block_types(build_context:&'a BuildContext,value_types: &[ValueType])->Vec<Self>{
+        value_types.iter().map(|vt| Self::new(build_context,*vt)).collect()
+    }
+    pub fn new(build_context:&'a BuildContext,value_type:ValueType)-> Self{
 
         BlockReturnValue {value_ptr:build_context.builder().build_alloca(Type::from_wasm_value_type(build_context.context(), value_type),""),  value_type:Type::from_wasm_value_type(build_context.context(), value_type)}
     }
@@ -27,3 +31,4 @@ impl<'a> Clone for BlockReturnValue<'a> {
         BlockReturnValue{value_ptr:self.value_ptr,value_type:self.value_type}
     }
 }
+

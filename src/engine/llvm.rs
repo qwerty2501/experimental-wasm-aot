@@ -349,6 +349,9 @@ impl Builder {
         }
     }
 
+    pub fn get_last_instruction(&self,bb:&BasicBlock)-> Option<&Value>{
+        unsafe{ptr_to_optional_ref(LLVMGetLastInstruction(bb.into()))}
+    }
 
     pub fn build_srem(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
         unsafe{
@@ -427,6 +430,25 @@ impl  Value{
         unsafe{
 
             LLVMConstArray(element_type.into(),const_values.as_ptr() as *mut _,const_values.len() as ::libc::c_uint).into()
+        }
+    }
+
+    pub fn is_basic_block(&self)->bool{
+        unsafe{
+            LLVMValueIsBasicBlock(self.into()) == 1
+        }
+    }
+
+
+    pub fn as_basic_block(&self)->&BasicBlock{
+        unsafe{
+            LLVMValueAsBasicBlock(self.into()).into()
+        }
+    }
+
+    pub fn get_instruction_opcode(&self)->Opcode{
+        unsafe{
+            LLVMGetInstructionOpcode(self.into())
         }
     }
 

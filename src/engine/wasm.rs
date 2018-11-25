@@ -156,8 +156,9 @@ impl<T:WasmIntType> WasmCompiler<T>{
                 })).collect::<Result<Vec<LocalValue>,Error>>()?;
 
                 build_context.builder().build_function(build_context.context(),current_function,|builder,_bb|{
+                    let label_block_types = instructions::filter_label_block_types(function_body.code().elements().iter());
                     let stack = Stack::new(current_function,vec![],vec![],vec![
-                        Frame::new(locals,ModuleInstance::new(types,functions,&self.table_compiler,&self.linear_memory_compiler))
+                        Frame::new(locals,BlockReturnValue::from_block_types(build_context,&label_block_types) ,ModuleInstance::new(types,functions,&self.table_compiler,&self.linear_memory_compiler))
                     ]);
 
                     let  stack = function_body.code().elements().iter().try_fold(stack,|stack,instruction|{

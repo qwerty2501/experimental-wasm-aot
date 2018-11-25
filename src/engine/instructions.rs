@@ -4,6 +4,7 @@ use failure::Error;
 use error::RuntimeError::*;
 use parity_wasm::elements::{Instruction,ValueType};
 use parity_wasm::elements::BlockType;
+use std::slice::Iter;
 
 const WASM_GLOBAL_PREFIX:&str = "__WASM_GLOBAL_";
 
@@ -91,7 +92,7 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
  fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,align:u32,offset:u32,mut stack:Stack<'a,T>,value_type:&Type)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        build_check_memory_size_const(build_context, 0, offset, stack.current_function, current_frame.module_instance.linear_memory_compiler);
+        build_check_memory_size_const(build_context, 0, offset,  current_frame.module_instance.linear_memory_compiler)?;
         let v = stack.values.pop().ok_or(NotExistValue)?;
         let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,Value::const_int(Type::int32(build_context.context()),offset as u64,false),"");
         let v = build_context.builder().build_cast(Opcode::LLVMTrunc,v.to_value(&build_context),value_type,"");
@@ -106,7 +107,7 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
  fn load<'a,T:WasmIntType>(build_context:&'a BuildContext,align:u32,offset:u32,mut stack:Stack<'a,T>,value_type:&Type)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        build_check_memory_size_const(build_context,0,offset,stack.current_function,current_frame.module_instance.linear_memory_compiler);
+        build_check_memory_size_const(build_context,0,offset,current_frame.module_instance.linear_memory_compiler)?;
         let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,Value::const_int(Type::int32(build_context.context()),offset as u64,false),"");
         let memory = build_context.builder().build_bit_cast(memory,Type::ptr(value_type,0),"");
         let v = build_context.builder().build_load(memory,"");
@@ -118,11 +119,34 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
 
  fn end<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
      {
+
          if let Some(label) = stack.labels.pop(){
-            if let Some(return_value) = label.return_value{
-                return_value.store(build_context, stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
-                stack.values.push(WasmValue::new_block_return_value(return_value));
-            }
+             let need_block_return =  if let Some(before_instruction) = stack.activations.current()?.before_instruction.clone(){
+                 if let Instruction::Br(_) = before_instruction{
+                    false
+                 } else{true}
+             } else{
+                 true
+             };
+
+             if let Some(return_value_index) = label.return_value_index {
+                 let ret_value = stack.values.pop().ok_or(NotExistValue)?.to_value(build_context);
+                 let next = match label.label_type {
+                     LabelType::If {start:_,else_block:_,next} => next,
+                     LabelType::Block {start:_,next} => next,
+                     LabelType::Loop {start:_,next} => next,
+                 };
+                 if need_block_return {
+                     let current_frame = stack.activations.current()?;
+                     let return_value = current_frame.block_return_values.get(return_value_index).ok_or(NotExistValue)?;
+                     return_value.store(build_context, ret_value);
+                     build_context.builder().build_br(next);
+                 }
+
+                 build_context.builder().position_builder_at_end(next);
+                 let current_frame = stack.activations.current()?;
+                 stack.values.push(WasmValue::new_block_return_value(current_frame.block_return_values.get(return_value_index).ok_or(NotExistValue)?.clone()));
+             }
          }
      }
     Ok(stack)
@@ -558,8 +582,11 @@ pub fn get_global_name(index:u32) -> String {
 
 fn block<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>,block_type: BlockType)->Result<Stack<'a,T>,Error>{
     {
-        let block_return_value = if let BlockType::Value(value_type) = block_type {
-            Some(BlockReturnValue::new(build_context,value_type))
+        let block_return_value_index = if let BlockType::Value(_) = block_type {
+            let current_frame:&mut Frame<T> = stack.activations.current_mut()?;
+            let current_block_index = current_frame.block_index;
+            current_frame.block_index = current_frame.block_index + 1;
+            Some(current_block_index)
         } else{
             None
         };
@@ -567,15 +594,18 @@ fn block<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>
         let next = stack.current_function.append_basic_block(build_context.context(),"");
         build_context.builder().build_br(start);
         build_context.builder().position_builder_at_end(start);
-        stack.labels.push( Label::new_block(start,next,block_return_value))
+        stack.labels.push( Label::new_block(start,next,block_return_value_index))
     }
     Ok(stack)
 }
 
 fn loop_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,block_type:BlockType)->Result<Stack<'a,T>,Error>{
     {
-        let block_return_value = if let BlockType::Value(value_type) = block_type {
-            Some(BlockReturnValue::new(build_context,value_type))
+        let block_return_value_index = if let BlockType::Value(_) = block_type  {
+            let current_frame:&mut Frame<T> = stack.activations.current_mut()?;
+            let current_block_index = current_frame.block_index;
+            current_frame.block_index = current_frame.block_index + 1;
+            Some(current_block_index)
         } else{
             None
         };
@@ -583,15 +613,18 @@ fn loop_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:S
         let next = stack.current_function.append_basic_block(build_context.context(),"");
         build_context.builder().build_br(start);
         build_context.builder().position_builder_at_end(start);
-        stack.labels.push( Label::new_loop(start,next,block_return_value))
+        stack.labels.push( Label::new_loop(start,next,block_return_value_index))
     }
     Ok(stack)
 }
 
 fn if_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,block_type:BlockType)-> Result<Stack<'a,T>,Error>{
     {
-        let block_return_value = if let BlockType::Value(value_type) = block_type {
-            Some(BlockReturnValue::new(build_context,value_type))
+        let block_return_value_index = if let BlockType::Value(_) = block_type {
+            let current_frame:&mut Frame<T> = stack.activations.current_mut()?;
+            let current_block_index = current_frame.block_index;
+            current_frame.block_index = current_frame.block_index + 1;
+            Some(current_block_index)
         } else{
             None
         };
@@ -601,7 +634,7 @@ fn if_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Sta
         let cond = stack.values.pop().ok_or(NotExistValue)?;
         build_context.builder().build_cond_br(cond.to_value(build_context),start,else_block);
         build_context.builder().position_builder_at_end(start);
-        stack.labels.push( Label::new_if(start,else_block,next,block_return_value))
+        stack.labels.push( Label::new_if(start,else_block,next,block_return_value_index))
     }
     Ok(stack)
 }
@@ -609,10 +642,13 @@ fn if_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Sta
 fn else_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let label = stack.labels.last().ok_or(NotExistLabel)?;
-        if let LabelType::If {start:_,else_block,next:_} = label.label_type{
-            if let Some(ref return_value) = label.return_value{
+        if let LabelType::If {start:_,else_block,next} = label.label_type{
+            if let Some(return_value_index) = label.return_value_index {
+                let current_frame = stack.activations.current()?;
+                let return_value = current_frame.block_return_values.get(return_value_index).ok_or(NotExistValue)?;
                 return_value.store(build_context,stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
             }
+            build_context.builder().build_br(next);
             build_context.builder().position_builder_at_end(else_block);
         } else{
             Err(InvalidLabelType)?
@@ -625,7 +661,10 @@ fn br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,lab
     {
         let label = stack.labels.get(label_index as usize).ok_or(NoSuchLabel{index:label_index})?.clone();
 
-        if let Some(ref return_value) = label.return_value{
+
+        if let Some(return_value_index) = label.return_value_index {
+            let current_frame = stack.activations.current()?;
+            let return_value = current_frame.block_return_values.get(return_value_index).ok_or(NotExistValue)?;
             return_value.store(build_context,stack.values.last().ok_or(NotExistValue)?.to_value(build_context));
         }
 
@@ -636,7 +675,6 @@ fn br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,lab
         };
 
         build_context.builder().build_br(br_block);
-
     }
     Ok(stack)
 
@@ -656,7 +694,7 @@ fn br_if<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,
 }
 
 pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    match instruction{
+    let mut stack = match instruction.clone(){
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
         Instruction::I64Const(v)=> i64_const(build_context, v,stack),
         Instruction::F32Const(v)=> f32_const(build_context, f32_reinterpret_i32(v),stack),
@@ -854,29 +892,39 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::Else => else_instruction(build_context,stack),
         Instruction::End=>end(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
+    }?;
+    {
+        let current_frame = stack.activations.current_mut()?;
+        current_frame.before_instruction = Some(instruction);
     }
+    Ok(stack)
+}
+pub fn filter_label_block_types(instructions:Iter<Instruction>)->Vec<ValueType>{
+    instructions.filter(|i| i.is_block() ).map(|i| match i {
+        Instruction::Loop(block_type) | Instruction::If(block_type) | Instruction::Block(block_type) => block_type,
+        _ => panic!("invalid instruction")
+    }).filter(|bt| match bt {
+        BlockType::Value(_) => true,
+        _ => false,
+    }).map(|bt| match bt{
+        BlockType::Value(value_type) => *value_type,
+        _ => panic!("invalid block type"),
+    }).collect()
 }
 
 
-
 #[inline]
-fn build_check_memory_size_const<'a,T:WasmIntType>(build_context:&'a BuildContext, index:u32, target:u32, function:&'a Value, linear_memory_compiler:&LinearMemoryCompiler<T>){
-    build_check_memory_size(build_context,index,Value::const_int(Type::int32(build_context.context()),target as ::libc::c_ulonglong,false),function,linear_memory_compiler);
+fn build_check_memory_size_const<'a,T:WasmIntType>(build_context:&'a BuildContext, index:u32, target:u32, linear_memory_compiler:&LinearMemoryCompiler<T>)->Result<(),Error>{
+    build_check_memory_size(build_context,index,Value::const_int(Type::int32(build_context.context()),target as ::libc::c_ulonglong,false),linear_memory_compiler)
 }
 
 
 #[inline]
-fn build_check_memory_size<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32, target:&'a Value, function:&'a Value,linear_memory_compiler:&LinearMemoryCompiler<T>){
-    let memory_size = linear_memory_compiler.build_get_real_memory_size(build_context, index);
-    let cmp_ret = build_context.builder().build_icmp(IntPredicate::LLVMIntULT,target,memory_size,"");
-    let then_bb = function.append_basic_block(build_context.context(),"");
-    let else_bb = function.append_basic_block(build_context.context(),"");
-    build_context.builder().build_cond_br(cmp_ret,then_bb,else_bb);
-    build_context.builder().position_builder_at_end(else_bb);
-    build_call_and_set_raise_const(build_context.module(),build_context.builder(),::libc::SIGSEGV);
-    build_call_and_set_raise_const(build_context.module(),build_context.builder(),::libc::SIGSEGV); // for test on JIT. It need to send it twice why.
-    build_context.builder().build_br(then_bb);
-    build_context.builder().position_builder_at_end(then_bb);
+fn build_check_memory_size<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32, target:&'a Value, linear_memory_compiler:&LinearMemoryCompiler<T>)->Result<(),Error>{
+    let check_function_name = linear_memory_compiler.get_memory_real_check_name(index);
+    let check_function = build_context.module().get_named_function(&check_function_name).ok_or(NoSuchLLVMFunction {name:check_function_name})?;
+    build_context.builder().build_call(check_function,&[target],"");
+    Ok(())
 }
 
 #[inline]
@@ -996,7 +1044,7 @@ mod tests{
         let (ft,lt) = new_compilers();
         build_test_instruction_function(&build_context, test_function_name, vec![], vec![
 
-            frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), expected as u64, false))],
+            frame::test_utils::new_test_frame_source(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), expected as u64, false))],
                                               &[], &[],
                                               &ft,
                                               &lt)
@@ -1021,7 +1069,7 @@ mod tests{
         let test_function_name = "test_function";
         let (ft,lt) = new_compilers();
         build_test_instruction_function(&build_context, test_function_name, vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()), expected, false))], vec![
-            frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
+            frame::test_utils::new_test_frame_source(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
                                               &[], &[],
                                               &ft,&lt)], |stack,_bb|{
             let stack = set_local(&build_context,0,stack)?;
@@ -1046,7 +1094,7 @@ mod tests{
         let (ft,lt) = new_compilers();
         build_test_instruction_function(&build_context, test_function_name, vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()), expected, false))], vec![
 
-            frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
+            frame::test_utils::new_test_frame_source(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
                                               &[], &[],
                                               &ft,
                                               &lt)
@@ -1071,17 +1119,17 @@ mod tests{
         let expected = 3000;
         let (ft,lt) = new_compilers();
         let test_function_name = "test_function";
-        build_test_instruction_function(&build_context, test_function_name, vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()), expected, false))], vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+        let  init_memory_function_name = memory::test_utils::init_test_memory(&build_context)?;
+        build_test_instruction_function(&build_context, test_function_name, vec![], vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                                                                                                                                   &ft,
                                                                                                                                                                                                   &lt)],
                                         |stack,_bb|{
-            let  stack = store(&build_context,2,500,stack,Type::int32(build_context.context()))?;
-            let  mut stack = load(&build_context,2,500,stack,Type::int32(build_context.context()))?;
-            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(3000),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Store(2,500),stack)?;
+                                            let  mut stack = progress_instruction(&build_context,Instruction::I32Load(2,500),stack)?;
+                                            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
             Ok(())
         })?;
-        let  init_memory_function_name = memory::test_utils::init_test_memory(&build_context)?;
-
         test_module_in_engine(build_context.module(),|engine|{
 
             let ret = run_test_function_with_name(engine,build_context.module(),&init_memory_function_name,&[])?;
@@ -1109,7 +1157,7 @@ mod tests{
         let expected = 17;
         lt.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(expected, None)])?;
         let test_function_name = "test_function";
-        build_test_instruction_function(&build_context, test_function_name, vec![], vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+        build_test_instruction_function(&build_context, test_function_name, vec![], vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                                                            &ft,
                                                                                                                            &lt)],
                                         |stack,_bb|{
@@ -1146,7 +1194,7 @@ mod tests{
         lt.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(expected_ret, None)])?;
         let test_function_name = "test_function";
         build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),1,false))],
-                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                        vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                &ft,
                                                                                &lt)],|stack,_bb|{
 
@@ -1182,7 +1230,7 @@ mod tests{
         lt.build_memory_functions(&build_context, 0, &[&ResizableLimits::new(expected, Some(20))])?;
         let test_function_name = "test_function";
         build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),4,false))],
-                                        vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                        vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                &ft,
                                                                                &lt)],|stack,_bb|{
 
@@ -1218,7 +1266,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),$x as u64,false))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1245,7 +1293,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),$x as u64,true))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[], vec![],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1272,7 +1320,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),$x as u64,false))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1300,7 +1348,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),$x as u64,true))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[], vec![],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1327,7 +1375,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float32(build_context.context()),$x as f64))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1355,7 +1403,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float64(build_context.context()),$x as f64))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1383,7 +1431,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),$lhs as u64,false)),WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),$rhs as u64,false))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1411,7 +1459,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),$lhs as u64,false)),WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),$rhs as u64,false))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1441,7 +1489,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value(  Value::const_int(Type::int32(build_context.context()),$lhs as u64,true)),WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),$rhs as u64,true))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[], vec![],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[], vec![],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1472,7 +1520,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),$lhs as u64,true)),WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),$rhs as u64,true))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1501,7 +1549,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float32(build_context.context()),$lhs as f64)),WasmValue::new_value( Value::const_real(Type::float32(build_context.context()),$rhs as f64))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1529,7 +1577,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float64(build_context.context()),$lhs as f64)),WasmValue::new_value( Value::const_real(Type::float64(build_context.context()),$rhs as f64))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1558,7 +1606,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),$lhs as u64,true)),WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),$rhs as u64,true))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1587,7 +1635,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),$lhs as u64,false)),WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),$rhs as u64,false))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1614,7 +1662,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),$lhs as u64,true)),WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),$rhs as u64,true))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1642,7 +1690,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int64(build_context.context()),$lhs as u64,false)),WasmValue::new_value(Value::const_int(Type::int64(build_context.context()),$rhs as u64,false))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1670,7 +1718,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int64(build_context.context()),$lhs as u64,true)),WasmValue::new_value(Value::const_int(Type::int64(build_context.context()),$rhs as u64,true))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1699,7 +1747,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value(Value::const_real(Type::float32(build_context.context()),$lhs as f64)),WasmValue::new_value(Value::const_real(Type::float32(build_context.context()),$rhs as f64))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -1727,7 +1775,7 @@ mod tests{
                 let test_function_name = "test_function";
 
                 build_test_instruction_function(&build_context,test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float64(build_context.context()),$lhs )),WasmValue::new_value(Value::const_real(Type::float64(build_context.context()),$rhs ))],
-                                                vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
@@ -2807,7 +2855,7 @@ mod tests{
         let test_function_name = "test_function";
 
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),0x0F_FF_FF_FF_0F_FF_FF_FF as u64,true))],
-        vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+        vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                &ft,
                                                &lt)],|stack,_|{
 
@@ -2832,7 +2880,7 @@ mod tests{
         let test_function_name = "extend_u32_to_i64_works";
 
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),0xFF_FF_FF_FF as u64,true))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2858,7 +2906,7 @@ mod tests{
         let test_function_name = "extend_u32_to_i64_works";
 
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),0xFF_FF_FF_FF as u64,true))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2882,7 +2930,7 @@ mod tests{
         let expected = -3_i32;
         let test_function_name = "trunc_f32_to_s32_works";
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float32(build_context.context()),-3.5_f32 as f64))],
-        vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+        vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                &ft,
                                                &lt)],|stack,_|{
 
@@ -2906,7 +2954,7 @@ mod tests{
         let expected = -3_i64;
         let test_function_name = "trunc_f32_to_s64_works";
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float32(build_context.context()),-3.5_f32 as f64))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2931,7 +2979,7 @@ mod tests{
         let expected =3;
         let test_function_name = "trunc_f32_to_u32_works";
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float32(build_context.context()),3.5 as f64))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2955,7 +3003,7 @@ mod tests{
         let expected = 3;
         let test_function_name = "trunc_f32_to_u64_works";
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float32(build_context.context()),3.5 as f64))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -2981,7 +3029,7 @@ mod tests{
         let expected = -3_i32;
         let test_function_name = "trunc_f64_to_s32_works";
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float64(build_context.context()),-3.5_f64))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3005,7 +3053,7 @@ mod tests{
         let expected = -3_i64;
         let test_function_name = "trunc_f64_to_s64_works";
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float64(build_context.context()),-3.5_f64))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3030,7 +3078,7 @@ mod tests{
         let expected =3;
         let test_function_name = "trunc_f64_to_u32_works";
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float64(build_context.context()),3.5 as f64))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3054,7 +3102,7 @@ mod tests{
         let expected = 3;
         let test_function_name = "trunc_f64_to_u64_works";
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float64(build_context.context()),3.5))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3078,7 +3126,7 @@ mod tests{
         let expected = 5.5;
         let test_function_name = "demote_float_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float64(build_context.context()),5.5))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3101,7 +3149,7 @@ mod tests{
         let expected = 5.5;
         let test_function_name = "demote_float_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float32(build_context.context()),5.5))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3125,7 +3173,7 @@ mod tests{
         let expected:f32 = -5.0;
         let test_function_name = "convert_s32_to_f32_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),-5_i32 as u64,true))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3150,7 +3198,7 @@ mod tests{
         let expected:f32 = -5.0;
         let test_function_name = "convert_s64_to_f32_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),-5_i64 as u64,true))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3174,7 +3222,7 @@ mod tests{
         let expected:f32 = 5.0;
         let test_function_name = "convert_u32_to_f32_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),5 as u64,false))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3198,7 +3246,7 @@ mod tests{
         let expected:f32 = 5.0;
         let test_function_name = "convert_u64_to_f32_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()), 5,false))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3222,7 +3270,7 @@ mod tests{
         let expected:f64 = -5.0;
         let test_function_name = "convert_s32_to_f64_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),-5_i32 as u64,true))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3247,7 +3295,7 @@ mod tests{
         let expected:f64 = -5.0;
         let test_function_name = "convert_s64_to_f64_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),-5_i64 as u64,true))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3271,7 +3319,7 @@ mod tests{
         let expected:f64 = 5.0;
         let test_function_name = "convert_u32_to_f64_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),5 as u64,false))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3296,7 +3344,7 @@ mod tests{
         let expected:f64 = 5.0;
         let test_function_name = "convert_u64_to_f64_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()), 5,false))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3321,7 +3369,7 @@ mod tests{
         let expected = 65535;
         let test_function_name = "convert_i32_to_f32_works";
         build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()), expected,false))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3346,7 +3394,7 @@ mod tests{
         let expected = 65535;
         let test_function_name = "convert_i64_to_f64_works";
         build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int64(build_context.context()), expected,false))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3372,7 +3420,7 @@ mod tests{
         let expected = 5.0;
         let test_function_name = "convert_f32_to_i32_works";
         build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![ WasmValue::new_value( Value::const_real(Type::float32(build_context.context()),expected ))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3397,7 +3445,7 @@ mod tests{
         let expected = 5.0;
         let test_function_name = "convert_f64_to_i64_works";
         build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float64(build_context.context()), expected))],
-                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                  vec![frame::test_utils::new_test_frame_source(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
@@ -3411,6 +3459,165 @@ mod tests{
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())));
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn block_return_i32()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("block_return_i32",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "block_return_i32";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame_source_with_block_return_value_types(vec![], vec![ValueType::I32],&[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                Ok(())
+            })?;
+        test_module_in_engine_optional_analysis(build_context.module(),|| Ok(()),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn br_block_return_i32()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("block_return_i32",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "block_return_i32";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame_source_with_block_return_value_types(vec![], vec![ValueType::I32],&[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::NoResult), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::Br(0),stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                Ok(())
+            })?;
+        test_module_in_engine_optional_analysis(build_context.module(),|| Ok(()),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn br_if_block_return_i32()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("block_return_i32",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "block_return_i32";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame_source_with_block_return_value_types(vec![], vec![ValueType::I32],&[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::NoResult), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(1),stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::BrIf(0),stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(2),stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                Ok(())
+            })?;
+        test_module_in_engine_optional_analysis(build_context.module(),|| Ok(()),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn loop_return_i32()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("loop_return_i32",&context);
+        let expected = 5;
+        let (ft,lt) = new_compilers();
+        let test_function_name = "loop_return_i32";
+        let  init_memory_function_name = memory::test_utils::init_test_memory(&build_context)?;
+        build_test_instruction_function(&build_context, test_function_name, vec![], vec![frame::test_utils::new_test_frame_source_with_block_return_value_types(vec![], vec![ValueType::I32,ValueType::I32],&[], &[],
+                                                                                                                           &ft,
+                                                                                                                           &lt)],
+                                        |stack,_bb|{
+                                            let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
+
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(0),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Store(2,500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::Loop(BlockType::Value(ValueType::I32)), stack)?;
+
+                                            let stack = progress_instruction(&build_context,Instruction::I32Load(2,500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(1),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Add,stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Store(2,500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Load(2,500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Load(2,500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(4),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32GtS,stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::BrIf(0),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(12),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::Br(1),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(2),stack)?;
+                                            let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                                            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                                            Ok(())
+                                        })?;
+        test_module_in_engine_optional_analysis(build_context.module(),||Ok(()),|engine|{
+
+            let ret = run_test_function_with_name(engine,build_context.module(),&init_memory_function_name,&[])?;
+            assert_eq!(1,ret.to_int(false));
+
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+
+            Ok(())
+        })
+
+    }
+
+    #[test]
+    pub fn block_if_else_i32()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("block_if_else_i32",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "block_if_else_i32";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),1,false))],
+                                                  vec![frame::test_utils::new_test_frame_source_with_block_return_value_types(vec![], vec![ValueType::I32],&[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let stack = progress_instruction(&build_context,Instruction::If(BlockType::Value(ValueType::I32)), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Else,stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(2),stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                Ok(())
+            })?;
+        test_module_in_engine_optional_analysis(build_context.module(),|| Ok(()),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
             Ok(())
         })
     }

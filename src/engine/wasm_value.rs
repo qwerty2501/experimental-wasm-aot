@@ -3,7 +3,7 @@ use super::*;
 
 pub enum WasmValue<'a>{
     Value{value:&'a Value},
-    BlockReturnValue{return_value:BlockReturnValue<'a>}
+    BlockReturnValue{return_value:BlockReturnValue<'a>},
 }
 
 

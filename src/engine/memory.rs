@@ -10,7 +10,7 @@ use parity_wasm::elements::ImportCountType;
 const MODULE_ID:&str = "__wasm_memory_module";
 const MEMORY_NAME_BASE:&str = "_memory";
 const MEMORY_PAGE_SIZE_NAME_BASE:&str = "_memory_size";
-
+const MEMORY_REAL_CHECK_BASE:&str = "_memory_real_check";
 
 
 pub trait MemoryTypeContext {
@@ -60,6 +60,10 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
         [M::MEMORY_NAME_PREFIX, MEMORY_PAGE_SIZE_NAME_BASE,&index.to_string()].concat()
     }
 
+    pub fn get_memory_real_check_name(&self,index:u32) -> String{
+        [M::MEMORY_NAME_PREFIX,MEMORY_REAL_CHECK_BASE,&index.to_string()].concat()
+    }
+
     pub fn set_declare_memory_size<'a>(&self, build_context:&'a BuildContext, index:u32) ->&'a Value{
         let wasm_int_type = Type::int_wasm_ptr::<T>(build_context.context());
         build_context.module().set_declare_global(&self.get_memory_size_name(index), wasm_int_type)
@@ -102,7 +106,33 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
 
     pub fn build_memory_functions(&self, build_context:&BuildContext, import_count:u32, limits:&[&ResizableLimits]) ->Result<(),Error> {
         self.build_init_functions(build_context, import_count, limits, ||Ok(()))?;
-        self.build_grow_memory_functions(build_context,import_count ,limits)
+        self.build_grow_memory_functions(build_context,import_count ,limits)?;
+        self.build_check_memory_size_functions(build_context,import_count,limits)
+    }
+
+    pub fn build_check_memory_size_functions(&self,build_context:&BuildContext,import_count:u32, limits:&[&ResizableLimits]) -> Result<(),Error>{
+        for (index,limit ) in limits.iter().enumerate(){
+            let index = index as u32 + import_count ;
+            let check_memory_size_function =  build_context.module().set_declare_function(&self.get_memory_real_check_name(index),Type::function(Type::void(build_context.context()),&[Type::int32(build_context.context())],false));
+            build_context.builder().build_function(build_context.context(),check_memory_size_function,|_,_|{
+                let target = check_memory_size_function.get_first_param().ok_or(NotExistValue)?;
+                let memory_size = self.build_get_real_memory_size(build_context, index);
+                let cmp_ret = build_context.builder().build_icmp(IntPredicate::LLVMIntULT,target,memory_size,"");
+                let else_bb = check_memory_size_function.append_basic_block(build_context.context(),"");
+                let then_bb = check_memory_size_function.append_basic_block(build_context.context(),"");
+                build_context.builder().build_cond_br(cmp_ret,then_bb,else_bb);
+                build_context.builder().position_builder_at_end(else_bb);
+                build_call_and_set_raise_const(build_context.module(),build_context.builder(),::libc::SIGSEGV);
+                build_call_and_set_raise_const(build_context.module(),build_context.builder(),::libc::SIGSEGV); // for test on JIT. It need to send it twice why.
+                build_context.builder().build_br(then_bb);
+                build_context.builder().position_builder_at_end(then_bb);
+                build_context.builder().build_ret_void();
+                Ok(())
+            } )?;
+
+
+        }
+        Ok(())
     }
 
     pub fn build_grow_memory_functions(&self, build_context:&BuildContext,import_count:u32, limits:&[&ResizableLimits])->Result<(),Error>{

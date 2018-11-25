@@ -10,7 +10,7 @@ pub struct Stack<'a,T:WasmIntType + 'a>{
 
 impl<'a,T:WasmIntType> Stack<'a,T>{
 
-    pub fn new<'b>(current_function:&'b Value, labels:Vec<Label<'b>>,  values:Vec<WasmValue<'b>>,activations:Vec<Frame<'b,T>>)-> Stack<'b,T>{
+    pub fn new<'b>(current_function:&'b Value, labels:Vec<Label<'b>>, values:Vec<WasmValue<'b>>,activations:Vec<Frame<'b,T>>)-> Stack<'b,T>{
         Stack{current_function, labels,values,activations}
     }
 }
