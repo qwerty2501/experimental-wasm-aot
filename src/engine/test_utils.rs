@@ -17,17 +17,17 @@ pub fn get_target_dir()->Result<PathBuf,Error>{
 }
 
 #[cfg(test)]
-pub fn build_test_instruction_function<'a,T:WasmIntType, F:Fn(Stack<T>,&BasicBlock)->Result<(),Error>>(build_context:&'a BuildContext, function_name:&str, values:Vec<WasmValue<'a>>, activations:Vec<FrameSource<'a,T>>, on_build:F) ->Result<(),Error>{
+pub fn build_test_instruction_function<'a,T:WasmIntType, F:Fn(Stack<T>,&BasicBlock)->Result<(),Error>>(build_context:&'a BuildContext, function_name:&str, values:Vec<WasmValue<'a>>, activations:Vec<Frame<'a,T>>, on_build:F) ->Result<(),Error>{
     build_test_instruction_function_with_type(build_context,Type::int32(build_context.context()),function_name,values,activations,on_build)
 }
 
 #[cfg(test)]
-pub fn build_test_instruction_function_with_type<'a,T:WasmIntType, F:Fn(Stack<T>,&BasicBlock)->Result<(),Error>>(build_context:&'a BuildContext, ret_type:&'a Type, function_name:&str, values:Vec<WasmValue<'a>>, activations:Vec<FrameSource<'a,T>>, on_build:F) ->Result<(),Error>{
+pub fn build_test_instruction_function_with_type<'a,T:WasmIntType, F:Fn(Stack<T>,&BasicBlock)->Result<(),Error>>(build_context:&'a BuildContext, ret_type:&'a Type, function_name:&str, values:Vec<WasmValue<'a>>, activations:Vec<Frame<'a,T>>, on_build:F) ->Result<(),Error>{
     let test_function = build_context.module().set_declare_function(function_name,Type::function(ret_type,&[],false));
 
     build_context.builder().build_function(build_context.context(),test_function,|_builder,bb| {
         let stack = Stack::<T>::new(test_function,vec![],values,activations.into_iter().map(|a| {
-            Frame::new(a.locals,BlockReturnValue::from_block_types(build_context,&a.block_return_value_types),a.module_instance)
+            Frame::new(a.locals,a.module_instance)
         }).collect());
         on_build(stack,bb)
     })
