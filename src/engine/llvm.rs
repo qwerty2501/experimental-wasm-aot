@@ -353,6 +353,8 @@ impl Builder {
         unsafe{ptr_to_optional_ref(LLVMGetLastInstruction(bb.into()))}
     }
 
+
+
     pub fn build_srem(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
         unsafe{
             LLVMBuildSRem(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
@@ -428,7 +430,6 @@ impl  Value{
 
     pub fn const_array<'a>(element_type:&Type,const_values:&'a [&Value])->&'a Value{
         unsafe{
-
             LLVMConstArray(element_type.into(),const_values.as_ptr() as *mut _,const_values.len() as ::libc::c_uint).into()
         }
     }
@@ -449,6 +450,12 @@ impl  Value{
     pub fn get_instruction_opcode(&self)->Opcode{
         unsafe{
             LLVMGetInstructionOpcode(self.into())
+        }
+    }
+
+    pub fn get_last_basic_block(&self)->Option<&BasicBlock>{
+        unsafe{
+            ptr_to_optional_ref(LLVMGetLastBasicBlock(self.into()))
         }
     }
 
@@ -668,6 +675,29 @@ impl_type_traits!(BasicBlock,LLVMBasicBlockRef);
 impl BasicBlock{
     pub fn insert_basic_block(&self,context:& Context,name:&str)->&BasicBlock{
         unsafe{LLVMInsertBasicBlockInContext(context.into(), self.into(),compiler_c_str!(name)).into()}
+    }
+
+    pub fn get_previous_basic_block(&self)->Option<&BasicBlock>{
+        unsafe{
+            ptr_to_optional_ref(LLVMGetPreviousBasicBlock(self.into()))
+        }
+    }
+
+    pub fn get_next_basic_block(&self)->Option<&BasicBlock>{
+        unsafe{
+            ptr_to_optional_ref(LLVMGetNextBasicBlock(self.into()))
+        }
+    }
+    pub fn move_after(&self,move_pos:&BasicBlock){
+        unsafe{
+            LLVMMoveBasicBlockAfter(self.into(),move_pos.into())
+        }
+    }
+
+    pub fn move_before(&self,move_pos:&BasicBlock){
+        unsafe{
+            LLVMMoveBasicBlockBefore(self.into(),move_pos.into())
+        }
     }
 }
 

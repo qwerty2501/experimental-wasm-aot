@@ -7,7 +7,7 @@ use parity_wasm::elements::Instruction;
 pub struct Frame<'a,T:WasmIntType + 'a>{
     pub locals:Vec<LocalValue<'a>>,
     pub module_instance:ModuleInstance<'a,T>,
-    pub before_instruction:Option<Instruction>,
+    pub previous_instruction:Option<Instruction>,
 }
 
 pub struct ModuleInstance<'a,T:WasmIntType + 'a>{
@@ -55,7 +55,7 @@ impl<'a,T:WasmIntType + 'a> Clone for ModuleInstance<'a,T>{
 
 impl<'a,T:WasmIntType + 'a> Frame<'a,T>{
     pub fn new(locals:Vec<LocalValue<'a>>, module_instance:ModuleInstance<'a,T> )->Frame<'a,T>{
-        Frame{locals,module_instance,before_instruction:None}
+        Frame{locals,module_instance, previous_instruction:None}
     }
 }
 

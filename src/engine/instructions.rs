@@ -121,7 +121,7 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
      {
 
          if let Some(label) = stack.labels.pop(){
-             let need_block_return =  if let Some(before_instruction) = stack.activations.current()?.before_instruction.clone(){
+             let need_block_return =  if let Some(before_instruction) = stack.activations.current()?.previous_instruction.clone(){
                  match before_instruction{
                      Instruction::Br(_) | Instruction::BrTable(_,_) => false,
                      _ => true,
@@ -133,13 +133,19 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
              if let Some(return_value) = label.return_value {
                  let ret_value = stack.values.pop().ok_or(NotExistValue)?.to_value(build_context);
                  let next = match label.label_type {
-                     LabelType::If {start:_,else_block:_,next} => next,
+                     LabelType::If {start:_,else_block:_,next} => { next },
                      LabelType::Block {start:_,next} => next,
                      LabelType::Loop {start:_,next} => next,
                  };
                  if need_block_return {
                      return_value.store(build_context, ret_value);
                      build_context.builder().build_br(next);
+                 }
+
+
+                 let last_basic_block = stack.current_function.get_last_basic_block();
+                 if let Some(last_basic_block) = last_basic_block {
+                     next.move_after(last_basic_block);
                  }
 
                  build_context.builder().position_builder_at_end(next);
@@ -623,7 +629,7 @@ fn if_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Sta
         let else_block = stack.current_function.append_basic_block(build_context.context(),"");
         let next = stack.current_function.append_basic_block(build_context.context(),"");
         let cond = stack.values.pop().ok_or(NotExistValue)?;
-        build_context.builder().build_cond_br(cond.to_value(build_context),start,else_block);
+        build_cond_br(build_context.builder(),build_context.context(),cond.to_value(build_context),start,else_block);
         build_context.builder().position_builder_at_end(start);
         stack.labels.push( Label::new_if(start,else_block,next,block_return_value))
     }
@@ -672,7 +678,7 @@ fn br_if<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,
         let cond = stack.values.pop().ok_or(NotExistValue)?;
         let br_block = stack.current_function.append_basic_block(build_context.context(),"");
         let nothing_br_block = stack.current_function.append_basic_block(build_context.context(),"");
-        build_context.builder().build_cond_br(cond.to_value(build_context),br_block,nothing_br_block);
+        build_cond_br(build_context.builder(),build_context.context(),cond.to_value(build_context),br_block,nothing_br_block);
         build_context.builder().position_builder_at_end(br_block);
         let stack =br(build_context,stack,label_index)?;
         build_context.builder().position_builder_at_end(nothing_br_block);
@@ -690,8 +696,7 @@ fn br_table<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,
                 let cond = build_context.builder().build_icmp(IntPredicate::LLVMIntEQ, tl.to_value(build_context), target_label, "");
                 let br_block = stack.current_function.append_basic_block(build_context.context(), "");
                 let else_block = stack.current_function.append_basic_block(build_context.context(), "");
-                build_context.builder().build_cond_br(cond, br_block, else_block);
-                build_context.builder().build_br(br_block);
+                build_cond_br(build_context.builder(),build_context.context(),cond,br_block,else_block);
                 build_context.builder().position_builder_at_end(br_block);
                 stack = br(build_context, stack, *l)?;
                 build_context.builder().position_builder_at_end(else_block);
@@ -905,7 +910,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
     }?;
     {
         let current_frame = stack.activations.current_mut()?;
-        current_frame.before_instruction = Some(instruction);
+        current_frame.previous_instruction = Some(instruction);
     }
     Ok(stack)
 }
@@ -963,6 +968,10 @@ pub fn f64_reinterpret_i64(v: u64) -> f64 {
     unsafe {
         ::std::mem::transmute(v)
     }
+}
+
+fn build_cond_br<'a>(builder:&'a Builder, context:&'a Context, value:&'a Value,then_block:&'a BasicBlock,else_block:&'a BasicBlock)->&'a Value{
+    builder.build_cond_br(builder.build_icmp( IntPredicate::LLVMIntNE, value,Value::const_int(Type::type_of(value),0,false),""),then_block,else_block)
 }
 
 pub fn value_type_to_type<'a>(build_context:&'a BuildContext, value_type:&ValueType)->&'a Type{
@@ -3582,7 +3591,8 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
                 Ok(())
             })?;
-        test_module_in_engine_optional_analysis(build_context.module(),|| Ok(()),|engine|{
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
             Ok(())
@@ -3624,7 +3634,8 @@ mod tests{
                                             build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
                                             Ok(())
                                         })?;
-        test_module_in_engine_optional_analysis(build_context.module(),||Ok(()),|engine|{
+
+        test_module_in_engine(build_context.module(),|engine|{
 
             let ret = run_test_function_with_name(engine,build_context.module(),&init_memory_function_name,&[])?;
             assert_eq!(1,ret.to_int(false));
@@ -3644,11 +3655,12 @@ mod tests{
         let (ft,lt) = new_compilers();
         let expected = 3;
         let test_function_name = "block_if_else_i32";
-        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()),1,false))],
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
                                                   vec![frame::test_utils::new_test_frame(vec![],&[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
-
+                let stack = progress_instruction(&build_context,Instruction::I32Const(0),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Eqz,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::If(BlockType::Value(ValueType::I32)), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::Else,stack)?;
@@ -3657,7 +3669,37 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
                 Ok(())
             })?;
-        test_module_in_engine_optional_analysis(build_context.module(),|| Ok(()),|engine|{
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn br_table_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("br_table_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "br_table_works";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![],&[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(0),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::BrTable(Box::new( [0]),1),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(22),stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
             Ok(())
