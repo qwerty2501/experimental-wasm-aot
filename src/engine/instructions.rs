@@ -137,6 +137,7 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
                      LabelType::Block {start:_,next} => next,
                      LabelType::Loop {start:_,next} => next,
                  };
+
                  if need_block_return {
                      return_value.store(build_context, ret_value);
                      build_context.builder().build_br(next);
@@ -3591,8 +3592,8 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
                 Ok(())
             })?;
-        build_context.module().dump();
-        test_module_in_engine(build_context.module(),|engine|{
+
+        test_module_in_engine_optional_analysis(build_context.module(),||Ok(()),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
             Ok(())
