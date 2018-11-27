@@ -16,6 +16,7 @@
       <w>cutop</w>
       <w>deref</w>
       <w>dest</w>
+      <w>donothing</w>
       <w>fabs</w>
       <w>fadd</w>
       <w>fcmp</w>

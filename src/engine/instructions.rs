@@ -708,6 +708,11 @@ fn br_table<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,
     })
 }
 
+fn nop<'a,T:WasmIntType>(build_context:&'a BuildContext, stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    build_call_and_set_donothing(build_context.module(),build_context.builder(),"");
+    Ok(stack)
+}
+
 pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     let mut stack = match instruction.clone(){
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
@@ -907,6 +912,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::BrTable(label_indexes,label_index) => br_table(build_context,stack,label_indexes,label_index),
         Instruction::Else => else_instruction(build_context,stack),
         Instruction::End=>end(build_context,stack),
+        Instruction::Nop => nop(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }?;
     {
@@ -3730,6 +3736,32 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(22),stack)?;
                 let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+
+    #[test]
+    pub fn nop_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("nop_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "nop_works";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::Nop, stack)?;
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
                 Ok(())
             })?;

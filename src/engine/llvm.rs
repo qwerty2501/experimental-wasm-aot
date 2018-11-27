@@ -944,6 +944,13 @@ pub fn build_call_and_set_nearbyint_f64<'m>(module:&'m Module,builder:&'m Builde
     builder.build_call(nearbyint_f64,&[x],name)
 }
 
+pub fn build_call_and_set_donothing<'m>(module:&'m Module,builder:&'m Builder,name:&str)->&'m Value{
+    let context = module.context();
+    let donothing_type = Type::function(Type::void(context),&[],false);
+    let donothing = module.set_declare_function("llvm.donothing",donothing_type);
+    builder.build_call(donothing,&[],name)
+}
+
 
 
 pub trait Disposable{
