@@ -3502,7 +3502,7 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
                 Ok(())
             })?;
-        test_module_in_engine_optional_analysis(build_context.module(),|| Ok(()),|engine|{
+        test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
             Ok(())
@@ -3531,7 +3531,6 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
                 Ok(())
             })?;
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
@@ -3564,7 +3563,6 @@ mod tests{
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
                 Ok(())
             })?;
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
