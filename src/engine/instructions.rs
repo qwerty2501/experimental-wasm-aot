@@ -121,7 +121,7 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
      {
 
          if let Some(label) = stack.labels.pop(){
-             let need_block_return =  if let Some(before_instruction) = stack.activations.current()?.previous_instruction.clone(){
+             let need_br_next =  if let Some(before_instruction) = stack.activations.current()?.previous_instruction.clone(){
                  match before_instruction{
                      Instruction::Br(_) | Instruction::BrTable(_,_) => false,
                      _ => true,
@@ -130,29 +130,29 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
                  true
              };
 
-             if let Some(return_value) = label.return_value {
-                 let ret_value = stack.values.pop().ok_or(NotExistValue)?.to_value(build_context);
-                 let next = match label.label_type {
-                     LabelType::If {start:_,else_block:_,next} => { next },
-                     LabelType::Block {start:_,next} => next,
-                     LabelType::Loop {start:_,next} => next,
-                 };
 
-                 if need_block_return {
+             let next = match label.label_type {
+                 LabelType::If {start:_,else_block:_,next} => { next },
+                 LabelType::Block {start:_,next} => next,
+                 LabelType::Loop {start:_,next} => next,
+             };
+             if need_br_next {
+                 if let Some(return_value) = label.return_value {
+                     let ret_value = stack.values.pop().ok_or(NotExistValue)?.to_value(build_context);
                      return_value.store(build_context, ret_value);
-                     build_context.builder().build_br(next);
+                     stack.values.push(WasmValue::new_block_return_value(return_value));
                  }
-
-
-                 let last_basic_block = stack.current_function.get_last_basic_block();
-                 if let Some(last_basic_block) = last_basic_block {
-                     next.move_after(last_basic_block);
-                 }
-
-                 build_context.builder().position_builder_at_end(next);
-                 let current_frame = stack.activations.current()?;
-                 stack.values.push(WasmValue::new_block_return_value(return_value));
+                 build_context.builder().build_br(next);
              }
+
+             let last_basic_block = stack.current_function.get_last_basic_block();
+             if let Some(last_basic_block) = last_basic_block {
+                 next.move_after(last_basic_block);
+             }
+
+             build_context.builder().position_builder_at_end(next);
+             let current_frame = stack.activations.current()?;
+
          }
      }
     Ok(stack)
@@ -3526,11 +3526,46 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
                 let mut stack = progress_instruction(&build_context,Instruction::Br(0),stack)?;
                 let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(5),stack)?;
                 let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
                 build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
                 Ok(())
             })?;
-        test_module_in_engine_optional_analysis(build_context.module(),|| Ok(()),|engine|{
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn br_block_return_nothing()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("block_return_i32",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "block_return_i32";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![],&[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+
+
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::NoResult), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Block(BlockType::NoResult), stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(1),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Add,stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Br(0),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let mut stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
             Ok(())
