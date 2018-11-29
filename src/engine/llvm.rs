@@ -37,6 +37,11 @@ macro_rules! impl_type_traits{
             self.as_ptr()
         }
     }
+    impl PartialEq for $ref_ty{
+        fn eq(&self, other: & $ref_ty) -> bool {
+            self as *const _ == other as *const _
+        }
+    }
 
 
     impl AsPtr<$pointer_ty> for $ref_ty{
@@ -951,6 +956,12 @@ pub fn build_call_and_set_donothing<'m>(module:&'m Module,builder:&'m Builder,na
     builder.build_call(donothing,&[],name)
 }
 
+pub fn build_call_and_set_trap<'m>(module:&'m Module,builder:&'m Builder,name:&str)->&'m Value{
+    let context = module.context();
+    let donothing_type = Type::function(Type::void(context),&[],false);
+    let donothing = module.set_declare_function("llvm.trap",donothing_type);
+    builder.build_call(donothing,&[],name)
+}
 
 
 pub trait Disposable{

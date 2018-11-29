@@ -119,10 +119,10 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
 
  fn end<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
      {
-
+         let previous_instruction = stack.activations.current()?.previous_instruction.clone();
          if let Some(label) = stack.labels.pop(){
-             let need_br_next =  if let Some(before_instruction) = stack.activations.current()?.previous_instruction.clone(){
-                 match before_instruction{
+             let need_br_next =  if let Some(pi) = previous_instruction.clone(){
+                 match pi{
                      Instruction::Br(_) | Instruction::BrTable(_,_) => false,
                      _ => true,
                  }
@@ -138,8 +138,14 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
              };
              if need_br_next {
                  if let Some(return_value) = label.return_value {
-                     let ret_value = stack.values.pop().ok_or(NotExistValue)?.to_value(build_context);
-                     return_value.store(build_context, ret_value);
+                     if let Some(Instruction::Unreachable) = previous_instruction.clone(){
+                         if let Some(ret_value) = stack.values.pop() {
+                             return_value.store(build_context, ret_value.to_value(build_context));
+                         }
+                     } else{
+                         let ret_value = stack.values.pop().ok_or(NotExistValue)?.to_value(build_context);
+                         return_value.store(build_context, ret_value);
+                     }
                      stack.values.push(WasmValue::new_block_return_value(return_value));
                  }
                  build_context.builder().build_br(next);
@@ -153,7 +159,37 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
              build_context.builder().position_builder_at_end(next);
              let current_frame = stack.activations.current()?;
 
+         } else{
+             if let Some(Instruction::Unreachable) = previous_instruction.clone(){
+                 let function_type = Type::type_of(stack.current_function);
+                 let return_type = function_type.get_return_type();
+                 if let Some(ret_value) = stack.values.pop() {
+                     build_context.builder().build_ret(ret_value.to_value(build_context));
+                 } else{
+                     if return_type == Type::void(build_context.context()){
+                         build_context.builder().build_ret_void();
+                     } else if return_type == Type::int32(build_context.context()){
+                         build_context.builder().build_ret(Value::const_int(Type::int32(build_context.context()),0,false));
+                     } else if return_type == Type::int64(build_context.context()){
+                         build_context.builder().build_ret(Value::const_int(Type::int64(build_context.context()),0,false));
+                     } else if return_type == Type::float32(build_context.context()){
+                         build_context.builder().build_ret(Value::const_real(Type::float32(build_context.context()),0.0));
+                     } else if return_type == Type::float64(build_context.context()){
+                         build_context.builder().build_ret(Value::const_real(Type::float64(build_context.context()),0.0));
+                     }
+                 }
+             } else{
+                 if let Some(ret_value) = stack.values.pop() {
+                    build_context.builder().build_ret(ret_value.to_value(build_context));
+                 } else{
+                     build_context.builder().build_ret_void();
+                 }
+             }
          }
+
+
+
+
      }
     Ok(stack)
 }
@@ -713,6 +749,11 @@ fn nop<'a,T:WasmIntType>(build_context:&'a BuildContext, stack:Stack<'a,T>)->Res
     Ok(stack)
 }
 
+fn unreachable<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    build_call_and_set_trap(build_context.module(),build_context.builder(),"");
+    Ok(stack)
+}
+
 pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     let mut stack = match instruction.clone(){
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
@@ -913,6 +954,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::Else => else_instruction(build_context,stack),
         Instruction::End=>end(build_context,stack),
         Instruction::Nop => nop(build_context,stack),
+        Instruction::Unreachable => unreachable(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }?;
     {
@@ -1075,8 +1117,8 @@ mod tests{
                                               &ft,
                                               &lt)
         ], |stack,_bb|{
-            let mut stack = get_local(&build_context,0,stack)?;
-            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+            let stack = get_local(&build_context,0,stack)?;
+            let _ = progress_instruction(&build_context,Instruction::End, stack)?;
             Ok(())
         })?;
 
@@ -1099,8 +1141,8 @@ mod tests{
                                               &[], &[],
                                               &ft,&lt)], |stack,_bb|{
             let stack = set_local(&build_context,0,stack)?;
-            let mut stack = get_local(&build_context,0,stack)?;
-            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+            let stack = get_local(&build_context,0,stack)?;
+            let _ = progress_instruction(&build_context,Instruction::End, stack)?;
             Ok(())
         })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -1125,8 +1167,8 @@ mod tests{
                                               &ft,
                                               &lt)
         ], |stack,_bb|{
-            let mut stack = tee_local(&build_context,0,stack)?;
-            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+            let stack = tee_local(&build_context,0,stack)?;
+            let _ = progress_instruction(&build_context,Instruction::End, stack)?;
             Ok(())
 
         })?;
@@ -1153,7 +1195,7 @@ mod tests{
                                             let stack = progress_instruction(&build_context,Instruction::I32Const(3000),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32Store(2,500),stack)?;
                                             let  mut stack = progress_instruction(&build_context,Instruction::I32Load(2,500),stack)?;
-                                            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                                            let _ = progress_instruction(&build_context,Instruction::End, stack)?;
             Ok(())
         })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -1187,8 +1229,8 @@ mod tests{
                                                                                                                            &ft,
                                                                                                                            &lt)],
                                         |stack,_bb|{
-            let mut stack = current_memory(&build_context,0,stack)?;
-            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+            let stack = current_memory(&build_context,0,stack)?;
+            let _ = progress_instruction(&build_context,Instruction::End, stack)?;
             Ok(())
         })?;
 
@@ -1224,8 +1266,8 @@ mod tests{
                                                                                &ft,
                                                                                &lt)],|stack,_bb|{
 
-                let mut stack = grow_memory(&build_context,0,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = grow_memory(&build_context,0,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -1260,8 +1302,8 @@ mod tests{
                                                                                &ft,
                                                                                &lt)],|stack,_bb|{
 
-                let mut stack = grow_memory(&build_context,0,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = grow_memory(&build_context,0,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -1296,8 +1338,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
                 test_module_in_engine(build_context.module(),|engine|{
@@ -1323,8 +1365,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
                 test_module_in_engine(build_context.module(),|engine|{
@@ -1350,8 +1392,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
                 test_module_in_engine(build_context.module(),|engine|{
@@ -1378,8 +1420,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
                 test_module_in_engine(build_context.module(),|engine|{
@@ -1405,8 +1447,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1433,8 +1475,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
                 test_module_in_engine(build_context.module(),|engine|{
@@ -1461,8 +1503,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1489,8 +1531,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1519,8 +1561,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1550,8 +1592,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1579,8 +1621,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1607,8 +1649,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1636,8 +1678,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1665,8 +1707,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
                 test_module_in_engine(build_context.module(),|engine|{
@@ -1692,8 +1734,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1720,8 +1762,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1748,8 +1790,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1777,8 +1819,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -1805,8 +1847,8 @@ mod tests{
                                                                                        &ft,
                                                                                        &lt)],|stack,_|{
 
-                        let mut stack = progress_instruction(&build_context,$instruction, stack)?;
-                        build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                        let stack = progress_instruction(&build_context,$instruction, stack)?;
+                        let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                         Ok(())
                     })?;
 
@@ -2796,15 +2838,17 @@ mod tests{
         let build_context = BuildContext::new("eqz32_false_works",&context);
         let expected =0;
         let test_function_name = "test_function";
+        let (ft,lt) = new_compilers();
         build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),22,false))],
-            vec![],|stack:Stack<u32>,_|{
-                let mut stack = eqz32(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+            vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                   &ft,
+                                                   &lt)],|stack:Stack<u32>,_|{
+                let stack = progress_instruction(&build_context,Instruction::I32Eqz,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-
             assert_eq!(expected,ret.to_int(false));
             Ok(())
         })
@@ -2817,15 +2861,17 @@ mod tests{
         let build_context = BuildContext::new("eqz32_true_works",&context);
         let expected =1;
         let test_function_name = "test_function";
+        let (ft,lt) = new_compilers();
         build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()),0,false))],
-                                                  vec![],|stack:Stack<u32>,_|{
-                let mut stack = eqz32(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack:Stack<u32>,_|{
+                let stack = progress_instruction(&build_context,Instruction::I32Eqz,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-
             assert_eq!(expected,ret.to_int(false));
             Ok(())
         })
@@ -2837,15 +2883,17 @@ mod tests{
         let build_context = BuildContext::new("eqz64_false_works",&context);
         let expected =0;
         let test_function_name = "test_function";
+        let (ft,lt) = new_compilers();
         build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),22,false))],
-                                                  vec![],|stack:Stack<u32>,_|{
-                let mut stack = eqz64(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack:Stack<u32>,_|{
+                let stack = progress_instruction(&build_context,Instruction::I64Eqz,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-
             assert_eq!(expected,ret.to_int(false));
             Ok(())
         })
@@ -2858,10 +2906,13 @@ mod tests{
         let build_context = BuildContext::new("eqz64_true_works",&context);
         let expected =1;
         let test_function_name = "test_function";
+        let (ft,lt) = new_compilers();
         build_test_instruction_function_with_type(&build_context,Type::int1(build_context.context()),test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int64(build_context.context()),0,false))],
-                                                  vec![],|stack:Stack<u32>,_|{
-                let mut stack = eqz64(&build_context,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack:Stack<u32>,_|{
+                let stack = progress_instruction(&build_context,Instruction::I64Eqz,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -2885,8 +2936,8 @@ mod tests{
                                                &ft,
                                                &lt)],|stack,_|{
 
-            let mut stack = progress_instruction(&build_context,Instruction::I32WrapI64, stack)?;
-            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+            let stack = progress_instruction(&build_context,Instruction::I32WrapI64, stack)?;
+            let _ = progress_instruction(&build_context,Instruction::End, stack)?;
             Ok(())
         })?;
 
@@ -2910,8 +2961,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::I64ExtendSI32, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::I64ExtendSI32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -2936,8 +2987,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::I64ExtendUI32, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::I64ExtendUI32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -2960,8 +3011,8 @@ mod tests{
                                                &ft,
                                                &lt)],|stack,_|{
 
-            let mut stack = progress_instruction(&build_context,Instruction::I32TruncSF32, stack)?;
-            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+            let stack = progress_instruction(&build_context,Instruction::I32TruncSF32, stack)?;
+            let _ = progress_instruction(&build_context,Instruction::End, stack)?;
             Ok(())
         })?;
 
@@ -2984,8 +3035,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::I64TruncSF32, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::I64TruncSF32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3009,8 +3060,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::I32TruncUF32, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::I32TruncUF32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3033,8 +3084,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::I64TruncUF32, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::I64TruncUF32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3059,8 +3110,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::I32TruncSF64, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::I32TruncSF64, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3083,8 +3134,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::I64TruncSF64, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::I64TruncSF64, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3108,8 +3159,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::I32TruncUF64, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::I32TruncUF64, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3132,8 +3183,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::I64TruncUF64, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::I64TruncUF64, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -3156,8 +3207,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F32DemoteF64, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::F32DemoteF64, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -3179,8 +3230,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F64PromoteF32, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::F64PromoteF32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -3203,8 +3254,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F32ConvertSI32, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::F32ConvertSI32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3228,8 +3279,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F32ConvertSI64, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::F32ConvertSI64, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3252,8 +3303,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F32ConvertUI32, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::F32ConvertUI32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -3276,8 +3327,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F32ConvertUI64, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::F32ConvertUI64, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -3300,8 +3351,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F64ConvertSI32, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::F64ConvertSI32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3325,8 +3376,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F64ConvertSI64, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::F64ConvertSI64, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3349,8 +3400,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F64ConvertUI32, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::F64ConvertUI32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3374,8 +3425,8 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F64ConvertUI64, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::F64ConvertUI64, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3394,20 +3445,18 @@ mod tests{
         let (ft,lt) = new_compilers();
         let expected = 65535;
         let test_function_name = "convert_i32_to_f32_works";
-        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()), expected,false))],
+        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_int(Type::int32(build_context.context()), expected,false))],
                                                   vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F32ReinterpretI32, stack)?;
-                let ret = stack.values.pop().ok_or(NotExistValue)?;
-                let ret = build_context.builder().build_bit_cast(ret.to_value(&build_context),Type::int32(build_context.context()),"");
-                build_context.builder().build_ret(ret);
+                let  stack = progress_instruction(&build_context,Instruction::F32ReinterpretI32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected ,ret.to_int(false));
+            assert_eq!(expected as u32,i32_reinterpret_f32(ret.to_float(Type::float32(build_context.context())) as f32));
             Ok(())
         })
     }
@@ -3419,20 +3468,18 @@ mod tests{
         let (ft,lt) = new_compilers();
         let expected = 65535;
         let test_function_name = "convert_i64_to_f64_works";
-        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int64(build_context.context()), expected,false))],
+        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![WasmValue::new_value(Value::const_int(Type::int64(build_context.context()), expected,false))],
                                                   vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::F64ReinterpretI64, stack)?;
-                let ret = stack.values.pop().ok_or(NotExistValue)?;
-                let ret = build_context.builder().build_bit_cast(ret.to_value(&build_context),Type::int64(build_context.context()),"");
-                build_context.builder().build_ret(ret);
+                let stack = progress_instruction(&build_context,Instruction::F64ReinterpretI64, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected ,ret.to_int(false));
+            assert_eq!(expected ,i64_reinterpret_f64(ret.to_float(Type::float64(build_context.context()))));
             Ok(())
         })
     }
@@ -3445,20 +3492,18 @@ mod tests{
         let (ft,lt) = new_compilers();
         let expected = 5.0;
         let test_function_name = "convert_f32_to_i32_works";
-        build_test_instruction_function_with_type(&build_context,Type::float32(build_context.context()), test_function_name,vec![ WasmValue::new_value( Value::const_real(Type::float32(build_context.context()),expected ))],
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![ WasmValue::new_value( Value::const_real(Type::float32(build_context.context()),expected ))],
                                                   vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::I32ReinterpretF32, stack)?;
-                let ret = stack.values.pop().ok_or(NotExistValue)?;
-                let ret = build_context.builder().build_bit_cast(ret.to_value(&build_context),Type::float32(build_context.context()),"");
-                build_context.builder().build_ret(ret);
+                let stack = progress_instruction(&build_context,Instruction::I32ReinterpretF32, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected ,ret.to_float(Type::float32(build_context.context())));
+            assert_eq!(expected as f32,f32_reinterpret_i32(ret.to_int(false) as u32));
             Ok(())
         })
     }
@@ -3470,21 +3515,19 @@ mod tests{
         let (ft,lt) = new_compilers();
         let expected = 5.0;
         let test_function_name = "convert_f64_to_i64_works";
-        build_test_instruction_function_with_type(&build_context,Type::float64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float64(build_context.context()), expected))],
+        build_test_instruction_function_with_type(&build_context,Type::int64(build_context.context()), test_function_name,vec![WasmValue::new_value( Value::const_real(Type::float64(build_context.context()), expected))],
                                                   vec![frame::test_utils::new_test_frame(vec![], &[], &[],
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
                 let mut stack = progress_instruction(&build_context,Instruction::I64ReinterpretF64, stack)?;
-                let ret = stack.values.pop().ok_or(NotExistValue)?;
-                let ret = build_context.builder().build_bit_cast(ret.to_value(&build_context),Type::float64(build_context.context()),"");
-                build_context.builder().build_ret(ret);
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
-            assert_eq!(expected ,ret.to_float(Type::float64(build_context.context())));
+            assert_eq!(expected , f64_reinterpret_i64(ret.to_int(false)));
             Ok(())
         })
     }
@@ -3504,8 +3547,8 @@ mod tests{
 
                 let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -3530,11 +3573,11 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::Block(BlockType::NoResult), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::Br(0),stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Br(0),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(5),stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -3565,8 +3608,8 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::Br(0),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -3597,8 +3640,8 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::F32Const(i32_reinterpret_f32(3.21)),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(22),stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine_optional_analysis(build_context.module(),|| Ok(()),|engine|{
@@ -3624,11 +3667,11 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::Block(BlockType::NoResult), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(1),stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::BrIf(0),stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let stack = progress_instruction(&build_context,Instruction::BrIf(0),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(2),stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
 
@@ -3670,8 +3713,8 @@ mod tests{
                                             let stack = progress_instruction(&build_context,Instruction::Br(1),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32Const(2),stack)?;
-                                            let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
-                                            build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                                            let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                                            let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                                             Ok(())
                                         })?;
 
@@ -3705,8 +3748,8 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::Else,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(2),stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -3735,8 +3778,8 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::BrTable(Box::new( [0]),1),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(22),stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::End,stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -3761,8 +3804,8 @@ mod tests{
 
 
                 let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
-                let mut stack = progress_instruction(&build_context,Instruction::Nop, stack)?;
-                build_context.builder().build_ret(stack.values.pop().ok_or(NotExistValue)?.to_value(&build_context));
+                let stack = progress_instruction(&build_context,Instruction::Nop, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
         test_module_in_engine(build_context.module(),|engine|{
@@ -3770,5 +3813,25 @@ mod tests{
             assert_eq!(expected ,ret.to_int(false));
             Ok(())
         })
+
+    }
+
+    #[test]
+    pub fn unreachable_works()-> Result<(),Error> {
+        let context = Context::new();
+        let build_context = BuildContext::new("unreachable_works", &context);
+        let (ft, lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "unreachable_works";
+        build_test_instruction_function_with_type(&build_context, Type::int32(build_context.context()), test_function_name, vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                                                         &ft,
+                                                                                         &lt)], |stack, _| {
+                let stack = progress_instruction(&build_context, Instruction::I32Const(3), stack)?;
+                let stack = progress_instruction(&build_context, Instruction::Unreachable, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
+                Ok(())
+            })
+        // TODO: this test case is uncompleted. because unreachable send SIGILL. should implement run test.
     }
 }

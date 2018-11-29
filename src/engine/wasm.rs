@@ -165,12 +165,6 @@ impl<T:WasmIntType> WasmCompiler<T>{
                         instructions::progress_instruction(build_context,instruction.clone(),stack)
                     })?;
 
-                    if let Some(result) = stack.values.last(){
-                        builder.build_ret(result.to_value(build_context));
-                    } else{
-                        builder.build_ret_void();
-                    }
-
                     Ok(())
                 })?;
             }
