@@ -754,6 +754,13 @@ fn unreachable<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T
     Ok(stack)
 }
 
+fn drop<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    {
+        let _ = stack.values.pop().ok_or(NotExistValue)?;
+    }
+    Ok(stack)
+}
+
 pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     let mut stack = match instruction.clone(){
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
@@ -955,6 +962,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::End=>end(build_context,stack),
         Instruction::Nop => nop(build_context,stack),
         Instruction::Unreachable => unreachable(build_context,stack),
+        Instruction::Drop => drop(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }?;
     {
@@ -3815,6 +3823,32 @@ mod tests{
         })
 
     }
+
+    #[test]
+    pub fn drop_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("drop_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "drop_works";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(2),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Drop, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+
+    }
+
 
     #[test]
     pub fn unreachable_works()-> Result<(),Error> {
