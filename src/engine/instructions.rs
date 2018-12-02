@@ -3821,7 +3821,6 @@ mod tests{
                 let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
@@ -3957,7 +3956,6 @@ mod tests{
                 let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
