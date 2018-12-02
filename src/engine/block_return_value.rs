@@ -24,6 +24,10 @@ impl<'a> BlockReturnValue<'a>{
     pub fn to_value(&self, build_context:&'a BuildContext)->&'a Value{
         build_context.builder().build_load(self.value_ptr,"")
     }
+
+    pub fn value_type(&self)->&'a Type{
+        self.value_type
+    }
 }
 
 impl<'a> Clone for BlockReturnValue<'a> {

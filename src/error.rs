@@ -89,6 +89,9 @@ pub enum RuntimeError{
     #[fail(display = "invalid label type")]
     InvalidLabelType,
 
+    #[fail(display = "invalid label type")]
+    InvalidType,
+
     #[fail(display = "size is too large maximum:{}",message)]
     SizeIsTooLarge{
         message:String,

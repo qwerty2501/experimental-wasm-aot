@@ -22,6 +22,13 @@ impl<'a> WasmValue<'a>{
             WasmValue::BlockReturnValue {return_value} => return_value.to_value(build_context),
         }
     }
+
+    pub fn value_type(&self) -> &'a Type{
+        match self{
+            WasmValue::Value {value} => Type::type_of(value),
+            WasmValue::BlockReturnValue {return_value} => return_value.value_type(),
+        }
+    }
 }
 
 impl<'a> Clone for WasmValue<'a>{

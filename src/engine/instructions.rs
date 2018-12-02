@@ -761,6 +761,36 @@ fn drop<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)-
     Ok(stack)
 }
 
+fn select<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    {
+        let c = stack.values.pop().ok_or(NotExistValue)?;
+        let val2 = stack.values.pop().ok_or(NotExistValue)?;
+        let val1 = stack.values.pop().ok_or(NotExistValue)?;
+        let val1_type = val1.value_type();
+        let val2_type = val2.value_type();
+        if val1_type != val2_type{
+            return Err(InvalidType)?;
+        }
+        let select_val_ptr = build_context.builder().build_alloca(val1_type,"");
+        let then_block = stack.current_function.append_basic_block(build_context.context(),"");
+        let else_block = stack.current_function.append_basic_block(build_context.context(),"");
+        let next_block = stack.current_function.append_basic_block(build_context.context(),"");
+        let _ = build_cond_br(build_context.builder(),build_context.context(),c.to_value(build_context),then_block,else_block);
+
+        build_context.builder().position_builder_at_end(then_block);
+        build_context.builder().build_store(val1.to_value(build_context),select_val_ptr);
+        build_context.builder().build_br(next_block);
+
+        build_context.builder().position_builder_at_end(else_block);
+        build_context.builder().build_store(val2.to_value(build_context),select_val_ptr);
+        build_context.builder().build_br(next_block);
+
+        build_context.builder().position_builder_at_end(next_block);
+        stack.values.push(WasmValue::new_value(build_context.builder().build_load(select_val_ptr,"")));
+    }
+    Ok(stack)
+}
+
 pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     let mut stack = match instruction.clone(){
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
@@ -893,7 +923,6 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::F32Ne => ne_float(build_context,stack),
         Instruction::F64Ne => ne_float(build_context,stack),
 
-
         Instruction::I32LtS => lt_sint(build_context,stack),
         Instruction::I32LtU => lt_uint(build_context,stack),
         Instruction::I64LtS => lt_sint(build_context,stack),
@@ -963,6 +992,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::Nop => nop(build_context,stack),
         Instruction::Unreachable => unreachable(build_context,stack),
         Instruction::Drop => drop(build_context,stack),
+        Instruction::Select => select(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }?;
     {
@@ -3848,6 +3878,33 @@ mod tests{
         })
 
     }
+
+    #[test]
+    pub fn select_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("select_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "select_works";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(2),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(1),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Select, stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
+                Ok(())
+            })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+
+    }
+
 
 
     #[test]
