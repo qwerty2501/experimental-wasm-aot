@@ -7,7 +7,7 @@ use parity_wasm::elements::Instruction;
 pub struct Frame<'a,T:WasmIntType + 'a>{
     pub locals:Vec<LocalValue<'a>>,
     pub module_instance:ModuleInstance<'a,T>,
-    pub previous_instruction:Option<Instruction>,
+    pub history:InstructionHistory<'a>,
 }
 
 pub struct ModuleInstance<'a,T:WasmIntType + 'a>{
@@ -17,6 +17,7 @@ pub struct ModuleInstance<'a,T:WasmIntType + 'a>{
     pub linear_memory_compiler:&'a LinearMemoryCompiler<T>,
 
 }
+
 
 pub struct LocalValue<'a>{
     pub value:Option<WasmValue<'a>>,
@@ -29,9 +30,9 @@ pub struct Label<'a>{
 }
 
 pub enum LabelType<'a>{
-    Loop{start:&'a BasicBlock,next:&'a BasicBlock},
-    If{start:&'a BasicBlock,else_block:&'a BasicBlock,next:&'a BasicBlock},
-    Block{start:&'a BasicBlock,next:&'a BasicBlock},
+    Loop{start:&'a BasicBlock,next:&'a BasicBlock,history:InstructionHistory<'a>},
+    If{start:&'a BasicBlock,else_block:&'a BasicBlock,next:&'a BasicBlock,if_history:InstructionHistory<'a>,else_history:Option<InstructionHistory<'a>>},
+    Block{start:&'a BasicBlock,next:&'a BasicBlock,history:InstructionHistory<'a>},
 }
 
 
@@ -55,7 +56,7 @@ impl<'a,T:WasmIntType + 'a> Clone for ModuleInstance<'a,T>{
 
 impl<'a,T:WasmIntType + 'a> Frame<'a,T>{
     pub fn new(locals:Vec<LocalValue<'a>>, module_instance:ModuleInstance<'a,T> )->Frame<'a,T>{
-        Frame{locals,module_instance, previous_instruction:None}
+        Frame{locals,module_instance, history:InstructionHistory::new(None,None)}
     }
 }
 
@@ -78,23 +79,64 @@ impl<'a> LocalValue<'a>{
 impl<'a> Label<'a>{
     pub fn new_block(start:&'a BasicBlock,next:&'a BasicBlock,return_value:Option<BlockReturnValue<'a>>)->Label<'a>{
         Label{
-            label_type: LabelType::Block{start,next},
+            label_type: LabelType::Block{start,next,history:InstructionHistory::new(None,None)},
             return_value,
         }
     }
 
     pub fn new_loop(start:&'a BasicBlock, next:&'a BasicBlock,return_value:Option<BlockReturnValue<'a>>)-> Label<'a>{
         Label{
-            label_type: LabelType::Loop {start,next},
+            label_type: LabelType::Loop {start,next,history:InstructionHistory::new(None,None)},
             return_value,
         }
     }
 
     pub fn new_if(start:&'a BasicBlock,else_block:&'a BasicBlock,next:&'a BasicBlock, return_value:Option<BlockReturnValue<'a>>) -> Label<'a>{
         Label{
-            label_type: LabelType::If {start,else_block, next},
+            label_type: LabelType::If {start,else_block, next,if_history:InstructionHistory::new(None,None),else_history:None},
             return_value,
         }
+    }
+
+    pub fn previous_instruction(&self) -> Option<Instruction>{
+        match self.label_type{
+            LabelType::If {start:_,else_block:_,next:_,ref if_history,ref else_history} =>{
+                if let Some(history) = else_history{
+                    history.clone().previous_instruction
+                } else{
+                    if_history.clone().previous_instruction
+                }
+            }
+
+            LabelType::Block {start:_,next:_,ref history} =>{
+                history.clone().previous_instruction
+            }
+            LabelType::Loop {start:_,next:_,ref history} =>{
+                history.clone().previous_instruction
+            }
+        }
+    }
+    pub fn with_previous_instruction(&self,instruction:Instruction,previous_value:Option< WasmValue<'a>>)->Label<'a>{
+        let label_type = match self.label_type{
+            LabelType::If {start,else_block,next,ref if_history, ref else_history} =>{
+                if let Some(history) = else_history{
+                    LabelType::If {start,else_block,next,if_history:if_history.clone(),else_history:Some(InstructionHistory::new(Some(instruction),previous_value))}
+                } else{
+                    LabelType::If {start,else_block,next,if_history:InstructionHistory::new(Some(instruction),previous_value),else_history:else_history.clone()}
+                }
+            }
+
+            LabelType::Block {start,next,history:_} =>{
+                LabelType::Block {start,next,history:InstructionHistory::new(Some(instruction),previous_value)}
+            }
+            LabelType::Loop {start,next,history:_} =>{
+                LabelType::Loop {start,next,history:InstructionHistory::new(Some(instruction),previous_value)}
+            }
+        };
+        Label{
+            label_type,
+            return_value:self.return_value.clone()}
+
     }
 }
 

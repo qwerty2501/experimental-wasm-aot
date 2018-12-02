@@ -118,81 +118,103 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
 }
 
  fn end<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-     {
-         let previous_instruction = stack.activations.current()?.previous_instruction.clone();
+     let stack ={
+         let previous_instruction = stack.previous_instruction()?;
          if let Some(label) = stack.labels.pop(){
-             let need_br_next =  if let Some(pi) = previous_instruction.clone(){
-                 match pi{
-                     Instruction::Br(_) | Instruction::BrTable(_,_) => false,
-                     _ => true,
-                 }
-             } else{
-                 true
-             };
+
 
 
              let next = match label.label_type {
-                 LabelType::If {start:_,else_block:_,next} => { next },
-                 LabelType::Block {start:_,next} => next,
-                 LabelType::Loop {start:_,next} => next,
+                 LabelType::If {start:_,else_block:_,next,if_history:_,else_history:_} => {
+                     next },
+                 LabelType::Block {start:_,next,history:_} => next,
+                 LabelType::Loop {start:_,next,history:_} => next,
              };
-             if need_br_next {
-                 if let Some(return_value) = label.return_value {
-                     if let Some(Instruction::Unreachable) = previous_instruction.clone(){
-                         if let Some(ret_value) = stack.values.pop() {
-                             return_value.store(build_context, ret_value.to_value(build_context));
-                         }
-                     } else{
-                         let ret_value = stack.values.pop().ok_or(NotExistValue)?.to_value(build_context);
-                         return_value.store(build_context, ret_value);
-                     }
-                     stack.values.push(WasmValue::new_block_return_value(return_value));
-                 }
-                 build_context.builder().build_br(next);
-             }
-
+             let rv = {stack.values.pop()};
+             let stack = build_next_br(build_context,stack,previous_instruction,label.return_value.clone(),rv , next)?;
              let last_basic_block = stack.current_function.get_last_basic_block();
              if let Some(last_basic_block) = last_basic_block {
                  next.move_after(last_basic_block);
              }
-
+             let stack = match label.label_type {
+                 LabelType::If {start,else_block,next,if_history,else_history} => {
+                     build_context.builder().position_builder_at_end(start);
+                     let stack = build_next_br(build_context,stack,if_history.previous_instruction,label.return_value.clone(), if_history.previous_value, next)?;
+                     if else_history.is_none(){
+                         build_context.builder().position_builder_at_end(else_block);
+                         build_context.builder().build_br(next);
+                     }
+                     stack
+                 },
+                 _=>{stack}
+             };
              build_context.builder().position_builder_at_end(next);
-             let current_frame = stack.activations.current()?;
-
+             stack
          } else{
-             if let Some(Instruction::Unreachable) = previous_instruction.clone(){
-                 let function_type = Type::type_of(stack.current_function);
-                 let return_type = function_type.get_return_type();
-                 if let Some(ret_value) = stack.values.pop() {
-                     build_context.builder().build_ret(ret_value.to_value(build_context));
-                 } else{
-                     if return_type == Type::void(build_context.context()){
-                         build_context.builder().build_ret_void();
-                     } else if return_type == Type::int32(build_context.context()){
-                         build_context.builder().build_ret(Value::const_int(Type::int32(build_context.context()),0,false));
-                     } else if return_type == Type::int64(build_context.context()){
-                         build_context.builder().build_ret(Value::const_int(Type::int64(build_context.context()),0,false));
-                     } else if return_type == Type::float32(build_context.context()){
-                         build_context.builder().build_ret(Value::const_real(Type::float32(build_context.context()),0.0));
-                     } else if return_type == Type::float64(build_context.context()){
-                         build_context.builder().build_ret(Value::const_real(Type::float64(build_context.context()),0.0));
+             match previous_instruction.clone(){
+                 Some(Instruction::Unreachable) =>{
+                     let function_type = Type::type_of(stack.current_function);
+                     let return_type = function_type.get_return_type();
+                     if let Some(ret_value) = stack.values.pop() {
+                         build_context.builder().build_ret(ret_value.to_value(build_context));
+                     } else{
+                         if return_type == Type::void(build_context.context()){
+                             build_context.builder().build_ret_void();
+                         } else if return_type == Type::int32(build_context.context()){
+                             build_context.builder().build_ret(Value::const_int(Type::int32(build_context.context()),0,false));
+                         } else if return_type == Type::int64(build_context.context()){
+                             build_context.builder().build_ret(Value::const_int(Type::int64(build_context.context()),0,false));
+                         } else if return_type == Type::float32(build_context.context()){
+                             build_context.builder().build_ret(Value::const_real(Type::float32(build_context.context()),0.0));
+                         } else if return_type == Type::float64(build_context.context()){
+                             build_context.builder().build_ret(Value::const_real(Type::float64(build_context.context()),0.0));
+                         }
                      }
                  }
-             } else{
-                 if let Some(ret_value) = stack.values.pop() {
-                    build_context.builder().build_ret(ret_value.to_value(build_context));
-                 } else{
-                     build_context.builder().build_ret_void();
+                 Some(Instruction::Return)=>{}
+                 _ => {
+                     if let Some(ret_value) = stack.values.pop() {
+                         build_context.builder().build_ret(ret_value.to_value(build_context));
+                     } else{
+                         build_context.builder().build_ret_void();
+                     }
                  }
              }
+             stack
          }
-
-
-
-
-     }
+     };
     Ok(stack)
 }
+
+fn build_next_br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,previous_instruction:Option<Instruction>,target_ret_value:Option<BlockReturnValue<'a>>,ret_value:Option<WasmValue<'a>>,next:&'a BasicBlock) ->Result<Stack<'a,T>,Error>{
+    {
+        let need_br_next =  if let Some(pi) = previous_instruction.clone(){
+            match pi{
+                Instruction::Br(_) | Instruction::BrTable(_,_) | Instruction::Return => false,
+                _ => true,
+            }
+        } else{
+            true
+        };
+        if need_br_next {
+            if let Some(return_value) = target_ret_value {
+                if let Some(Instruction::Unreachable) = previous_instruction.clone(){
+                    if let Some(rv) = ret_value {
+                        return_value.store(build_context, rv.to_value(build_context));
+                    }
+                } else{
+                    let ret_value = ret_value.ok_or(NotExistValue)?.to_value(build_context);
+                    return_value.store(build_context, ret_value);
+                }
+                stack.values.push(WasmValue::new_block_return_value(return_value));
+            }
+            build_context.builder().build_br(next);
+        }
+    }
+
+    Ok(stack)
+}
+
 
  fn current_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
@@ -675,16 +697,16 @@ fn if_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Sta
 
 fn else_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
-        let label = stack.labels.last().ok_or(NotExistLabel)?;
-        if let LabelType::If {start:_,else_block,next} = label.label_type{
-            if let Some(return_value) = label.return_value.clone() {
-                return_value.store(build_context,stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
-            }
-            build_context.builder().build_br(next);
+        let label = stack.labels.last_mut().ok_or(NotExistLabel)?;
+        let label_type = if let LabelType::If {start,else_block,next,ref  if_history,else_history:_} = label.label_type{
+            let if_history = {if_history.clone()};
             build_context.builder().position_builder_at_end(else_block);
+            LabelType::If {start,else_block,next,if_history,else_history:Some(InstructionHistory::new(None,None))}
         } else{
             Err(InvalidLabelType)?
-        }
+        };
+        label.label_type = label_type;
+
     }
     Ok(stack)
 }
@@ -699,9 +721,9 @@ fn br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,lab
         }
 
         let br_block = match label.label_type {
-            LabelType::Loop {start,next:_} => {start}
-            LabelType::Block {start:_,next} => {next}
-            LabelType::If {start:_,else_block:_,next} => { next }
+            LabelType::Loop {start,next:_,history:_} => {start}
+            LabelType::Block {start:_,next,history:_} => {next}
+            LabelType::If {start:_,else_block:_,next,if_history:_, else_history:_} => { next }
         };
 
         build_context.builder().build_br(br_block);
@@ -787,6 +809,17 @@ fn select<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>
 
         build_context.builder().position_builder_at_end(next_block);
         stack.values.push(WasmValue::new_value(build_context.builder().build_load(select_val_ptr,"")));
+    }
+    Ok(stack)
+}
+
+fn return_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    {
+        if let Some(value) = stack.values.pop(){
+            build_context.builder().build_ret(value.to_value(build_context));
+        } else{
+            build_context.builder().build_ret_void();
+        }
     }
     Ok(stack)
 }
@@ -993,13 +1026,11 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::Unreachable => unreachable(build_context,stack),
         Instruction::Drop => drop(build_context,stack),
         Instruction::Select => select(build_context,stack),
+        Instruction::Return => return_instruction(build_context,stack),
         instruction=>Err(InvalidInstruction {instruction})?,
     }?;
-    {
-        let current_frame = stack.activations.current_mut()?;
-        current_frame.previous_instruction = Some(instruction);
-    }
-    Ok(stack)
+    let pv = {stack.values.last().map(|v|v.clone())};
+    stack.with_previous_instruction(instruction,pv)
 }
 pub fn filter_label_block_types(instructions:Iter<Instruction>)->Vec<ValueType>{
     instructions.filter(|i| i.is_block() ).map(|i| match i {
@@ -3558,7 +3589,7 @@ mod tests{
                                                                                          &ft,
                                                                                          &lt)],|stack,_|{
 
-                let mut stack = progress_instruction(&build_context,Instruction::I64ReinterpretF64, stack)?;
+                let  stack = progress_instruction(&build_context,Instruction::I64ReinterpretF64, stack)?;
                 let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
@@ -3790,6 +3821,7 @@ mod tests{
                 let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
+        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
@@ -3897,6 +3929,35 @@ mod tests{
                 let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+
+    }
+
+    #[test]
+    pub fn return_works()-> Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("return_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "return_works";
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+                let stack = progress_instruction(&build_context,Instruction::I32Const(1),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::If(BlockType::NoResult),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Return, stack)?;
+                let stack = progress_instruction(&build_context,Instruction::End,stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(2),stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
+                Ok(())
+            })?;
+        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));

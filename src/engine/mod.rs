@@ -13,6 +13,7 @@ mod stack;
 mod frame;
 mod wasm_value;
 mod block_return_value;
+mod instruction_history;
 
 
 use self::block_return_value::*;
@@ -21,6 +22,7 @@ use self::types::*;
 use self::test_utils::*;
 use self::wasm::*;
 use self::memory::*;
+use self::instruction_history::*;
 pub use self::engine::*;
 use self::build_context::*;
 use self::llvm::*;
