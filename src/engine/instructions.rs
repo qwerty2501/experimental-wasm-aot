@@ -824,6 +824,20 @@ fn return_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack
     Ok(stack)
 }
 
+fn call<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>,index:u32)->Result<Stack<'a,T>,Error>{
+    {
+        let current_frame = stack.activations.current()?;
+        let target_function:&Value = current_frame.module_instance.functions.get(index as usize).ok_or(NotExistFunction)?;
+
+        let mut params = vec![];
+        for i in 0.. target_function.count_params(){
+            params.push(stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
+        }
+        build_context.builder().build_call(target_function,&params,"");
+    }
+    Ok(stack)
+}
+
 pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, instruction:Instruction,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     let mut stack = match instruction.clone(){
         Instruction::I32Const(v)=> i32_const(build_context, v,stack),
@@ -1027,6 +1041,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::Drop => drop(build_context,stack),
         Instruction::Select => select(build_context,stack),
         Instruction::Return => return_instruction(build_context,stack),
+        Instruction::Call(index) => call(build_context,stack,index),
         instruction=>Err(InvalidInstruction {instruction})?,
     }?;
     let pv = {stack.values.last().map(|v|v.clone())};
@@ -1263,7 +1278,7 @@ mod tests{
                                         |stack,_bb|{
                                             let stack = progress_instruction(&build_context,Instruction::I32Const(3000),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32Store(2,500),stack)?;
-                                            let  mut stack = progress_instruction(&build_context,Instruction::I32Load(2,500),stack)?;
+                                            let  stack = progress_instruction(&build_context,Instruction::I32Load(2,500),stack)?;
                                             let _ = progress_instruction(&build_context,Instruction::End, stack)?;
             Ok(())
         })?;

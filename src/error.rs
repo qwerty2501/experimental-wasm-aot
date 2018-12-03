@@ -60,7 +60,8 @@ pub enum RuntimeError{
     #[fail(display = "not exist label")]
     NotExistLabel,
 
-
+    #[fail(display = "not exist function")]
+    NotExistFunction,
     #[fail(display = "not exist init expr")]
     NotExistInitExpr,
 
