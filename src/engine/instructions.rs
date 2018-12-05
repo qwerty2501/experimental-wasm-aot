@@ -827,13 +827,19 @@ fn return_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack
 fn call<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>,index:u32)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current()?;
-        let target_function:&Value = current_frame.module_instance.functions.get(index as usize).ok_or(NotExistFunction)?;
+        let target_function:&Value = current_frame.module_instance.functions.get(index as usize).ok_or(NoSuchFunctionIndex {index})?;
 
         let mut params = vec![];
         for i in 0.. target_function.count_params(){
             params.push(stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
         }
-        build_context.builder().build_call(target_function,&params,"");
+        let ret = build_context.builder().build_call(target_function,&params,"");
+        let ret_type =Type::type_of(ret);
+
+
+        if ret_type != Type::void(build_context.context()){
+            stack.values.push(WasmValue::new_value(ret));
+        }
     }
     Ok(stack)
 }
@@ -3977,6 +3983,37 @@ mod tests{
             Ok(())
         })
 
+    }
+
+
+    #[test]
+    pub fn call_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("call_works",&context);
+        let (ft,lt) = new_compilers();
+        let expected = 3;
+        let test_function_name = "call_works";
+        let i32_t = Type::int32(build_context.context());
+        let f_type = Type::function(i32_t,&[],false);
+        let f = build_context.module().set_declare_function("target_function",f_type);
+        build_context.builder().build_function(build_context.context(),f,|b,_|{
+            b.build_ret(Value::const_int(i32_t,expected as u64,false));
+            Ok(())
+        })?;
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[], &[f],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+                let stack = progress_instruction(&build_context,Instruction::Call(0),stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
+                Ok(())
+            })?;
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
     }
 
 
