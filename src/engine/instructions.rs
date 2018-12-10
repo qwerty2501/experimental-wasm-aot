@@ -896,6 +896,8 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::I64Load16U(align,offset)=>load(build_context,align,offset,stack, Type::int16(build_context.context())),
         Instruction::I64Load32S(align,offset)=>load(build_context,align,offset,stack,Type::int32(build_context.context())),
         Instruction::I64Load32U(align,offset)=>load(build_context,align,offset,stack,Type::int32(build_context.context())),
+        Instruction::F32Load(align,offset) => load(build_context,align,offset,stack,Type::float32(build_context.context())),
+        Instruction::F64Load(align,offset) => load(build_context,align,offset,stack,Type::float64(build_context.context())),
         Instruction::CurrentMemory(v)=>current_memory(build_context,v,stack),
         Instruction::GrowMemory(v)=>grow_memory(build_context,v,stack),
         Instruction::I32Clz => clz_int32(build_context,stack),
@@ -1069,7 +1071,6 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::Return => return_instruction(build_context,stack),
         Instruction::Call(index) => call(build_context,stack,index),
         Instruction::CallIndirect(index,table_index) => call_indirect(build_context,stack,index,table_index),
-        instruction=>Err(InvalidInstruction {instruction})?,
     }?;
     let pv = {stack.values.last().map(|v|v.clone())};
     stack.with_previous_instruction(instruction,pv)
