@@ -66,6 +66,10 @@ impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
         Ok(())
     }
 
+    pub fn build_get_function_address<'a>(&self,build_context:&'a BuildContext,index_value:&'a Value,function_type:&'a Type, table_index:u8)-> &'a Value{
+        let address = self.table_memory_compiler.build_get_real_address(build_context,table_index as u32,Self::build_size_to_element_size(build_context,index_value),"");
+        address.const_pointer_cast(function_type)
+    }
 
 
     fn build_size_to_element_size<'a>( build_context:&'a BuildContext,size:&Value)->&'a Value{

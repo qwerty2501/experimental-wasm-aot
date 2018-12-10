@@ -830,13 +830,33 @@ fn call<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>,
         let target_function:&Value = current_frame.module_instance.functions.get(index as usize).ok_or(NoSuchFunctionIndex {index})?;
 
         let mut params = vec![];
-        for i in 0.. target_function.count_params(){
+        for _ in 0.. target_function.count_params(){
             params.push(stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
         }
         let ret = build_context.builder().build_call(target_function,&params,"");
         let ret_type =Type::type_of(ret);
 
 
+        if ret_type != Type::void(build_context.context()){
+            stack.values.push(WasmValue::new_value(ret));
+        }
+    }
+    Ok(stack)
+}
+
+fn call_indirect<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,index:u32,table_index:u8)->Result<Stack<'a,T>,Error>{
+    {
+        let module_instance = &stack.activations.current()?.module_instance;
+        let function_type = module_instance.types.get(index as usize).ok_or(NoSuchTypeIndex {index})?;
+        let index_value = stack.values.pop().ok_or(NotExistValue)?;
+        let target_function = module_instance.table_compiler.build_get_function_address(build_context,index_value.to_value(build_context),function_type,table_index);
+        let mut params = vec![];
+        for _ in 0.. target_function.count_params(){
+            params.push(stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
+        }
+
+        let ret = build_context.builder().build_call(target_function,&params,"");
+        let ret_type = Type::type_of(ret);
         if ret_type != Type::void(build_context.context()){
             stack.values.push(WasmValue::new_value(ret));
         }
@@ -1048,6 +1068,7 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::Select => select(build_context,stack),
         Instruction::Return => return_instruction(build_context,stack),
         Instruction::Call(index) => call(build_context,stack,index),
+        Instruction::CallIndirect(index,table_index) => call_indirect(build_context,stack,index,table_index),
         instruction=>Err(InvalidInstruction {instruction})?,
     }?;
     let pv = {stack.values.last().map(|v|v.clone())};
