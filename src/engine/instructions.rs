@@ -3,6 +3,7 @@ use super::*;
 use failure::Error;
 use error::RuntimeError::*;
 use parity_wasm::elements::{Instruction,ValueType};
+use parity_wasm::elements;
 use parity_wasm::elements::BlockType;
 use std::slice::Iter;
 
@@ -4037,6 +4038,50 @@ mod tests{
             Ok(())
         })
     }
+
+    #[test]
+    pub fn call_indirect_works()->Result<(),Error>{
+        let context = Context::new();
+        let build_context = BuildContext::new("call_indirect_works",&context);
+        let (ft,lt) = new_compilers();
+
+        let expected = 3;
+        let test_function_name = "call_indirect_works";
+        let i32_t = Type::int32(build_context.context());
+        let f_type = Type::function(i32_t,&[],false);
+        let f = build_context.module().set_declare_function("target_function",f_type);
+        build_context.builder().build_function(build_context.context(),f,|b,_|{
+            b.build_ret(Value::const_int(i32_t,expected as u64,false));
+            Ok(())
+        })?;
+
+        let table_types = [elements::TableType::new(1,Some(1))];
+        let initializers = [
+            TableInitializer::new(0,Value::const_int(Type::int32(build_context.context()),0,false),vec![f]),
+        ];
+
+
+        ft.build_init_function(&build_context,&table_types,&initializers,0)?;
+        build_test_instruction_function_with_type(&build_context,Type::int32(build_context.context()), test_function_name,vec![],
+                                                  vec![frame::test_utils::new_test_frame(vec![], &[f_type], &[f],
+                                                                                         &ft,
+                                                                                         &lt)],|stack,_|{
+                let stack =  progress_instruction(&build_context,Instruction::I32Const(0),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::CallIndirect(0,0),stack)?;
+                let _ = progress_instruction(&build_context,Instruction::End, stack)?;
+                Ok(())
+            })?;
+        let initialize_table_function_name = ft.get_init_function_name();
+        build_context.module().dump();
+        test_module_in_engine(build_context.module(),|engine|{
+            let ret = run_test_function_with_name(engine,build_context.module(),&initialize_table_function_name,&[])?;
+            assert_eq!(1,ret.to_int(false));
+            let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
+            assert_eq!(expected ,ret.to_int(false));
+            Ok(())
+        })
+    }
+
 
 
 
