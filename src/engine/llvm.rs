@@ -1,3 +1,4 @@
+use super::*;
 use llvm_sys::prelude::*;
 use llvm_sys::core::*;
 use std::ffi::CString;
@@ -383,6 +384,7 @@ impl Builder {
             LLVMBuildOr(self.into(),lhs.into(),rhs.into(),compiler_c_str!(name)).into()
         }
     }
+
 
     pub fn build_xor(&self,lhs:&Value,rhs:&Value,name:&str)->&Value{
         unsafe{
@@ -963,6 +965,26 @@ pub fn build_call_and_set_trap<'m>(module:&'m Module,builder:&'m Builder,name:&s
     builder.build_call(donothing,&[],name)
 }
 
+
+pub fn build_call_and_set_brk<'m>(module:&'m Module,builder:&'m Builder,addr:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let int32_type = Type::int32(context);
+    let brk_type = Type::function(int32_type,&[Type::ptr(Type::void(context),0)],false);
+    let brk = module.set_declare_function("brk",brk_type);
+    builder.build_call(brk,&[addr],name)
+}
+
+pub fn build_call_and_set_writev<'m>(module:&'m Module,builder:&'m Builder,d:&'m Value,iovec:&'m Value,iovec_count:&'m Value,name:&str)->&'m Value{
+    let context = module.context();
+    let int_type = Type::int(context,bit_width::<isize>() as u32);
+    let writev_type = Type::function(int_type,&[
+        Type::int32(context),
+        Type::ptr(Type::void(context),0),
+        Type::int32(context),
+    ],false);
+    let writev = module.set_declare_function("writev",writev_type);
+    builder.build_call(writev,&[d,iovec,iovec_count],name)
+}
 
 pub trait Disposable{
     fn dispose(&mut self);

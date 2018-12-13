@@ -34,6 +34,7 @@
       <w>icmp</w>
       <w>infos</w>
       <w>initializers</w>
+      <w>iovec</w>
       <w>libc</w>
       <w>lshr</w>
       <w>memcpy</w>
@@ -56,12 +57,15 @@
       <w>splitted</w>
       <w>sqrt</w>
       <w>srem</w>
+      <w>syscall</w>
+      <w>syscalls</w>
       <w>trunc</w>
       <w>udiv</w>
       <w>uint</w>
       <w>unop</w>
       <w>urem</w>
       <w>wasm</w>
+      <w>writev</w>
       <w>zext</w>
     </words>
   </dictionary>

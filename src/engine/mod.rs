@@ -14,6 +14,7 @@ mod frame;
 mod wasm_value;
 mod block_return_value;
 mod instruction_history;
+mod syscall;
 
 
 use self::block_return_value::*;
@@ -30,3 +31,4 @@ use self::constants::*;
 use self::table::*;
 use self::stack::*;
 use self::frame::*;
+use self::syscall::*;

@@ -16,13 +16,17 @@ pub struct WasmCompiler<T: WasmIntType>{
     table_compiler:FunctionTableCompiler<T>,
 }
 
+
+pub fn wasm_function_name(name:&str) ->String{
+    [WASM_FUNCTION_PREFIX,name].concat()
+}
 impl<T:WasmIntType> WasmCompiler<T>{
 
     pub fn new()->WasmCompiler<T>{
         WasmCompiler{ linear_memory_compiler: LinearMemoryCompiler::<T>::new(),table_compiler:FunctionTableCompiler::<T>::new()}
     }
-    fn wasm_function_name(name:&str) ->String{
-        [WASM_FUNCTION_PREFIX,name].concat()
+    pub fn wasm_function_name(name:&str) ->String{
+        [WASM_FUNCTION_PREFIX,&bit_width::<T>().to_string(),".",name].concat()
     }
 
 
@@ -53,6 +57,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
         self.build_init_global_sections(build_context,wasm_module)?;
         self.build_init_data_sections_function(build_context,wasm_module)?;
         self.build_functions(&build_context,wasm_module)?;
+        build_syscalls::<T>(build_context, wasm_module.memory_section().map(|_|&self.linear_memory_compiler))?;
         Ok(())
     }
 
@@ -123,6 +128,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
     fn build_functions(&self,build_context:&BuildContext,wasm_module:&WasmModule)->Result<(),Error>{
+
         if let Some(type_section) = wasm_module.type_section(){
             let types = self.set_declare_types(build_context,type_section.types());
 
@@ -140,6 +146,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
             self.build_function_codes(build_context,wasm_module,&functions,&types,imported_count)?;
         }
+
         Ok(())
     }
 
