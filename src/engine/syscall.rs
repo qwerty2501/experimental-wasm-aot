@@ -63,32 +63,36 @@ fn build_syscall3<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
         let b = a.get_next_param().ok_or(NotExistValue)?;
         let c = b.get_next_param().ok_or(NotExistValue)?;
 
-        let cases:&[Box<SysCallCaseTrait>] = &[
-            Box::new(
-                SysCallCase{
-                    code:SYS_WRITEV,
-                    on_case:||{
-                        if let Some(linear_memory_compiler) = linear_memory_compiler{
-                            let iovec = linear_memory_compiler.build_get_real_address(build_context,0,b,"");
+        let mut cases:Vec<Box<SysCallCaseTrait>> = vec![];
 
-                            let iovec = build_context.builder().build_pointer_cast( iovec ,Type::ptr(Type::void(build_context.context()),0),"");
+        if linear_memory_compiler.is_some(){
+            cases.push(
+                Box::new(
+                    SysCallCase{
+                        code:SYS_WRITEV,
+                        on_case:||{
+                            if let Some(linear_memory_compiler) = linear_memory_compiler{
+                                let iovec = linear_memory_compiler.build_get_real_address(build_context,0,b,"");
 
-                            build_context.builder().build_ret(
-                                build_context.builder().build_int_cast(
-                                    build_call_and_set_writev(build_context.module(),build_context.builder(),a,iovec,c,""),
-                                    int_type,
-                                    ""
-                                )
-                            );
-                        } else{
-                            build_context.builder().build_ret(Value::const_int(int_type,0,false));
+                                let iovec = build_context.builder().build_pointer_cast( iovec ,Type::ptr(Type::void(build_context.context()),0),"");
+
+                                build_context.builder().build_ret(
+                                    build_context.builder().build_int_cast(
+                                        build_call_and_set_writev(build_context.module(),build_context.builder(),a,iovec,c,""),
+                                        int_type,
+                                        ""
+                                    )
+                                );
+                            } else{
+                                build_context.builder().build_ret(Value::const_int(int_type,0,false));
+                            }
+
+                            Ok(())
                         }
-
-                        Ok(())
                     }
-                }
+                )
             )
-        ];
+        }
         build_syscall_internal(build_context,syscall3,n,&cases,int_type)
 
     })
