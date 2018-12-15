@@ -655,6 +655,11 @@ impl Type{
         }
     }
 
+    pub fn count_param_types(self:&Type)->u32{
+        unsafe{
+            LLVMCountParamTypes(self.into())
+        }
+    }
 
     pub fn void(context:&Context)->&Type{
         unsafe{LLVMVoidTypeInContext(context.into()).into()}

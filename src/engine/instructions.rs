@@ -848,13 +848,15 @@ fn call<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>,
 fn call_indirect<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,index:u32,table_index:u8)->Result<Stack<'a,T>,Error>{
     {
         let module_instance = &stack.activations.current()?.module_instance;
-        let function_type = module_instance.types.get(index as usize).ok_or(NoSuchTypeIndex {index})?;
+        let function_type = *module_instance.types.get(index as usize).ok_or(NoSuchTypeIndex {index})?;
         let index_value = stack.values.pop().ok_or(NotExistValue)?;
         let target_function = module_instance.table_compiler.build_get_function_address(build_context,index_value.to_value(build_context),function_type,table_index);
         let mut params = vec![];
-        for _ in 0.. target_function.count_params(){
+        let count_params = function_type.count_param_types();
+        for _ in 0.. count_params{
             params.push(stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
         }
+
 
         let ret = build_context.builder().build_call(target_function,&params,"");
         let ret_type = Type::type_of(ret);
