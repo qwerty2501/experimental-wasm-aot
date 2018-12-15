@@ -230,10 +230,9 @@ fn build_next_br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stac
  fn grow_memory<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u8,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        let grow_memory_function_name = current_frame.module_instance.linear_memory_compiler.get_grow_function_name(index as u32);
-        let grow_memory_function =  build_context.module().get_named_function(&grow_memory_function_name).ok_or(NoSuchLLVMFunction {name:grow_memory_function_name})?;
         let grow_memory_size = stack.values.pop().ok_or(NotExistValue)?;
-        stack.values.push( WasmValue::new_value( build_context.builder().build_call(grow_memory_function,&[grow_memory_size.to_value(&build_context)],"")));
+        let grow_memory_ret = current_frame.module_instance.linear_memory_compiler.build_grow(build_context,grow_memory_size.to_value(&build_context),index as u32)?;
+        stack.values.push( WasmValue::new_value( grow_memory_ret));
     }
     Ok(stack)
 }

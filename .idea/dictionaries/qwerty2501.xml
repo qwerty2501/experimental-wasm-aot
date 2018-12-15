@@ -43,6 +43,7 @@
       <w>nameof</w>
       <w>nearbyint</w>
       <w>opcode</w>
+      <w>pgoff</w>
       <w>popcnt</w>
       <w>pret</w>
       <w>prot</w>

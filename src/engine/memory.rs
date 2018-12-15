@@ -104,6 +104,12 @@ impl<M: MemoryTypeContext,T:WasmIntType> MemoryCompiler<M,T> {
         [M::MEMORY_NAME_PREFIX,"_grow",MEMORY_NAME_BASE,"_",&bit_width.to_string(),"_",&index.to_string()].concat()
     }
 
+    pub fn build_grow<'m>(&self,build_context:&'m BuildContext,  size:&Value,index:u32)->Result<&'m Value,Error>{
+        let grow_memory_function_name = self.get_grow_function_name(index as u32);
+        let grow_memory_function =  build_context.module().get_named_function(&grow_memory_function_name).ok_or(NoSuchLLVMFunction {name:grow_memory_function_name})?;
+        Ok(build_context.builder().build_call(grow_memory_function,&[size],""))
+    }
+
     pub fn build_memory_functions(&self, build_context:&BuildContext, import_count:u32, limits:&[&ResizableLimits]) ->Result<(),Error> {
         self.build_init_functions(build_context, import_count, limits, ||Ok(()))?;
         self.build_grow_memory_functions(build_context,import_count ,limits)?;
