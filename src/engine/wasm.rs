@@ -34,12 +34,13 @@ impl<T:WasmIntType> WasmCompiler<T>{
         let build_context = BuildContext::new(module_id,context);
         {
             self.build_main_function(&build_context, module_id,wasm_module,Self::set_declare_main_function(&build_context),||{
-                let entry_function_name = Self::wasm_function_name("wasm_main");
+                let entry_function_name = Self::wasm_function_name("main");
                 let entry_function = build_context.module().get_named_function(&entry_function_name).ok_or(NoSuchLLVMFunction {name:entry_function_name})?;
                 build_context.builder().build_ret(build_context.builder().build_call(entry_function,&[],""));
                 Ok(())
             })?;
         }
+
 
         Ok(build_context.move_module())
 
