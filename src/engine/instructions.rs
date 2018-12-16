@@ -825,38 +825,35 @@ fn return_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack
 }
 
 fn call<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>,index:u32)->Result<Stack<'a,T>,Error>{
-    {
-        let current_frame = stack.activations.current()?;
-        let target_function:&Value = current_frame.module_instance.functions.get(index as usize).ok_or(NoSuchFunctionIndex {index})?;
-
-        let mut params = vec![];
-        for _ in 0.. target_function.count_params(){
-            params.push(stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
-        }
-        let ret = build_context.builder().build_call(target_function,&params,"");
-        let ret_type =Type::type_of(ret);
-
-
-        if ret_type != Type::void(build_context.context()){
-            stack.values.push(WasmValue::new_value(ret));
-        }
-    }
+    let stack = {
+        let target_function:&Value = {
+            let current_frame = stack.activations.current()?;
+            current_frame.module_instance.functions.get(index as usize).ok_or(NoSuchFunctionIndex {index})?
+        };
+        build_invoke(build_context,stack,target_function,target_function.count_params())?
+    };
     Ok(stack)
 }
 
 fn call_indirect<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,index:u32,table_index:u8)->Result<Stack<'a,T>,Error>{
+    let stack = {
+        let (count_params,target_function) = {
+            let module_instance = &stack.activations.current()?.module_instance;
+            let function_type = *module_instance.types.get(index as usize).ok_or(NoSuchTypeIndex { index })?;
+            let index_value = stack.values.pop().ok_or(NotExistValue)?;
+            (function_type.count_param_types(), module_instance.table_compiler.build_get_function_address(build_context, index_value.to_value(build_context), function_type, table_index))
+        };
+        build_invoke(build_context,stack,target_function,count_params)?
+    };
+    Ok(stack)
+}
+
+fn build_invoke<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,target_function:&'a Value,count_params:u32)->Result<Stack<'a,T>,Error>{
     {
-        let module_instance = &stack.activations.current()?.module_instance;
-        let function_type = *module_instance.types.get(index as usize).ok_or(NoSuchTypeIndex {index})?;
-        let index_value = stack.values.pop().ok_or(NotExistValue)?;
-        let target_function = module_instance.table_compiler.build_get_function_address(build_context,index_value.to_value(build_context),function_type,table_index);
         let mut params = vec![];
-        let count_params = function_type.count_param_types();
         for _ in 0.. count_params{
-            params.push(stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
+            params.insert(0,stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
         }
-
-
         let ret = build_context.builder().build_call(target_function,&params,"");
         let ret_type = Type::type_of(ret);
         if ret_type != Type::void(build_context.context()){
