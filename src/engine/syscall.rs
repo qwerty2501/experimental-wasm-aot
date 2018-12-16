@@ -1,6 +1,7 @@
 use super::*;
 use failure::Error;
 use error::RuntimeError::*;
+const SYS_UMASK:u64 = 0x3c;
 const SYS_BRK:u64=0x2d;
 const SYS_WRITEV:u64=0x92;
 const SYS_MMAP2:u64=0xc0;
@@ -27,6 +28,7 @@ struct SysCallCase<'a>{
 fn build_syscall1<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m Type,linear_memory_compiler:Option<&'m LinearMemoryCompiler<T>>)->Result<(),Error>{
     let syscall1_type = Type::function(int_type,&[int_type,int_type],false);
     let syscall1 = build_context.module().set_declare_function(&WasmCompiler::<T>::wasm_function_name("__syscall1"),syscall1_type);
+    let int32_type = Type::int32(build_context.context());
     build_context.builder().build_function(build_context.context(),syscall1,|_,_|{
         let n = syscall1.get_first_param().ok_or(NotExistValue)?;
         let a = n.get_next_param().ok_or(NotExistValue)?;
@@ -38,7 +40,27 @@ fn build_syscall1<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
                 build_context.builder().build_ret(sys_brk_ret);
                 Ok(())
             })
-            })
+            });
+
+            cases.push(
+                SysCallCase{
+                    code:SYS_UMASK,
+                    on_case:Box::new(
+                        ||{
+                            let mask = build_context.builder().build_int_cast(a,int32_type,"");
+                            let ret = build_call_and_set_umask(build_context.module(),build_context.builder(),mask);
+                            build_context.builder().build_ret(
+                                build_context.builder().build_int_cast(
+                                    ret,
+                                    int_type,
+                                    ""
+                                )
+                            );
+                            Ok(())
+                        }
+                    )
+                }
+            )
         }
         build_syscall_internal(build_context,syscall1,n,&cases,int_type)
 
@@ -265,6 +287,14 @@ fn build_call_and_set_futex<'m>(module:&'m Module,build_context:&'m Builder,uadd
     let futex_type = Type::function(int32_type,&[ptr_type,int32_type,int32_type,ptr_type,ptr_type,int32_type],false);
     let futex = module.set_declare_function("futex",futex_type);
     build_context.build_call(futex,&[uaddr,op,val,timeout,uaddr2,val3],"")
+}
+
+fn build_call_and_set_umask<'m>(module:&'m Module,build_context:&'m Builder,mask:&'m Value)->&'m Value{
+    let context = module.context();
+    let int32_type = Type::int32(context);
+    let umask_type = Type::function(int32_type,&[int32_type],false);
+    let umask = module.set_declare_function("umask",umask_type);
+    build_context.build_call(umask,&[mask],"")
 }
 
 fn new_real_pointer_type(context:&Context)->&Type{

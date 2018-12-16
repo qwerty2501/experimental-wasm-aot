@@ -66,6 +66,7 @@
       <w>uaddr</w>
       <w>udiv</w>
       <w>uint</w>
+      <w>umask</w>
       <w>unop</w>
       <w>urem</w>
       <w>wasm</w>
