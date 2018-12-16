@@ -978,30 +978,9 @@ pub fn build_call_and_set_trap<'m>(module:&'m Module,builder:&'m Builder,name:&s
 }
 
 
-pub fn build_call_and_set_brk<'m>(module:&'m Module,builder:&'m Builder,addr:&Value,name:&str)->&'m Value{
-    let context = module.context();
-    let int32_type = Type::int32(context);
-    let brk_type = Type::function(int32_type,&[new_real_pointer_type(context)],false);
-    let brk = module.set_declare_function("brk",brk_type);
-    builder.build_call(brk,&[addr],name)
-}
-
-pub fn build_call_and_set_writev<'m>(module:&'m Module,builder:&'m Builder,d:&'m Value,iovec:&'m Value,iovec_count:&'m Value,name:&str)->&'m Value{
-    let context = module.context();
-    let int_type = Type::int(context,bit_width::<isize>() as u32);
-    let writev_type = Type::function(int_type,&[
-        Type::int32(context),
-        new_real_pointer_type(context),
-        Type::int32(context),
-    ],false);
-    let writev = module.set_declare_function("writev",writev_type);
-    builder.build_call(writev,&[d,iovec,iovec_count],name)
-}
 
 
-pub fn new_real_pointer_type(context:&Context)->&Type{
-    Type::ptr(Type::struct_create_named(context,"real_struct"),0)
-}
+
 
 
 pub trait Disposable{

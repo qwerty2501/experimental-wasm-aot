@@ -36,6 +36,7 @@
       <w>initializers</w>
       <w>iovec</w>
       <w>libc</w>
+      <w>llseek</w>
       <w>lshr</w>
       <w>memcpy</w>
       <w>mmap</w>

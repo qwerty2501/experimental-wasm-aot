@@ -4,11 +4,14 @@ use error::RuntimeError::*;
 const SYS_BRK:u64=0x2d;
 const SYS_WRITEV:u64=0x92;
 const SYS_MMAP2:u64=0xc0;
+const SYS_LLSEEK:u64= 0x8c;
 
 pub fn build_syscalls<'m,T:WasmIntType>(build_context:&'m BuildContext,linear_memory_compiler:Option<&'m LinearMemoryCompiler<T>>)->Result<(),Error>{
     let int_type = Type::int_wasm_ptr::<T>(build_context.context());
     build_syscall1::<T>(build_context,int_type,linear_memory_compiler)?;
     build_syscall3::<T>(build_context,int_type,linear_memory_compiler)?;
+    build_syscall5::<T>(build_context,int_type,linear_memory_compiler)?;
+    build_syscall6::<T>(build_context,int_type,linear_memory_compiler)?;
     Ok(())
 }
 
@@ -59,11 +62,14 @@ fn build_syscall3<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
                     code: SYS_WRITEV,
                     on_case: Box::new( || {
                         let linear_memory_compiler = linear_memory_compiler.unwrap();
+                        let int32_type = Type::int32(build_context.context());
+                        let d = build_context.builder().build_int_cast(a,int32_type,"");
                         let iovec = build_get_real_address(build_context, linear_memory_compiler, b);
+                        let iovec_count = build_context.builder().build_int_cast(c,int32_type,"");
 
                         build_context.builder().build_ret(
                             build_context.builder().build_int_cast(
-                                build_call_and_set_writev(build_context.module(), build_context.builder(), a, iovec, c, ""),
+                                build_call_and_set_writev(build_context.module(), build_context.builder(), d, iovec, iovec_count, ""),
                                 int_type,
                                 ""
                             )
@@ -81,7 +87,52 @@ fn build_syscall3<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
     })
 }
 
-fn build_syscall6<'m,T:WasmIntType>(build_context:&BuildContext,int_type:&'m Type,linear_memory_compiler:Option<&'m LinearMemoryCompiler<T>>)->Result<(),Error>{
+fn build_syscall5<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m Type,linear_memory_compiler:Option<&'m LinearMemoryCompiler<T>>)->Result<(),Error>{
+    let syscall5_type = Type::function(int_type,&[int_type,int_type,int_type,int_type,int_type,int_type],false);
+    let syscall5 = build_context.module().set_declare_function(&WasmCompiler::<T>::wasm_function_name("__syscall5"),syscall5_type);
+    build_context.builder().build_function(build_context.context(),syscall5,|_,_|{
+        let n = syscall5.get_first_param().ok_or(NotExistValue)?;
+        let a = n.get_next_param().ok_or(NotExistValue)?;
+        let b = a.get_next_param().ok_or(NotExistValue)?;
+        let c = b.get_next_param().ok_or(NotExistValue)?;
+        let d = c.get_next_param().ok_or(NotExistValue)?;
+        let e = d.get_next_param().ok_or(NotExistValue)?;
+        let mut cases = vec![];
+        if linear_memory_compiler.is_some(){
+            cases.push(
+                SysCallCase{
+                    code:SYS_LLSEEK,
+                    on_case: Box::new(
+                        ||{
+                            let linear_memory_compiler = linear_memory_compiler.unwrap();
+                            let int_ptr_type = Type::int_ptr(build_context.context());
+                            let int32_type = Type::int32(build_context.context());
+                            let fd = build_context.builder().build_int_cast(a,int32_type,"");
+                            let offset_high = build_context.builder().build_int_cast(b,int_ptr_type,"");
+                            let offset_low = build_context.builder().build_int_cast(c,int_ptr_type,"");
+                            let result = build_get_real_address(build_context,linear_memory_compiler,d);
+                            let whence = build_context.builder().build_int_cast(e,int32_type,"");
+
+
+                            build_context.builder().build_ret(
+                                build_context.builder().build_int_cast(
+                                    build_call_and_set_llseek(build_context.module(),build_context.builder(),fd,offset_high,offset_low,result,whence),
+                                    int32_type,
+                                    ""
+                                )
+                            );
+                            Ok(())
+                        }
+                    )
+                }
+            )
+        }
+
+        build_syscall_internal(build_context,syscall5,n,&cases,int_type)
+    })
+}
+
+fn build_syscall6<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m Type,linear_memory_compiler:Option<&'m LinearMemoryCompiler<T>>)->Result<(),Error>{
     let syscall6_type = Type::function(int_type,&[int_type,int_type,int_type,int_type,int_type,int_type,int_type],false);
     let syscall6 = build_context.module().set_declare_function(&WasmCompiler::<T>::wasm_function_name("__syscall6"),syscall6_type);
     build_context.builder().build_function(build_context.context(),syscall6,|_,_|{
@@ -145,3 +196,36 @@ fn build_syscall_internal<'m>(build_context:&'m BuildContext,function:&'m Value,
     Ok(())
 }
 
+fn build_call_and_set_brk<'m>(module:&'m Module,builder:&'m Builder,addr:&Value,name:&str)->&'m Value{
+    let context = module.context();
+    let int32_type = Type::int32(context);
+    let brk_type = Type::function(int32_type,&[new_real_pointer_type(context)],false);
+    let brk = module.set_declare_function("brk",brk_type);
+    builder.build_call(brk,&[addr],name)
+}
+
+fn build_call_and_set_writev<'m>(module:&'m Module,builder:&'m Builder,d:&'m Value,iovec:&'m Value,iovec_count:&'m Value,name:&str)->&'m Value{
+    let context = module.context();
+    let int_type = Type::int_ptr(context);
+    let writev_type = Type::function(int_type,&[
+        Type::int32(context),
+        new_real_pointer_type(context),
+        Type::int32(context),
+    ],false);
+    let writev = module.set_declare_function("writev",writev_type);
+    builder.build_call(writev,&[d,iovec,iovec_count],name)
+}
+
+fn build_call_and_set_llseek<'m>(module:&'m Module,builder:&'m Builder,fd:&'m Value,offset_high:&'m Value,offset_low:&'m Value,result:&Value,whence:&'m Value)->&'m Value{
+    let context = module.context();
+    let int_type = Type::int_ptr(context);
+    let int32_type = Type::int32(context);
+    let ptr_type = new_real_pointer_type(context);
+    let llseek_type = Type::function(int32_type,&[int32_type,int_type,int_type,ptr_type,int32_type],false);
+    let llseek = module.set_declare_function("_llseek",llseek_type);
+    builder.build_call(llseek,&[fd,offset_high,offset_low,result,whence],"")
+}
+
+fn new_real_pointer_type(context:&Context)->&Type{
+    Type::ptr(Type::struct_create_named(context,"real_struct"),0)
+}
