@@ -3,6 +3,7 @@
     <words>
       <w>addr</w>
       <w>alloca</w>
+      <w>argp</w>
       <w>ashr</w>
       <w>binop</w>
       <w>codegen</w>
