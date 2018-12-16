@@ -5,6 +5,7 @@ const SYS_BRK:u64=0x2d;
 const SYS_WRITEV:u64=0x92;
 const SYS_MMAP2:u64=0xc0;
 const SYS_LLSEEK:u64= 0x8c;
+const SYS_FUTEX:u64 = 0xf0;
 
 pub fn build_syscalls<'m,T:WasmIntType>(build_context:&'m BuildContext,linear_memory_compiler:Option<&'m LinearMemoryCompiler<T>>)->Result<(),Error>{
     let int_type = Type::int_wasm_ptr::<T>(build_context.context());
@@ -53,7 +54,9 @@ fn build_syscall3<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
         let a = n.get_next_param().ok_or(NotExistValue)?;
         let b = a.get_next_param().ok_or(NotExistValue)?;
         let c = b.get_next_param().ok_or(NotExistValue)?;
-
+        let int_ptr_type = Type::int_ptr(build_context.context());
+        let int32_type = Type::int32(build_context.context());
+        let int64_type = Type::int64(build_context.context());
         let mut cases = vec![];
 
         if linear_memory_compiler.is_some(){
@@ -62,7 +65,6 @@ fn build_syscall3<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
                     code: SYS_WRITEV,
                     on_case: Box::new( || {
                         let linear_memory_compiler = linear_memory_compiler.unwrap();
-                        let int32_type = Type::int32(build_context.context());
                         let d = build_context.builder().build_int_cast(a,int32_type,"");
                         let iovec = build_get_real_address(build_context, linear_memory_compiler, b);
                         let iovec_count = build_context.builder().build_int_cast(c,int32_type,"");
@@ -97,6 +99,9 @@ fn build_syscall5<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
         let c = b.get_next_param().ok_or(NotExistValue)?;
         let d = c.get_next_param().ok_or(NotExistValue)?;
         let e = d.get_next_param().ok_or(NotExistValue)?;
+        let int_ptr_type = Type::int_ptr(build_context.context());
+        let int32_type = Type::int32(build_context.context());
+        let int64_type = Type::int64(build_context.context());
         let mut cases = vec![];
         if linear_memory_compiler.is_some(){
             cases.push(
@@ -105,8 +110,6 @@ fn build_syscall5<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
                     on_case: Box::new(
                         ||{
                             let linear_memory_compiler = linear_memory_compiler.unwrap();
-                            let int_ptr_type = Type::int_ptr(build_context.context());
-                            let int32_type = Type::int32(build_context.context());
                             let fd = build_context.builder().build_int_cast(a,int32_type,"");
                             let offset_high = build_context.builder().build_int_cast(b,int_ptr_type,"");
                             let offset_low = build_context.builder().build_int_cast(c,int_ptr_type,"");
@@ -143,6 +146,9 @@ fn build_syscall6<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
         let d = c.get_next_param().ok_or(NotExistValue)?;
         let e = d.get_next_param().ok_or(NotExistValue)?;
         let f = e.get_next_param().ok_or(NotExistValue)?;
+        let int_ptr_type = Type::int_ptr(build_context.context());
+        let int32_type = Type::int32(build_context.context());
+        let int64_type = Type::int64(build_context.context());
         let mut cases = vec![];
         if linear_memory_compiler.is_some(){
             cases.push(
@@ -150,8 +156,34 @@ fn build_syscall6<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
                     code:SYS_MMAP2,
                     on_case:Box::new(||{
                         let linear_memory_compiler = linear_memory_compiler.unwrap();
-                        let ret = build_mmap2(build_context,linear_memory_compiler,syscall6,a ,b,c,d,e,f)?;
-                        build_context.builder().build_ret(ret);
+
+                        let addr = build_get_real_address(build_context,linear_memory_compiler,a);
+                        let len = build_context.builder().build_int_cast(b,int_ptr_type,"");
+                        let prot = build_context.builder().build_int_cast(c,int32_type,"");
+                        let flags = build_context.builder().build_int_cast(d,int32_type,"");
+                        let fd = build_context.builder().build_int_cast(e,int32_type,"");
+                        let off_t = build_context.builder().build_int_cast(f,int64_type,"");
+                        let ret = build_mmap2(build_context,linear_memory_compiler,syscall6,addr ,len,prot,flags,fd,off_t)?;
+                        build_context.builder().build_ret(build_context.builder().build_int_cast(ret,int_ptr_type,""));
+                        Ok(())
+                    })
+                }
+            );
+
+            cases.push(
+                SysCallCase{
+                    code:SYS_FUTEX,
+                    on_case:Box::new(||{
+                        let linear_memory_compiler = linear_memory_compiler.unwrap();
+
+                        let uaddr = build_get_real_address(build_context,linear_memory_compiler,a);
+                        let op = build_context.builder().build_int_cast(b,int32_type,"");
+                        let val = build_context.builder().build_int_cast(c,int32_type,"");
+                        let timeout = build_get_real_address(build_context,linear_memory_compiler,d);
+                        let uaddr2 = build_get_real_address(build_context,linear_memory_compiler,e);
+                        let val3 = build_context.builder().build_int_cast(f,int32_type,"");
+                        let ret = build_call_and_set_futex(build_context.module(),build_context.builder(),uaddr,op,val,timeout,uaddr2,val3);
+                        build_context.builder().build_ret(build_context.builder().build_int_cast(ret,int_ptr_type,""));
                         Ok(())
                     })
                 }
@@ -167,7 +199,7 @@ fn build_get_real_address<'m,T:WasmIntType>(build_context:&'m BuildContext,linea
     build_context.builder().build_pointer_cast( ptr ,new_real_pointer_type(build_context.context()),"")
 }
 
-pub fn build_mmap2<'m,T:WasmIntType>(build_context:&'m BuildContext,linear_memory_compiler:&'m LinearMemoryCompiler<T>,syscall6:&Value, addr:&Value,len:&'m Value,prot:&'m Value,flats:&'m Value,fd:&'m Value,off_t:&'m Value)->Result<&'m Value,Error>{
+pub fn build_mmap2<'m,T:WasmIntType>(build_context:&'m BuildContext,linear_memory_compiler:&'m LinearMemoryCompiler<T>,syscall6:&Value, addr:&Value,len:&'m Value,prot:&'m Value,flags:&'m Value,fd:&'m Value,off_t:&'m Value)->Result<&'m Value,Error>{
     let unit_size = Value::const_int(Type::int_ptr(build_context.context()),LinearMemoryTypeContext::UNIT_SIZE as u64,false);
     let requested =  build_context.builder().build_add(
         build_context.builder().build_udiv(len,unit_size,""),
@@ -224,6 +256,15 @@ fn build_call_and_set_llseek<'m>(module:&'m Module,builder:&'m Builder,fd:&'m Va
     let llseek_type = Type::function(int32_type,&[int32_type,int_type,int_type,ptr_type,int32_type],false);
     let llseek = module.set_declare_function("_llseek",llseek_type);
     builder.build_call(llseek,&[fd,offset_high,offset_low,result,whence],"")
+}
+
+fn build_call_and_set_futex<'m>(module:&'m Module,build_context:&'m Builder,uaddr:&'m Value,op:&'m Value,val:&'m Value,timeout:&'m Value,uaddr2:&'m Value,val3:&'m Value)->&'m Value{
+    let context = module.context();
+    let int32_type = Type::int32(context);
+    let ptr_type = new_real_pointer_type(context);
+    let futex_type = Type::function(int32_type,&[ptr_type,int32_type,int32_type,ptr_type,ptr_type,int32_type],false);
+    let futex = module.set_declare_function("futex",futex_type);
+    build_context.build_call(futex,&[uaddr,op,val,timeout,uaddr2,val3],"")
 }
 
 fn new_real_pointer_type(context:&Context)->&Type{

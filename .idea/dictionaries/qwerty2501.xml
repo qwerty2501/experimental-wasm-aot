@@ -30,6 +30,7 @@
       <w>fmul</w>
       <w>fneg</w>
       <w>fsub</w>
+      <w>futex</w>
       <w>growable</w>
       <w>icmp</w>
       <w>infos</w>
@@ -62,6 +63,7 @@
       <w>syscall</w>
       <w>syscalls</w>
       <w>trunc</w>
+      <w>uaddr</w>
       <w>udiv</w>
       <w>uint</w>
       <w>unop</w>
