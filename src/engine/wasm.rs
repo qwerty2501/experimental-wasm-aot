@@ -155,14 +155,20 @@ impl<T:WasmIntType> WasmCompiler<T>{
         if let Some(code_section) = wasm_module.code_section(){
             for (index,function_body) in code_section.bodies().iter().enumerate() {
                 let index = index +import_count as usize;
+
                 let current_function:&Value = functions.get(index).ok_or(NoSuchFunctionIndex {index :index as u32 })?;
 
-                let locals= (0..current_function.count_params()).map(|i|->Result<LocalValue,Error> {
-                    Ok(LocalValue::from_value(current_function.get_param(i).ok_or(NotExistValue)?))
-                }).into_iter().chain(function_body.locals().iter().map(|local|{
-                    Ok(LocalValue::from_value_type(instructions::value_type_to_type(build_context,&local.value_type())))
-                })).collect::<Result<Vec<LocalValue>,Error>>()?;
+                let mut locals  = vec![];
 
+                for i in 0..current_function.count_params(){
+                    locals.push(LocalValue::from_value(current_function.get_param(i).ok_or(NotExistValue)?));
+                }
+
+                for local in function_body.locals(){
+                    for i in 0 .. local.count(){
+                        locals.push(LocalValue::from_value_type(instructions::value_type_to_type(build_context,&local.value_type())));
+                    }
+                }
                 build_context.builder().build_function(build_context.context(),current_function,|builder,_bb|{
                     let label_block_types = instructions::filter_label_block_types(function_body.code().elements().iter());
                     let stack = Stack::new(current_function,vec![],vec![],vec![
@@ -471,6 +477,21 @@ mod tests{
             Ok(())
         })?;
         test_module_main_in_engine(build_context.module(),32)
+    }
+
+    #[test]
+    pub fn build_hello_world_works()->Result<(),Error>{
+        let module = load_wasm_compiler_test_case("hello_world")?;
+        let wasm_compiler = WasmCompiler::<u32>::new();
+        let context = Context::new();
+        let module_id = "hello_world";
+        let build_context = BuildContext::new(module_id,&context);
+        let function_name = WasmCompiler::<u32>::wasm_function_name("main");
+        wasm_compiler.build_main_function(&build_context,module_id,&module,WasmCompiler::<u32>::set_declare_main_function(&build_context),||{
+
+            Ok(())
+        })
+
     }
 
 
