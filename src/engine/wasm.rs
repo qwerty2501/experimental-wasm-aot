@@ -109,7 +109,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
     const INIT_DATA_SECTIONS_NAME:&'static str = "init_data_sections";
     pub fn set_declare_init_data_sections_function<'c>(&self, build_context:&'c BuildContext) ->&'c Value{
-        build_context.module().set_declare_function(Self::INIT_DATA_SECTIONS_NAME, Type::function(Type::int8(build_context.context()), & [], false))
+        build_context.module().set_declare_function(Self::INIT_DATA_SECTIONS_NAME, Type::function(Type::void(build_context.context()), & [], false))
     }
 
     fn build_init_global_sections(&self,build_context:&BuildContext,wasm_module:&WasmModule )->Result<(),Error>{
@@ -488,11 +488,36 @@ mod tests{
         let build_context = BuildContext::new(module_id,&context);
         let function_name = WasmCompiler::<u32>::wasm_function_name("main");
         wasm_compiler.build_main_function(&build_context,module_id,&module,WasmCompiler::<u32>::set_declare_main_function(&build_context),||{
-
+            let target_function = build_context.module().get_named_function(&function_name).ok_or(NoSuchLLVMFunction {name:function_name})?;
+            build_context.builder().build_ret( build_context.builder().build_call(target_function,&[],""));
             Ok(())
+        })?;
+        llvm::analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction).map_err(|e|{
+            build_context.module().dump();
+            e
         })
-
     }
+
+    #[test]
+    pub fn build_writev_c_works()->Result<(),Error>{
+        let module = load_wasm_compiler_test_case("writev_c")?;
+        let wasm_compiler = WasmCompiler::<u32>::new();
+        let context = Context::new();
+        let module_id = "writev_c";
+        let build_context = BuildContext::new(module_id,&context);
+        let function_name = WasmCompiler::<u32>::wasm_function_name("writev_c");
+        wasm_compiler.build_main_function(&build_context,module_id,&module,WasmCompiler::<u32>::set_declare_main_function(&build_context),||{
+            let target_function = build_context.module().get_named_function(&function_name).ok_or(NoSuchLLVMFunction {name:function_name})?;
+            let zero = Value::const_int(Type::int32(build_context.context()),0,false);
+            build_context.builder().build_ret( build_context.builder().build_call(target_function,&[zero,zero,zero],""));
+            Ok(())
+        })?;
+        llvm::analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction).map_err(|e|{
+            build_context.module().dump();
+            e
+        })
+    }
+
 
 
     fn load_wasm_compiler_test_case(case_name:&str)->Result<WasmModule,Error>{

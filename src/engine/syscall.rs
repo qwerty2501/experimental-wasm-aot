@@ -245,17 +245,19 @@ fn build_ret<'m>(build_context:&'m BuildContext,ret:&'m Value,int_type:&'m Type)
     );
 }
 fn build_get_real_address<'m,T:WasmIntType>(build_context:&'m BuildContext,linear_memory_compiler:&'m LinearMemoryCompiler<T>,addr:&'m Value)->&'m Value{
-    let ptr = linear_memory_compiler.build_get_real_address(build_context,0,addr,"");
-    build_context.builder().build_pointer_cast( ptr ,new_real_pointer_type(build_context.context()),"")
+    linear_memory_compiler.build_get_real_address(build_context,0,addr,"")
 }
 
 pub fn build_mmap2<'m,T:WasmIntType>(build_context:&'m BuildContext,linear_memory_compiler:&'m LinearMemoryCompiler<T>,syscall6:&Value, addr:&Value,len:&'m Value,prot:&'m Value,flags:&'m Value,fd:&'m Value,off_t:&'m Value)->Result<&'m Value,Error>{
-    let unit_size = Value::const_int(Type::int_ptr(build_context.context()),LinearMemoryTypeContext::UNIT_SIZE as u64,false);
+    let unit_size = Value::const_int(Type::int_wasm_ptr::<T>(build_context.context()),LinearMemoryTypeContext::UNIT_SIZE as u64,false);
+    let len = build_context.builder().build_int_cast(len,Type::int_wasm_ptr::<T>(build_context.context()),"");
     let requested =  build_context.builder().build_add(
         build_context.builder().build_udiv(len,unit_size,""),
         build_context.builder().build_urem(len,unit_size,""),
         ""
     );
+
+    let requested = build_context.builder().build_int_cast(requested,Type::int_wasm_ptr::<T>(build_context.context()),"");
 
     let grow_ret = linear_memory_compiler.build_grow(build_context,requested,0)?;
     Ok(build_context.builder().build_mul(grow_ret,unit_size,""))
@@ -340,5 +342,5 @@ fn build_call_and_set_ioctl<'m>(module:&'m Module,builder:&'m Builder,fd:&'m Val
 }
 
 fn new_real_pointer_type(context:&Context)->&Type{
-    Type::ptr(Type::struct_create_named(context,"real_struct"),0)
+    Type::ptr(Type::int8(context),0)
 }
