@@ -3,7 +3,7 @@ use super::*;
 
 pub enum WasmValue<'a>{
     Value{value:&'a Value},
-    BlockReturnValue{return_value:BlockReturnValue<'a>},
+    BlockReturnValue{return_value: LocalAllocatedValue<'a>},
 }
 
 
@@ -12,7 +12,7 @@ impl<'a> WasmValue<'a>{
         WasmValue::Value {value}
     }
 
-    pub fn new_block_return_value(return_value:BlockReturnValue<'a>)-> WasmValue<'a>{
+    pub fn new_local_allocated_value(return_value: LocalAllocatedValue<'a>) -> WasmValue<'a>{
         WasmValue::BlockReturnValue {return_value}
     }
 

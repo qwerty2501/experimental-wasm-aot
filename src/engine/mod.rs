@@ -12,12 +12,12 @@ mod table;
 mod stack;
 mod frame;
 mod wasm_value;
-mod block_return_value;
+mod local_allocated_value;
 mod instruction_history;
 mod syscall;
 
 
-use self::block_return_value::*;
+use self::local_allocated_value::*;
 use self::wasm_value::*;
 use self::types::*;
 use self::test_utils::*;

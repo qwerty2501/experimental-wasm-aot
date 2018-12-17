@@ -20,13 +20,12 @@ pub struct ModuleInstance<'a,T:WasmIntType + 'a>{
 
 
 pub struct LocalValue<'a>{
-    pub value:Option<WasmValue<'a>>,
-    pub value_type:&'a Type,
+    pub value:LocalAllocatedValue<'a>,
 }
 
 pub struct Label<'a>{
     pub label_type: LabelType<'a>,
-    pub return_value:Option<BlockReturnValue<'a>>
+    pub return_value:Option<LocalAllocatedValue<'a>>
 }
 
 pub enum LabelType<'a>{
@@ -62,36 +61,38 @@ impl<'a,T:WasmIntType + 'a> Frame<'a,T>{
 
 impl<'a> Clone for LocalValue<'a>{
     fn clone(&self) -> Self {
-       LocalValue{value:self.value.clone(),value_type: self.value_type}
+       LocalValue{value:self.value.clone()}
     }
 }
 
 impl<'a> LocalValue<'a>{
-    pub fn from_value(value:&Value) ->LocalValue{
-        LocalValue{value:Some(WasmValue::new_value(value)),value_type:Type::type_of(value)}
+    pub fn from_value(build_context:&'a BuildContext,value:&'a Value) ->Self{
+        let l = LocalAllocatedValue::new(build_context, Type::type_of(value));
+        l.store(build_context,value);
+        LocalValue{value:l}
     }
 
-    pub fn from_value_type(value_type:&Type)->LocalValue{
-        LocalValue{value:None,value_type}
+    pub fn from_value_type(build_context:&'a BuildContext,value_type:&'a Type)->Self{
+        LocalValue{value:LocalAllocatedValue::new(build_context, value_type)}
     }
 }
 
 impl<'a> Label<'a>{
-    pub fn new_block(start:&'a BasicBlock,next:&'a BasicBlock,return_value:Option<BlockReturnValue<'a>>)->Label<'a>{
+    pub fn new_block(start:&'a BasicBlock, next:&'a BasicBlock, return_value:Option<LocalAllocatedValue<'a>>) ->Label<'a>{
         Label{
             label_type: LabelType::Block{start,next,history:InstructionHistory::new(None,None)},
             return_value,
         }
     }
 
-    pub fn new_loop(start:&'a BasicBlock, next:&'a BasicBlock,return_value:Option<BlockReturnValue<'a>>)-> Label<'a>{
+    pub fn new_loop(start:&'a BasicBlock, next:&'a BasicBlock, return_value:Option<LocalAllocatedValue<'a>>) -> Label<'a>{
         Label{
             label_type: LabelType::Loop {start,next,history:InstructionHistory::new(None,None)},
             return_value,
         }
     }
 
-    pub fn new_if(start:&'a BasicBlock,else_block:&'a BasicBlock,next:&'a BasicBlock, return_value:Option<BlockReturnValue<'a>>) -> Label<'a>{
+    pub fn new_if(start:&'a BasicBlock, else_block:&'a BasicBlock, next:&'a BasicBlock, return_value:Option<LocalAllocatedValue<'a>>) -> Label<'a>{
         Label{
             label_type: LabelType::If {start,else_block, next,if_history:InstructionHistory::new(None,None),else_history:None},
             return_value,
@@ -116,7 +117,8 @@ impl<'a> Label<'a>{
             }
         }
     }
-    pub fn with_previous_instruction(&self,instruction:Instruction,previous_value:Option< WasmValue<'a>>)->Label<'a>{
+    pub fn with_previous_instruction(&self,instruction:Instruction,previous_value:Option<
+        WasmValue<'a>>)->Label<'a>{
         let label_type = match self.label_type{
             LabelType::If {start,else_block,next,ref if_history, ref else_history} =>{
                 if let Some(history) = else_history{

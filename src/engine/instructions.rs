@@ -65,27 +65,26 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
  fn get_local<'a,T:WasmIntType>(_build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current()?;
-        let v = current_frame.locals.get(index as usize).ok_or(NoSuchLocalValue {index})?.clone().value.ok_or(NoSuchLocalValue {index})?.clone();
-        stack.values.push( v);
+        let v = current_frame.locals.get(index as usize).ok_or(NoSuchLocalValue {index})?.clone();
+        stack.values.push( WasmValue::new_local_allocated_value(v.value) );
     }
     Ok(stack)
 }
 
- fn set_local<'a,T:WasmIntType>(_build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn set_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
         let  v:&mut LocalValue = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
-        v.value = Some(stack.values.pop().ok_or(NotExistValue)?);
+        v.value.store(build_context,stack.values.pop().ok_or(NotExistValue)?.to_value(build_context));
     }
     Ok(stack)
 }
 
- fn tee_local<'a,T:WasmIntType>(_build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+ fn tee_local<'a,T:WasmIntType>(build_context:&'a BuildContext,index:u32,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
         let  v:&mut LocalValue = current_frame.locals.get_mut(index as usize).ok_or(NoSuchLocalValue{index})?;
-        v.value = Some(stack.values.last().ok_or(NotExistValue)?.clone());
-
+        v.value.store(build_context,stack.values.last().ok_or(NotExistValue)?.to_value(build_context));
     }
     Ok(stack)
 }
@@ -202,7 +201,7 @@ fn load_int<'a,T:WasmIntType>(build_context:&'a BuildContext,align:u32,offset:u3
     Ok(stack)
 }
 
-fn build_next_br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,previous_instruction:Option<Instruction>,target_ret_value:Option<BlockReturnValue<'a>>,ret_value:Option<WasmValue<'a>>,next:&'a BasicBlock) ->Result<Stack<'a,T>,Error>{
+fn build_next_br<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>, previous_instruction:Option<Instruction>, target_ret_value:Option<LocalAllocatedValue<'a>>, ret_value:Option<WasmValue<'a>>, next:&'a BasicBlock) ->Result<Stack<'a,T>,Error>{
     {
         let need_br_next =  if let Some(pi) = previous_instruction.clone(){
             match pi{
@@ -222,7 +221,7 @@ fn build_next_br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stac
                     let ret_value = ret_value.ok_or(NotExistValue)?.to_value(build_context);
                     return_value.store(build_context, ret_value);
                 }
-                stack.values.push(WasmValue::new_block_return_value(return_value));
+                stack.values.push(WasmValue::new_local_allocated_value(return_value));
             }
             build_context.builder().build_br(next);
         }
@@ -662,7 +661,7 @@ pub fn get_global_name(index:u32) -> String {
 fn block<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>,block_type: BlockType)->Result<Stack<'a,T>,Error>{
     {
         let block_return_value = if let BlockType::Value(value_type)  = block_type {
-            Some(BlockReturnValue::new(build_context,value_type))
+            Some(LocalAllocatedValue::new_from_wasm_type(build_context, value_type))
         } else{
             None
         };
@@ -678,7 +677,7 @@ fn block<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Stack<'a,T>
 fn loop_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,block_type:BlockType)->Result<Stack<'a,T>,Error>{
     {
         let block_return_value = if let BlockType::Value(value_type) = block_type {
-            Some(BlockReturnValue::new(build_context,value_type))
+            Some(LocalAllocatedValue::new_from_wasm_type(build_context, value_type))
         } else{
             None
         };
@@ -694,7 +693,7 @@ fn loop_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:S
 fn if_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,block_type:BlockType)-> Result<Stack<'a,T>,Error>{
     {
         let block_return_value = if let BlockType::Value(value_type) = block_type {
-            Some(BlockReturnValue::new(build_context,value_type))
+            Some(LocalAllocatedValue::new_from_wasm_type(build_context, value_type))
         } else{
             None
         };
@@ -1231,20 +1230,28 @@ mod tests{
 
     #[test]
     pub fn get_local_works()->Result<(),Error>{
+
         let context = Context::new();
         let build_context = BuildContext::new("get_local_works",&context);
+        let build_context_ref = &build_context;
         let expected = 22;
         let test_function_name = "test_function";
         let (ft,lt) = new_compilers();
+
         build_test_instruction_function(&build_context, test_function_name, vec![], vec![
 
-            frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), expected as u64, false))],
+            frame::test_utils::new_test_frame(vec![],
                                               &[], &[],
                                               &ft,
                                               &lt)
         ], |stack,_bb|{
+
+            let stack = Stack::<u32>::new(stack.current_function,vec![],vec![],vec![ frame::test_utils::new_test_frame(vec![LocalValue::from_value(build_context_ref, Value::const_int(Type::int32(build_context.context()), expected as u64, false))],
+                                                                                                                       &[], &[],
+                                                                                                                       &ft,
+                                                                                                                       &lt)]);
             let stack = get_local(&build_context,0,stack)?;
-            let _ = progress_instruction(&build_context,Instruction::End, stack)?;
+            let _ = progress_instruction(build_context_ref,Instruction::End, stack)?;
             Ok(())
         })?;
 
@@ -1263,9 +1270,14 @@ mod tests{
         let test_function_name = "test_function";
         let (ft,lt) = new_compilers();
         build_test_instruction_function(&build_context, test_function_name, vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()), expected, false))], vec![
-            frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
+            frame::test_utils::new_test_frame(vec![],
                                               &[], &[],
                                               &ft,&lt)], |stack,_bb|{
+            let stack = Stack::<u32>::new(stack.current_function,vec![],stack.values,vec![ frame::test_utils::new_test_frame(vec![LocalValue::from_value(&build_context, Value::const_int(Type::int32(build_context.context()), 0, false))],
+                                                                                                                       &[], &[],
+                                                                                                                       &ft,
+                                                                                                                       &lt)]);
+
             let stack = set_local(&build_context,0,stack)?;
             let stack = get_local(&build_context,0,stack)?;
             let _ = progress_instruction(&build_context,Instruction::End, stack)?;
@@ -1288,7 +1300,7 @@ mod tests{
         let (ft,lt) = new_compilers();
         build_test_instruction_function(&build_context, test_function_name, vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()), expected, false))], vec![
 
-            frame::test_utils::new_test_frame(vec![LocalValue::from_value(Value::const_int(Type::int32(build_context.context()), 0, false))],
+            frame::test_utils::new_test_frame(vec![LocalValue::from_value(&build_context,Value::const_int(Type::int32(build_context.context()), 0, false))],
                                               &[], &[],
                                               &ft,
                                               &lt)

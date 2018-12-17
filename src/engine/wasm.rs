@@ -158,18 +158,19 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
                 let current_function:&Value = functions.get(index).ok_or(NoSuchFunctionIndex {index :index as u32 })?;
 
-                let mut locals  = vec![];
 
-                for i in 0..current_function.count_params(){
-                    locals.push(LocalValue::from_value(current_function.get_param(i).ok_or(NotExistValue)?));
-                }
-
-                for local in function_body.locals(){
-                    for i in 0 .. local.count(){
-                        locals.push(LocalValue::from_value_type(instructions::value_type_to_type(build_context,&local.value_type())));
-                    }
-                }
                 build_context.builder().build_function(build_context.context(),current_function,|builder,_bb|{
+                    let mut locals  = vec![];
+
+                    for i in 0..current_function.count_params(){
+                        locals.push(LocalValue::from_value(build_context,current_function.get_param(i).ok_or(NotExistValue)?));
+                    }
+
+                    for local in function_body.locals(){
+                        for i in 0 .. local.count(){
+                            locals.push(LocalValue::from_value_type(build_context,instructions::value_type_to_type(build_context,&local.value_type())));
+                        }
+                    }
                     let label_block_types = instructions::filter_label_block_types(function_body.code().elements().iter());
                     let stack = Stack::new(current_function,vec![],vec![],vec![
                         Frame::new(locals ,ModuleInstance::new(types,functions,&self.table_compiler,&self.linear_memory_compiler))
@@ -517,6 +518,27 @@ mod tests{
             e
         })
     }
+
+    #[test]
+    pub fn build___lockfile_works()->Result<(),Error>{
+        let module = load_wasm_compiler_test_case("__lockfile")?;
+        let wasm_compiler = WasmCompiler::<u32>::new();
+        let context = Context::new();
+        let module_id = "__lockfile";
+        let build_context = BuildContext::new(module_id,&context);
+        let function_name = WasmCompiler::<u32>::wasm_function_name("__lockfile");
+        wasm_compiler.build_main_function(&build_context,module_id,&module,WasmCompiler::<u32>::set_declare_main_function(&build_context),||{
+            let target_function = build_context.module().get_named_function(&function_name).ok_or(NoSuchLLVMFunction {name:function_name})?;
+            let zero = Value::const_int(Type::int32(build_context.context()),0,false);
+            build_context.builder().build_ret( build_context.builder().build_call(target_function,&[zero],""));
+            Ok(())
+        })?;
+        llvm::analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction).map_err(|e|{
+            build_context.module().dump();
+            e
+        })
+    }
+
 
 
 
