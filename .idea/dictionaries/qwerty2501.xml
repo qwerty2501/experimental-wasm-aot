@@ -68,6 +68,7 @@
       <w>udiv</w>
       <w>uint</w>
       <w>umask</w>
+      <w>unlockfile</w>
       <w>unop</w>
       <w>urem</w>
       <w>wasm</w>

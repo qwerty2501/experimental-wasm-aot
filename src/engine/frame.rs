@@ -73,7 +73,8 @@ impl<'a> LocalValue<'a>{
     }
 
     pub fn from_value_type(build_context:&'a BuildContext,value_type:&'a Type)->Self{
-        LocalValue{value:LocalAllocatedValue::new(build_context, value_type)}
+        let l = LocalAllocatedValue::new(build_context, value_type);
+        LocalValue{value:l}
     }
 }
 

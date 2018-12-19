@@ -648,7 +648,6 @@ impl Type{
         Type::int(context,constants::bit_width::<T>() as ::libc::c_uint)
     }
 
-
     pub fn struct_create_named<'a>(context:&'a Context,name:&str)->&'a Type{
         unsafe{
             LLVMStructCreateNamed(context.into(),compiler_c_str!(name)).into()

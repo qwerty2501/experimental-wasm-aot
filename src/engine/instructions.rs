@@ -89,12 +89,17 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
     Ok(stack)
 }
 
- fn store<'a,T:WasmIntType>(build_context:&'a BuildContext,align:u32,offset:u32,mut stack:Stack<'a,T>,value_type:&Type)->Result<Stack<'a,T>,Error>{
+ fn store<'a,TyS, T:WasmIntType>(build_context:&'a BuildContext,align:u32,offset:u32,mut stack:Stack<'a,T>,value_type:&Type)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        build_check_memory_size_const(build_context, 0, offset,  current_frame.module_instance.linear_memory_compiler)?;
         let v = stack.values.pop().ok_or(NotExistValue)?;
-        let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,Value::const_int(Type::int32(build_context.context()),offset as u64,false),"");
+        let i = stack.values.pop().ok_or(NotExistValue)?;
+        let offset = Value::const_int(Type::int32(build_context.context()),offset as u64,false);
+        let ea = build_context.builder().build_add(i.to_value(build_context),offset,"");
+        let type_size = ::std::mem::size_of::<TyS>();
+        let ea_max = build_context.builder().build_add(Value::const_int(Type::int32(build_context.context()),type_size as u64,false),ea,"");
+        build_check_memory_size(build_context, 0, ea_max,  current_frame.module_instance.linear_memory_compiler)?;
+        let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,ea,"");
         let v = build_context.builder().build_cast(Opcode::LLVMTrunc,v.to_value(&build_context),value_type,"");
         v.set_alignment(u32::pow(2,align));
         let memory = build_context.builder().build_bit_cast(memory,Type::ptr(value_type,0),"");
@@ -104,11 +109,16 @@ pub fn get_global_internal<'c>(build_context:&'c BuildContext, index:u32) ->Resu
 
 }
 
-fn load_int<'a,T:WasmIntType>(build_context:&'a BuildContext,align:u32,offset:u32,mut stack:Stack<'a,T>,value_type:&Type,wasm_type:&Type)->Result<Stack<'a,T>,Error>{
+fn load_int<'a,TyS,T:WasmIntType>(build_context:&'a BuildContext,align:u32,offset:u32,mut stack:Stack<'a,T>,value_type:&Type,wasm_type:&Type)->Result<Stack<'a,T>,Error>{
     {
         let current_frame = stack.activations.current_mut()?;
-        build_check_memory_size_const(build_context,0,offset,current_frame.module_instance.linear_memory_compiler)?;
-        let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,Value::const_int(Type::int32(build_context.context()),offset as u64,false),"");
+        let i = stack.values.pop().ok_or(NotExistValue)?;
+        let offset = Value::const_int(Type::int32(build_context.context()),offset as u64,false);
+        let ea = build_context.builder().build_add(i.to_value(build_context),offset,"");
+        let type_size = ::std::mem::size_of::<TyS>();
+        let ea_max = build_context.builder().build_add(Value::const_int(Type::int32(build_context.context()),type_size as u64,false),ea,"");
+        build_check_memory_size(build_context,0,ea_max,current_frame.module_instance.linear_memory_compiler)?;
+        let memory = current_frame.module_instance.linear_memory_compiler.build_get_real_address(build_context,0,ea,"");
         let memory = build_context.builder().build_bit_cast(memory,Type::ptr(value_type,0),"");
         let v = build_context.builder().build_load(memory,"");
         v.set_alignment(u32::pow(2,align));
@@ -888,29 +898,29 @@ pub fn progress_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext, in
         Instruction::GetLocal(index)=>get_local(build_context, index,stack),
         Instruction::SetLocal(index)=>set_local(build_context,index,stack),
         Instruction::TeeLocal(index)=>tee_local(build_context,index,stack),
-        Instruction::F32Store(align,offset)=>store(build_context,align,offset,stack,Type::float32(build_context.context())),
-        Instruction::F64Store(align,offset)=>store(build_context,align,offset,stack,Type::float64(build_context.context())),
-        Instruction::I32Store(align,offset)=>store(build_context,align,offset,stack, Type::int32(build_context.context())),
-        Instruction::I64Store(align,offset)=>store(build_context,align,offset,stack,Type::int64(build_context.context())),
-        Instruction::I32Store8(align,offset)=>store(build_context,align,offset,stack, Type::int8(build_context.context())),
-        Instruction::I32Store16(align,offset)=>store(build_context,align,offset,stack, Type::int16(build_context.context())),
-        Instruction::I64Store8(align,offset)=>store(build_context,align,offset,stack, Type::int8(build_context.context())),
-        Instruction::I64Store16(align,offset)=>store(build_context,align,offset,stack,Type::int16(build_context.context())),
-        Instruction::I64Store32(align,offset)=>store(build_context,align,offset,stack,Type::int32(build_context.context())),
-        Instruction::I32Load8S(align,offset)=>load_int(build_context,align,offset,stack, Type::int8(build_context.context()),Type::int32(build_context.context())),
-        Instruction::I32Load8U(align,offset)=>load_int(build_context,align,offset,stack, Type::int8(build_context.context()),Type::int32(build_context.context())),
-        Instruction::I32Load16S(align,offset)=>load_int(build_context,align,offset,stack , Type::int16(build_context.context()),Type::int32(build_context.context())),
-        Instruction::I32Load16U(align,offset)=>load_int(build_context,align,offset,stack,Type::int16(build_context.context()),Type::int32(build_context.context())),
-        Instruction::I32Load(align,offset)=>load_int(build_context,align,offset,stack, Type::int32(build_context.context()),Type::int32(build_context.context())),
-        Instruction::I64Load(align,offset)=>load_int(build_context,align,offset,stack, Type::int64(build_context.context()),Type::int64(build_context.context())),
-        Instruction::I64Load8S(align,offset)=>load_int(build_context,align,offset,stack,Type::int8(build_context.context()),Type::int64(build_context.context())),
-        Instruction::I64Load8U(align,offset)=>load_int(build_context,align,offset,stack,Type::int8(build_context.context()),Type::int64(build_context.context())),
-        Instruction::I64Load16S(align,offset)=>load_int(build_context,align,offset,stack,Type::int16(build_context.context()),Type::int64(build_context.context())),
-        Instruction::I64Load16U(align,offset)=>load_int(build_context,align,offset,stack, Type::int16(build_context.context()),Type::int64(build_context.context())),
-        Instruction::I64Load32S(align,offset)=>load_int(build_context,align,offset,stack,Type::int32(build_context.context()),Type::int64(build_context.context())),
-        Instruction::I64Load32U(align,offset)=>load_int(build_context,align,offset,stack,Type::int32(build_context.context()),Type::int64(build_context.context())),
-        Instruction::F32Load(align,offset) => load_int(build_context,align,offset,stack,Type::float32(build_context.context()),Type::float32(build_context.context())),
-        Instruction::F64Load(align,offset) => load_int(build_context,align,offset,stack,Type::float64(build_context.context()),Type::float64(build_context.context())),
+        Instruction::F32Store(align,offset)=>store::<f32,T>(build_context,align,offset,stack,Type::float32(build_context.context())),
+        Instruction::F64Store(align,offset)=>store::<f64,T>(build_context,align,offset,stack,Type::float64(build_context.context())),
+        Instruction::I32Store(align,offset)=>store::<i32,T>(build_context,align,offset,stack, Type::int32(build_context.context())),
+        Instruction::I64Store(align,offset)=>store::<i64,T>(build_context,align,offset,stack,Type::int64(build_context.context())),
+        Instruction::I32Store8(align,offset)=>store::<i8,T>(build_context,align,offset,stack, Type::int8(build_context.context())),
+        Instruction::I32Store16(align,offset)=>store::<i16,T>(build_context,align,offset,stack, Type::int16(build_context.context())),
+        Instruction::I64Store8(align,offset)=>store::<i8,T>(build_context,align,offset,stack, Type::int8(build_context.context())),
+        Instruction::I64Store16(align,offset)=>store::<i16,T>(build_context,align,offset,stack,Type::int16(build_context.context())),
+        Instruction::I64Store32(align,offset)=>store::<i32,T>(build_context,align,offset,stack,Type::int32(build_context.context())),
+        Instruction::I32Load8S(align,offset)=>load_int::<i8,T>(build_context,align,offset,stack, Type::int8(build_context.context()),Type::int32(build_context.context())),
+        Instruction::I32Load8U(align,offset)=>load_int::<i8,T>(build_context,align,offset,stack, Type::int8(build_context.context()),Type::int32(build_context.context())),
+        Instruction::I32Load16S(align,offset)=>load_int::<i16,T>(build_context,align,offset,stack , Type::int16(build_context.context()),Type::int32(build_context.context())),
+        Instruction::I32Load16U(align,offset)=>load_int::<i16,T>(build_context,align,offset,stack,Type::int16(build_context.context()),Type::int32(build_context.context())),
+        Instruction::I32Load(align,offset)=>load_int::<i32,T>(build_context,align,offset,stack, Type::int32(build_context.context()),Type::int32(build_context.context())),
+        Instruction::I64Load(align,offset)=>load_int::<i64,T>(build_context,align,offset,stack, Type::int64(build_context.context()),Type::int64(build_context.context())),
+        Instruction::I64Load8S(align,offset)=>load_int::<i8,T>(build_context,align,offset,stack,Type::int8(build_context.context()),Type::int64(build_context.context())),
+        Instruction::I64Load8U(align,offset)=>load_int::<i8,T>(build_context,align,offset,stack,Type::int8(build_context.context()),Type::int64(build_context.context())),
+        Instruction::I64Load16S(align,offset)=>load_int::<i16,T>(build_context,align,offset,stack,Type::int16(build_context.context()),Type::int64(build_context.context())),
+        Instruction::I64Load16U(align,offset)=>load_int::<i16,T>(build_context,align,offset,stack, Type::int16(build_context.context()),Type::int64(build_context.context())),
+        Instruction::I64Load32S(align,offset)=>load_int::<i32,T>(build_context,align,offset,stack,Type::int32(build_context.context()),Type::int64(build_context.context())),
+        Instruction::I64Load32U(align,offset)=>load_int::<i32,T>(build_context,align,offset,stack,Type::int32(build_context.context()),Type::int64(build_context.context())),
+        Instruction::F32Load(align,offset) => load_int::<f32,T>(build_context,align,offset,stack,Type::float32(build_context.context()),Type::float32(build_context.context())),
+        Instruction::F64Load(align,offset) => load_int::<f64,T>(build_context,align,offset,stack,Type::float64(build_context.context()),Type::float64(build_context.context())),
         Instruction::CurrentMemory(v)=>current_memory(build_context,v,stack),
         Instruction::GrowMemory(v)=>grow_memory(build_context,v,stack),
         Instruction::I32Clz => clz_int32(build_context,stack),
@@ -1330,9 +1340,11 @@ mod tests{
                                                                                                                                                                                                   &ft,
                                                                                                                                                                                                   &lt)],
                                         |stack,_bb|{
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(500),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32Const(3000),stack)?;
-                                            let stack = progress_instruction(&build_context,Instruction::I32Store(2,500),stack)?;
-                                            let  stack = progress_instruction(&build_context,Instruction::I32Load(2,500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Store(2,0),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(500),stack)?;
+                                            let  stack = progress_instruction(&build_context,Instruction::I32Load(2,0),stack)?;
                                             let _ = progress_instruction(&build_context,Instruction::End, stack)?;
             Ok(())
         })?;
