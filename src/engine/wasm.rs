@@ -59,6 +59,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
         self.build_init_data_sections_function(build_context,wasm_module)?;
         self.build_functions(&build_context,wasm_module)?;
         build_syscalls::<T>(build_context, wasm_module.memory_section().map(|_|&self.linear_memory_compiler))?;
+        self.build_putc_js(build_context)?;
         Ok(())
     }
 
@@ -187,6 +188,20 @@ impl<T:WasmIntType> WasmCompiler<T>{
         Ok(())
     }
 
+    fn build_putc_js<'a>(&self,build_context:&'a BuildContext)->Result<(),Error>{
+        let int32_type = Type::int32(build_context.context());
+        let putc_js_type = Type::function(Type::void(build_context.context()),&[int32_type],false);
+        let putc_js = build_context.module().set_declare_function(&Self::wasm_function_name("putc_js"),putc_js_type);
+        build_context.builder().build_function(build_context.context(),putc_js,|_,_|{
+            let c = putc_js.get_first_param().ok_or(NotExistValue)?;
+            let stdout = build_context.module().set_declare_global("stdout",Type::ptr(Type::void(build_context.context()),0));
+            let stdout = build_context.builder().build_load(stdout,"");
+            build_call_and_set_putc(build_context.module(),build_context.builder(),c,stdout,"");
+            build_context.builder().build_ret_void();
+            Ok(())
+        })
+    }
+
     fn set_declare_current_module_functions<'a>(&self, build_context:&'a BuildContext, wasm_module:&WasmModule, exported_function_pairs:&[(u32, &str)], types:&[&Type], imported_count:u32) ->Result<Vec<&'a Value>,Error>{
         if let Some(function_section) = wasm_module.function_section(){
             function_section.entries().iter().enumerate().map(|(index, function_entry)|{
@@ -229,6 +244,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
     }
 
     fn build_init_table_function(&self, build_context:&BuildContext,wasm_module:&WasmModule,functions:&[&Value],imported_count:u32)->Result<(),Error>{
+
         if let Some(table_section) = wasm_module.table_section()  {
             if let Some(elements_section) = wasm_module.elements_section(){
                 let table_import_count = wasm_module.import_count(ImportCountType::Table);
@@ -489,14 +505,11 @@ mod tests{
         let build_context = BuildContext::new(module_id,&context);
         let function_name = WasmCompiler::<u32>::wasm_function_name("main");
         wasm_compiler.build_main_function(&build_context,module_id,&module,WasmCompiler::<u32>::set_declare_main_function(&build_context),||{
-            let target_function = build_context.module().get_named_function(&function_name).ok_or(NoSuchLLVMFunction {name:function_name})?;
+            let target_function = build_context.module().get_named_function(&function_name).ok_or(NoSuchLLVMFunction {name:function_name.to_string()})?;
             build_context.builder().build_ret( build_context.builder().build_call(target_function,&[],""));
             Ok(())
         })?;
-        llvm::analysis::verify_module(build_context.module(),analysis::VerifierFailureAction::LLVMPrintMessageAction).map_err(|e|{
-            build_context.module().dump();
-            e
-        })
+        test_module_main_in_engine(build_context.module(),0)
     }
 
     #[test]

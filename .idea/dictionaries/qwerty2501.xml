@@ -50,6 +50,7 @@
       <w>popcnt</w>
       <w>pret</w>
       <w>prot</w>
+      <w>putc</w>
       <w>reinter</w>
       <w>reloc</w>
       <w>relop</w>

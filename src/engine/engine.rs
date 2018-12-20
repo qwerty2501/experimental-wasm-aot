@@ -51,7 +51,7 @@ impl<'a,T:WasmIntType>  Engine<T>{
 
         let triple = get_default_target_triple()?;
         let target = Target::get_target_from_triple(&triple )?;
-        let target_machine = TargetMachine::create_target_machine(target,&triple,"generic","",CodeGenOptLevel::LLVMCodeGenLevelDefault,RelocMode::LLVMRelocDefault,CodeModel::LLVMCodeModelDefault);
+        let target_machine = TargetMachine::create_target_machine(target,&triple,"generic","",CodeGenOptLevel::LLVMCodeGenLevelDefault,RelocMode::LLVMRelocPIC,CodeModel::LLVMCodeModelDefault);
 
         let object_file_path = option.output_file_path.parent().unwrap_or(Path::new("")).join([module_id,".o"].concat());
         target_machine.emit_to_file(&module, object_file_path.to_str().ok_or(NotExistObjectPath)?, CodeGenFileType::LLVMObjectFile)?;

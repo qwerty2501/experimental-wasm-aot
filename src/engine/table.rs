@@ -42,6 +42,7 @@ impl<TType:TableType,T:WasmIntType> TableCompiler<TType,T>{
     }
 
     pub fn compile(&self, build_context:&BuildContext,wasm_module:&WasmModule,initializers:&[TableInitializer])->Result<(),Error>{
+
         if let Some(table_section) = wasm_module.table_section(){
             self.build_init_function(build_context,table_section.entries(),initializers,wasm_module.import_count(ImportCountType::Table ) as u32)?;
         }

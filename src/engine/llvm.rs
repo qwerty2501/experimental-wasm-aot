@@ -977,6 +977,15 @@ pub fn build_call_and_set_trap<'m>(module:&'m Module,builder:&'m Builder,name:&s
 }
 
 
+pub fn build_call_and_set_putc<'m>(module:&'m Module,builder:&'m Builder,c:&'m Value,stream:&'m Value, name:&str)->&'m Value{
+    let context = module.context();
+    let int32_type = Type::int32(context);
+    let ptr_type = Type::ptr(Type::void(context),0);
+    let putc_type = Type::function(int32_type,&[int32_type,ptr_type],false);
+    let putc = module.set_declare_function("putc",putc_type);
+    builder.build_call(putc,&[c,stream],name)
+}
+
 
 
 
