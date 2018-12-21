@@ -38,6 +38,7 @@ fn build_syscall1<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
         let a = n.get_next_param().ok_or(NotExistValue)?;
         let mut cases = vec![];
         if linear_memory_compiler.is_some(){
+            /*
             cases.push(SysCallCase{code: WASM_SYS_BRK,on_case: Box::new( ||{
                 let linear_memory_compiler = linear_memory_compiler.unwrap();
                 let sys_brk_ret = build_call_and_set_brk(build_context.module(),build_context.builder(),build_get_real_address(build_context,linear_memory_compiler,a),"");
@@ -65,6 +66,7 @@ fn build_syscall1<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
                     )
                 }
             )
+            */
         }
         build_syscall_internal(build_context,syscall1,n,&cases,int_type)
 
@@ -85,24 +87,22 @@ fn build_syscall3<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
         let int64_type = Type::int64(build_context.context());
         let real_ptr_type = new_real_pointer_type(build_context.context());
         let mut cases = vec![];
-
         if linear_memory_compiler.is_some(){
+            /*
             cases.push(
                 SysCallCase {
                     code: WASM_SYS_WRITEV,
                     on_case: Box::new( || {
-                        let linear_memory_compiler = linear_memory_compiler.unwrap();
-                        let d = build_context.builder().build_int_cast(a,int32_type,"");
-                        let iovec = build_get_real_address(build_context, linear_memory_compiler, b);
-                        let iovec_count = build_context.builder().build_int_cast(c,int32_type,"");
-                        let ret = build_call_and_set_writev(build_context.module(), build_context.builder(), d, iovec, iovec_count, "");
+
+                        let ret = build_call_and_set_writev::<T>(build_context.module(), build_context.builder(), a, b, c, "");
                         build_ret(build_context,ret,int_type);
 
                         Ok(())
                     })
                 }
             );
-
+            */
+/*
             cases.push(
                 SysCallCase{
                     code: WASM_SYS_FUTEX,
@@ -134,7 +134,9 @@ fn build_syscall3<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
                     )
                 }
             )
+            */
         }
+
 
         build_syscall_internal(build_context,syscall3,n,&cases,int_type)
 
@@ -218,7 +220,7 @@ fn build_syscall6<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
                     })
                 }
             );
-
+/*
             cases.push(
                 SysCallCase{
                     code: WASM_SYS_FUTEX,
@@ -237,6 +239,7 @@ fn build_syscall6<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
                     })
                 }
             )
+*/
         }
         build_syscall_internal(build_context,syscall6,n,&cases,int_type)
     })
@@ -295,15 +298,16 @@ fn build_call_and_set_brk<'m>(module:&'m Module,builder:&'m Builder,addr:&Value,
     builder.build_call(brk,&[addr],name)
 }
 
-fn build_call_and_set_writev<'m>(module:&'m Module,builder:&'m Builder,d:&'m Value,iovec:&'m Value,iovec_count:&'m Value,name:&str)->&'m Value{
+fn build_call_and_set_writev<'m,T:WasmIntType>(module:&'m Module,builder:&'m Builder,d:&'m Value,iovec:&'m Value,iovec_count:&'m Value,name:&str)->&'m Value{
     let context = module.context();
-    let int_type = Type::int_ptr(context);
+    let int_type = Type::int_wasm_ptr::<T>(context);
     let writev_type = Type::function(int_type,&[
-        Type::int32(context),
-        new_real_pointer_type(context),
-        Type::int32(context),
+        int_type,
+        int_type,
+        int_type,
     ],false);
-    let writev = module.set_declare_function("writev",writev_type);
+    let func_name = WasmCompiler::<T>::wasm_function_name("writev_c");
+    let writev = module.set_declare_function(&func_name,writev_type);
     builder.build_call(writev,&[d,iovec,iovec_count],name)
 }
 
