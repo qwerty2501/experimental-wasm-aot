@@ -144,7 +144,7 @@ impl<T:WasmIntType> WasmCompiler<T>{
 
             let functions:Vec<&Value> = [(&imported_functions) as &[&Value],(&current_module_functions) as &[&Value]].concat();
 
-            self.build_init_table_function(build_context,wasm_module,&functions,imported_count)?;
+            self.build_init_table_function(build_context,wasm_module,&functions)?;
 
             self.build_function_codes(build_context,wasm_module,&functions,&types,imported_count)?;
         }
@@ -243,19 +243,20 @@ impl<T:WasmIntType> WasmCompiler<T>{
         }
     }
 
-    fn build_init_table_function(&self, build_context:&BuildContext,wasm_module:&WasmModule,functions:&[&Value],imported_count:u32)->Result<(),Error>{
+    fn build_init_table_function(&self, build_context:&BuildContext,wasm_module:&WasmModule,functions:&[&Value])->Result<(),Error>{
 
         if let Some(table_section) = wasm_module.table_section()  {
+
             if let Some(elements_section) = wasm_module.elements_section(){
                 let table_import_count = wasm_module.import_count(ImportCountType::Table);
                 let table_initializers = elements_section.entries().iter().map(|element_segment|{
                     let offset = Self::segment_init_expr_to_value(build_context ,element_segment.offset())?;
                     let members = element_segment.members().iter().map(|member_index|{
-                        Ok(*functions.get((*member_index)as usize).ok_or(NoSuchFunctionIndex{index:*member_index + table_import_count as u32})?)
+                        Ok(*functions.get((*member_index)as usize).ok_or(NoSuchFunctionIndex{index:*member_index })?)
                     }).collect::<Result<Vec<_>,Error>>()?;
                     Ok(TableInitializer::new(element_segment.index() ,offset,members))
                 }).collect::<Result<Vec<_>,Error>>()?;
-                self.table_compiler.build_init_function(build_context,table_section.entries(),&table_initializers,imported_count )?;
+                self.table_compiler.build_init_function(build_context,table_section.entries(),&table_initializers,table_import_count as u32 )?;
             }
         }
         Ok(())
@@ -509,6 +510,7 @@ mod tests{
             build_context.builder().build_ret( build_context.builder().build_call(target_function,&[],""));
             Ok(())
         })?;
+        build_context.module().dump();
         test_module_main_in_engine(build_context.module(),0)
     }
 

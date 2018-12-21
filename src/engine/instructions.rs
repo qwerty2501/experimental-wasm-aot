@@ -4109,7 +4109,6 @@ mod tests{
                 Ok(())
             })?;
         let initialize_table_function_name = ft.get_init_function_name();
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),&initialize_table_function_name,&[])?;
             assert_eq!(1,ret.to_int(false));
