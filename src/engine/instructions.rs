@@ -1310,11 +1310,15 @@ mod tests{
         let (ft,lt) = new_compilers();
         build_test_instruction_function(&build_context, test_function_name, vec![WasmValue::new_value(Value::const_int(Type::int32(build_context.context()), expected, false))], vec![
 
-            frame::test_utils::new_test_frame(vec![LocalValue::from_value(&build_context,Value::const_int(Type::int32(build_context.context()), 0, false))],
+            frame::test_utils::new_test_frame(vec![],
                                               &[], &[],
                                               &ft,
                                               &lt)
         ], |stack,_bb|{
+            let stack = Stack::<u32>::new(stack.current_function,vec![],stack.values,vec![ frame::test_utils::new_test_frame(vec![LocalValue::from_value(&build_context, Value::const_int(Type::int32(build_context.context()), 0, false))],
+                                                                                                                             &[], &[],
+                                                                                                                             &ft,
+                                                                                                                             &lt)]);
             let stack = tee_local(&build_context,0,stack)?;
             let _ = progress_instruction(&build_context,Instruction::End, stack)?;
             Ok(())
@@ -3846,16 +3850,21 @@ mod tests{
                                         |stack,_bb|{
                                             let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
 
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(500),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32Const(0),stack)?;
-                                            let stack = progress_instruction(&build_context,Instruction::I32Store(2,500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Store(2,0),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::Loop(BlockType::Value(ValueType::I32)), stack)?;
 
-                                            let stack = progress_instruction(&build_context,Instruction::I32Load(2,500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Load(2,0),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32Const(1),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32Add,stack)?;
-                                            let stack = progress_instruction(&build_context,Instruction::I32Store(2,500),stack)?;
-                                            let stack = progress_instruction(&build_context,Instruction::I32Load(2,500),stack)?;
-                                            let stack = progress_instruction(&build_context,Instruction::I32Load(2,500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Store(2,0),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Load(2,0),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Const(500),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::I32Load(2,0),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32Const(4),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32GtS,stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::BrIf(0),stack)?;
@@ -4068,7 +4077,6 @@ mod tests{
                 let _ = progress_instruction(&build_context,Instruction::End, stack)?;
                 Ok(())
             })?;
-        build_context.module().dump();
         test_module_in_engine(build_context.module(),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
