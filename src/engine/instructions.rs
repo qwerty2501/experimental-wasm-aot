@@ -3733,7 +3733,7 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::Block(BlockType::NoResult), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
-                let stack = progress_instruction(&build_context,Instruction::Br(0),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Br(1),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(5),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
@@ -3795,7 +3795,7 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::F32)), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
-                let stack = progress_instruction(&build_context,Instruction::Br(0),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::Br(2),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::F32Const(i32_reinterpret_f32(3.21)),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
@@ -3827,7 +3827,7 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::Block(BlockType::NoResult), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(1),stack)?;
-                let stack = progress_instruction(&build_context,Instruction::BrIf(0),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::BrIf(1),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(2),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
@@ -3835,6 +3835,7 @@ mod tests{
                 Ok(())
             })?;
 
+        build_context.module().dump();
         test_module_in_engine_optional_analysis(build_context.module(),||Ok(()),|engine|{
             let ret = run_test_function_with_name(engine,build_context.module(),test_function_name,&[])?;
             assert_eq!(expected ,ret.to_int(false));
@@ -3873,9 +3874,9 @@ mod tests{
                                             let stack = progress_instruction(&build_context,Instruction::I32Load(2,0),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32Const(4),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32GtS,stack)?;
-                                            let stack = progress_instruction(&build_context,Instruction::BrIf(0),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::BrIf(1),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32Const(12),stack)?;
-                                            let stack = progress_instruction(&build_context,Instruction::Br(1),stack)?;
+                                            let stack = progress_instruction(&build_context,Instruction::Br(0),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::I32Const(2),stack)?;
                                             let stack = progress_instruction(&build_context,Instruction::End,stack)?;
@@ -3939,7 +3940,7 @@ mod tests{
                 let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::Block(BlockType::Value(ValueType::I32)), stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(3),stack)?;
-                let stack = progress_instruction(&build_context,Instruction::I32Const(0),stack)?;
+                let stack = progress_instruction(&build_context,Instruction::I32Const(1),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::BrTable(Box::new( [0]),1),stack)?;
                 let stack = progress_instruction(&build_context,Instruction::End,stack)?;
                 let stack = progress_instruction(&build_context,Instruction::I32Const(22),stack)?;
