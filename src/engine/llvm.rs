@@ -4,7 +4,7 @@ use llvm_sys::core::*;
 use std::ffi::CString;
 use std::ops::{Deref};
 use super::constants;
-pub use llvm_sys::{LLVMIntPredicate as IntPredicate,LLVMRealPredicate as RealPredicate,LLVMLinkage as Linkage , LLVMOpcode as Opcode};
+pub use llvm_sys::{LLVMIntPredicate as IntPredicate,LLVMRealPredicate as RealPredicate,LLVMLinkage as Linkage , LLVMOpcode as Opcode,LLVMTypeKind as TypeKind};
 use failure::Error;
 use error::RuntimeError::*;
 use std::mem;
@@ -600,6 +600,11 @@ pub enum Type{}
 impl_type_traits!(Type,LLVMTypeRef);
 impl Type{
 
+    pub fn get_type_kind(&self)->TypeKind{
+        unsafe{
+            LLVMGetTypeKind(self.into())
+        }
+    }
 
     pub fn get_return_type(&self)->&Type{
         unsafe{

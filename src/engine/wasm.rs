@@ -510,7 +510,7 @@ mod tests{
             build_context.builder().build_ret( build_context.builder().build_call(target_function,&[],""));
             Ok(())
         })?;
-        test_module_main_in_engine(build_context.module(),32)
+        test_module_main_in_engine(build_context.module(),1)
     }
 
     #[test]
@@ -681,7 +681,6 @@ mod tests{
             build_context.builder().build_ret( build_context.builder().build_call(target_function,&[],""));
             Ok(())
         })?;
-        build_context.module().dump();
         test_module_main_in_engine(build_context.module(),0)
     }
 

@@ -177,25 +177,6 @@ fn load_int<'a,TyS,T:WasmIntType>(build_context:&'a BuildContext,align:u32,offse
              stack
          } else{
              match previous_instruction.clone(){
-                 Some(Instruction::Unreachable) =>{
-                     let function_type = Type::type_of(stack.current_function);
-                     let return_type = function_type.get_return_type();
-                     if let Some(ret_value) = stack.values.pop() {
-                         build_context.builder().build_ret(ret_value.to_value(build_context));
-                     } else{
-                         if return_type == Type::void(build_context.context()){
-                             build_context.builder().build_ret_void();
-                         } else if return_type == Type::int32(build_context.context()){
-                             build_context.builder().build_ret(Value::const_int(Type::int32(build_context.context()),0,false));
-                         } else if return_type == Type::int64(build_context.context()){
-                             build_context.builder().build_ret(Value::const_int(Type::int64(build_context.context()),0,false));
-                         } else if return_type == Type::float32(build_context.context()){
-                             build_context.builder().build_ret(Value::const_real(Type::float32(build_context.context()),0.0));
-                         } else if return_type == Type::float64(build_context.context()){
-                             build_context.builder().build_ret(Value::const_real(Type::float64(build_context.context()),0.0));
-                         }
-                     }
-                 }
                  Some(Instruction::Return)=>{}
                  _ => {
                      if let Some(ret_value) = stack.values.pop() {
@@ -224,15 +205,8 @@ fn build_next_br<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Sta
 
         if let Some(return_value) = target_ret_value {
             if need_br_next {
-                if let Some(Instruction::Unreachable) = previous_instruction.clone() {
-                    if let Some(rv) = ret_value {
-                        return_value.store(build_context, rv.to_value(build_context));
-                    }
-                } else {
-                    let ret_value = ret_value.ok_or(NotExistValue)?.to_value(build_context);
-                    return_value.store(build_context, ret_value);
-                }
-
+                let ret_value = ret_value.ok_or(NotExistValue)?.to_value(build_context);
+                return_value.store(build_context, ret_value);
             }
             stack.values.push(WasmValue::new_local_allocated_value(return_value));
         }
@@ -801,8 +775,26 @@ fn nop<'a,T:WasmIntType>(build_context:&'a BuildContext, stack:Stack<'a,T>)->Res
     Ok(stack)
 }
 
-fn unreachable<'a,T:WasmIntType>(build_context:&'a BuildContext,stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
-    build_call_and_set_trap(build_context.module(),build_context.builder(),"");
+fn unreachable<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
+    {
+        build_call_and_set_trap(build_context.module(),build_context.builder(),"");
+        let function_type = Type::type_of(stack.current_function);
+        let return_type = function_type.get_return_type();
+        let return_type = return_type.get_return_type();
+        match return_type.get_type_kind() {
+            TypeKind::LLVMIntegerTypeKind => {
+                stack.values.push(WasmValue::new_value(Value::const_int(return_type,0,false)));
+            },
+            TypeKind::LLVMFloatTypeKind|TypeKind::LLVMDoubleTypeKind =>{
+                stack.values.push(WasmValue::new_value(Value::const_real(return_type,0.0)));
+            },
+            TypeKind::LLVMVoidTypeKind =>{},
+            _=>{
+                Err(InvalidType)?
+            }
+        }
+    }
+
     Ok(stack)
 }
 
