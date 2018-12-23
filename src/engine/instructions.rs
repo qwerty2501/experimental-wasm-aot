@@ -778,21 +778,34 @@ fn nop<'a,T:WasmIntType>(build_context:&'a BuildContext, stack:Stack<'a,T>)->Res
 fn unreachable<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>)->Result<Stack<'a,T>,Error>{
     {
         build_call_and_set_trap(build_context.module(),build_context.builder(),"");
-        let function_type = Type::type_of(stack.current_function);
-        let return_type = function_type.get_return_type();
-        let return_type = return_type.get_return_type();
-        match return_type.get_type_kind() {
-            TypeKind::LLVMIntegerTypeKind => {
-                stack.values.push(WasmValue::new_value(Value::const_int(return_type,0,false)));
-            },
-            TypeKind::LLVMFloatTypeKind|TypeKind::LLVMDoubleTypeKind =>{
-                stack.values.push(WasmValue::new_value(Value::const_real(return_type,0.0)));
-            },
-            TypeKind::LLVMVoidTypeKind =>{},
-            _=>{
-                Err(InvalidType)?
+        let return_type = if let Some(label) = stack.labels.last(){
+            if let Some(ret) = label.return_value.clone(){
+                Some(ret.value_type())
+            } else{
+                None
+            }
+
+        } else{
+            let function_type = Type::type_of(stack.current_function);
+            let return_type = function_type.get_return_type();
+            let return_type = return_type.get_return_type();
+            Some(return_type)
+        };
+        if let Some(return_type) = return_type{
+            match return_type.get_type_kind() {
+                TypeKind::LLVMIntegerTypeKind => {
+                    stack.values.push(WasmValue::new_value(Value::const_int(return_type,0,false)));
+                },
+                TypeKind::LLVMFloatTypeKind|TypeKind::LLVMDoubleTypeKind =>{
+                    stack.values.push(WasmValue::new_value(Value::const_real(return_type,0.0)));
+                },
+                TypeKind::LLVMVoidTypeKind =>{},
+                _=>{
+                    Err(InvalidType)?
+                }
             }
         }
+
     }
 
     Ok(stack)
