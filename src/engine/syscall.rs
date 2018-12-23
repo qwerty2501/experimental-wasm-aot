@@ -88,7 +88,7 @@ fn build_syscall3<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
         let real_ptr_type = new_real_pointer_type(build_context.context());
         let mut cases = vec![];
         if linear_memory_compiler.is_some(){
-            /*
+
             cases.push(
                 SysCallCase {
                     code: WASM_SYS_WRITEV,
@@ -101,7 +101,7 @@ fn build_syscall3<'m,T:WasmIntType>(build_context:&'m BuildContext,int_type:&'m 
                     })
                 }
             );
-            */
+
 /*
             cases.push(
                 SysCallCase{
@@ -307,8 +307,12 @@ fn build_call_and_set_writev<'m,T:WasmIntType>(module:&'m Module,builder:&'m Bui
         int_type,
     ],false);
     let func_name = WasmCompiler::<T>::wasm_function_name("writev_c");
-    let writev = module.set_declare_function(&func_name,writev_type);
-    builder.build_call(writev,&[d,iovec,iovec_count],name)
+    if let Some(writev) =  module.get_named_function(&func_name){
+        builder.build_call(writev,&[d,iovec,iovec_count],name)
+    } else{
+        Value::const_int(int_type,0,false)
+    }
+
 }
 
 
