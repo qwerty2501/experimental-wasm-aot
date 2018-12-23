@@ -22,6 +22,7 @@
       <w>fadd</w>
       <w>fcmp</w>
       <w>fdiv</w>
+      <w>fizzbuzz</w>
       <w>fmax</w>
       <w>fmaxf</w>
       <w>fmaxl</w>
