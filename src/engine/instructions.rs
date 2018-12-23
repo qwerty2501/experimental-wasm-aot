@@ -764,9 +764,6 @@ fn br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,lab
 
 fn br_if<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,label_index:u32)->Result<Stack<'a,T>,Error>{
     Ok({
-        println!("br_if:labels index:{}",label_index);
-        println!("br_if:labels count:{}",stack.labels.len());
-
         let cond = stack.values.pop().ok_or(NotExistValue)?;
         let br_block = stack.current_function.append_basic_block(build_context.context(),"br_if_then");
         let nothing_br_block = stack.current_function.append_basic_block(build_context.context(),"br_if_else");
