@@ -221,20 +221,25 @@ fn build_next_br<'a,T:WasmIntType>(build_context:&'a BuildContext, mut stack:Sta
         } else{
             true
         };
-        if need_br_next {
-            if let Some(return_value) = target_ret_value {
-                if let Some(Instruction::Unreachable) = previous_instruction.clone(){
+
+        if let Some(return_value) = target_ret_value {
+            if need_br_next {
+                if let Some(Instruction::Unreachable) = previous_instruction.clone() {
                     if let Some(rv) = ret_value {
                         return_value.store(build_context, rv.to_value(build_context));
                     }
-                } else{
+                } else {
                     let ret_value = ret_value.ok_or(NotExistValue)?.to_value(build_context);
                     return_value.store(build_context, ret_value);
                 }
-                stack.values.push(WasmValue::new_local_allocated_value(return_value));
+
             }
+            stack.values.push(WasmValue::new_local_allocated_value(return_value));
+        }
+        if need_br_next{
             build_context.builder().build_br(next);
         }
+
     }
 
     Ok(stack)
@@ -737,7 +742,8 @@ fn else_instruction<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:S
 
 fn br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,label_index:u32)->Result<Stack<'a,T>,Error>{
     {
-        let label = stack.labels.get(label_index as usize).ok_or(NoSuchLabel{index:label_index})?.clone();
+        let jump_label_index = stack.labels.len() as i32 - (1 + label_index as i32);
+        let label = stack.labels.get(jump_label_index as usize).ok_or(NoSuchLabel{index:label_index})?.clone();
 
 
         if let Some(return_value) = label.return_value.clone() {
@@ -758,9 +764,12 @@ fn br<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,lab
 
 fn br_if<'a,T:WasmIntType>(build_context:&'a BuildContext,mut stack:Stack<'a,T>,label_index:u32)->Result<Stack<'a,T>,Error>{
     Ok({
+        println!("br_if:labels index:{}",label_index);
+        println!("br_if:labels count:{}",stack.labels.len());
+
         let cond = stack.values.pop().ok_or(NotExistValue)?;
-        let br_block = stack.current_function.append_basic_block(build_context.context(),"");
-        let nothing_br_block = stack.current_function.append_basic_block(build_context.context(),"");
+        let br_block = stack.current_function.append_basic_block(build_context.context(),"br_if_then");
+        let nothing_br_block = stack.current_function.append_basic_block(build_context.context(),"br_if_else");
         build_cond_br(build_context.builder(),build_context.context(),cond.to_value(build_context),br_block,nothing_br_block);
         build_context.builder().position_builder_at_end(br_block);
         let stack =br(build_context,stack,label_index)?;

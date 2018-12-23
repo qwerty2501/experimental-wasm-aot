@@ -546,6 +546,108 @@ mod tests{
         test_module_main_in_engine(build_context.module(),0)
     }
 
+    #[test]
+    pub fn shr_u_works()->Result<(),Error>{
+        let case_name = "shr_u";
+        let return_only_module =  load_wasm_compiler_test_case(case_name)?;
+        let wasm_compiler = WasmCompiler::<u32>::new();
+        let context = Context::new();
+        let module_id = case_name;
+        let build_context = BuildContext::new(module_id,&context);
+        let function_name = WasmCompiler::<u32>::wasm_function_name(case_name);
+        wasm_compiler.build_main_function(&build_context,module_id,&return_only_module,WasmCompiler::<u32>::set_declare_main_function(&build_context),||{
+            let target_function = build_context.module().get_named_function(&function_name).ok_or(NoSuchLLVMFunction {name:function_name})?;
+            build_context.builder().build_ret( build_context.builder().build_call(target_function,&[],""));
+            Ok(())
+        })?;
+        test_module_main_in_engine(build_context.module(),3)
+    }
+
+    #[test]
+    pub fn select_works()->Result<(),Error>{
+        let case_name = "select";
+        let return_only_module =  load_wasm_compiler_test_case(case_name)?;
+        let wasm_compiler = WasmCompiler::<u32>::new();
+        let context = Context::new();
+        let module_id = case_name;
+        let build_context = BuildContext::new(module_id,&context);
+        let function_name = WasmCompiler::<u32>::wasm_function_name(case_name);
+        wasm_compiler.build_main_function(&build_context,module_id,&return_only_module,WasmCompiler::<u32>::set_declare_main_function(&build_context),||{
+            let target_function = build_context.module().get_named_function(&function_name).ok_or(NoSuchLLVMFunction {name:function_name})?;
+            build_context.builder().build_ret( build_context.builder().build_call(target_function,&[],""));
+            Ok(())
+        })?;
+        test_module_main_in_engine(build_context.module(),3)
+    }
+
+    #[test]
+    pub fn loop1_works()->Result<(),Error>{
+        let case_name = "loop1";
+        let return_only_module =  load_wasm_compiler_test_case(case_name)?;
+        let wasm_compiler = WasmCompiler::<u32>::new();
+        let context = Context::new();
+        let module_id = case_name;
+        let build_context = BuildContext::new(module_id,&context);
+        let function_name = WasmCompiler::<u32>::wasm_function_name(case_name);
+        wasm_compiler.build_main_function(&build_context,module_id,&return_only_module,WasmCompiler::<u32>::set_declare_main_function(&build_context),||{
+            let target_function = build_context.module().get_named_function(&function_name).ok_or(NoSuchLLVMFunction {name:function_name})?;
+            build_context.builder().build_ret( build_context.builder().build_call(target_function,&[],""));
+            Ok(())
+        })?;
+        test_module_main_in_engine(build_context.module(),1)
+    }
+
+    #[test]
+    pub fn block_return_works()->Result<(),Error>{
+        let case_name = "block_return";
+        let return_only_module =  load_wasm_compiler_test_case(case_name)?;
+        let wasm_compiler = WasmCompiler::<u32>::new();
+        let context = Context::new();
+        let module_id = case_name;
+        let build_context = BuildContext::new(module_id,&context);
+        let function_name = WasmCompiler::<u32>::wasm_function_name(case_name);
+        wasm_compiler.build_main_function(&build_context,module_id,&return_only_module,WasmCompiler::<u32>::set_declare_main_function(&build_context),||{
+            let target_function = build_context.module().get_named_function(&function_name).ok_or(NoSuchLLVMFunction {name:function_name})?;
+            build_context.builder().build_ret( build_context.builder().build_call(target_function,&[],""));
+            Ok(())
+        })?;
+        test_module_main_in_engine(build_context.module(),4)
+    }
+
+
+    #[test]
+    pub fn and_true_works()->Result<(),Error>{
+        let case_name = "and_true";
+        let return_only_module =  load_wasm_compiler_test_case(case_name)?;
+        let wasm_compiler = WasmCompiler::<u32>::new();
+        let context = Context::new();
+        let module_id = case_name;
+        let build_context = BuildContext::new(module_id,&context);
+        let function_name = WasmCompiler::<u32>::wasm_function_name(case_name);
+        wasm_compiler.build_main_function(&build_context,module_id,&return_only_module,WasmCompiler::<u32>::set_declare_main_function(&build_context),||{
+            let target_function = build_context.module().get_named_function(&function_name).ok_or(NoSuchLLVMFunction {name:function_name})?;
+            build_context.builder().build_ret( build_context.builder().build_call(target_function,&[],""));
+            Ok(())
+        })?;
+        test_module_main_in_engine(build_context.module(),2)
+    }
+
+    #[test]
+    pub fn and_false_works()->Result<(),Error>{
+        let case_name = "and_false";
+        let return_only_module =  load_wasm_compiler_test_case(case_name)?;
+        let wasm_compiler = WasmCompiler::<u32>::new();
+        let context = Context::new();
+        let module_id = case_name;
+        let build_context = BuildContext::new(module_id,&context);
+        let function_name = WasmCompiler::<u32>::wasm_function_name(case_name);
+        wasm_compiler.build_main_function(&build_context,module_id,&return_only_module,WasmCompiler::<u32>::set_declare_main_function(&build_context),||{
+            let target_function = build_context.module().get_named_function(&function_name).ok_or(NoSuchLLVMFunction {name:function_name})?;
+            build_context.builder().build_ret( build_context.builder().build_call(target_function,&[],""));
+            Ok(())
+        })?;
+        test_module_main_in_engine(build_context.module(),0)
+    }
 
     #[test]
     pub fn pow_works()->Result<(),Error>{
@@ -560,6 +662,7 @@ mod tests{
             build_context.builder().build_ret( build_context.builder().build_call(target_function,&[Value::const_int(Type::int32(build_context.context()),3,false)],""));
             Ok(())
         })?;
+
         build_context.module().dump();
         test_module_main_in_engine(build_context.module(),8)
     }

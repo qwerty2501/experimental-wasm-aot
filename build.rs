@@ -40,9 +40,10 @@ fn build_wat(dir:&Path,out_dir:&Path){
 
         if   meta_data.is_file() && ext == "wat"  &&  (!out_wasm_path.exists() || filetime::FileTime::from_last_modification_time(&meta_data) >= filetime::FileTime::from_last_modification_time(&out_wasm_path.metadata().unwrap())) {
 
-            Command::new(WAT_COMPILER).args(&[path_in_project.to_str().unwrap(),"-o"])
+            if let Err(e) =Command::new(WAT_COMPILER).args(&[path_in_project.to_str().unwrap(),"-o"])
                 .arg(&out_wasm_path)
-                .status();
+                .status() {
+            }
         } else if meta_data.is_dir(){
             build_wat(path_in_project.as_path(),out_path.as_path());
         }

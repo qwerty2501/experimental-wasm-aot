@@ -54,6 +54,4 @@
     i32.eq
     select
     get_local $l1
-    i32.mul)
-  (table $T0 1 1 anyfunc)
-  (memory $memory (export "memory") 17))
+    i32.mul))
